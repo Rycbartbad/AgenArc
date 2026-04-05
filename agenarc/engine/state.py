@@ -8,10 +8,12 @@ Hierarchical state management for AgenArc execution:
 """
 
 import asyncio
+import json
 import time
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 
@@ -24,6 +26,216 @@ class Checkpoint:
     global_state: Dict[str, Any]
     local_states: Dict[str, Dict[str, Any]]
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+class CheckpointManager:
+    """
+    Manages checkpoint persistence to disk.
+
+    Provides:
+    - File-based checkpoint storage
+    - Automatic checkpoint cleanup
+    - Checkpoint recovery on restart
+
+    Checkpoints are stored as JSON files in:
+        ~/.agenarc/checkpoints/<execution_id>/<checkpoint_id>.json
+    """
+
+    def __init__(
+        self,
+        checkpoint_dir: Optional[Path] = None,
+        max_checkpoints: int = 100
+    ):
+        """
+        Initialize CheckpointManager.
+
+        Args:
+            checkpoint_dir: Directory for checkpoint files
+            max_checkpoints: Maximum checkpoints to keep per execution
+        """
+        if checkpoint_dir is None:
+            checkpoint_dir = Path.home() / ".agenarc" / "checkpoints"
+
+        self._checkpoint_dir = checkpoint_dir
+        self._max_checkpoints = max_checkpoints
+        self._checkpoints: OrderedDict[str, Checkpoint] = OrderedDict()
+
+        # Ensure directory exists
+        self._checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def checkpoint_dir(self) -> Path:
+        """Get checkpoint directory path."""
+        return self._checkpoint_dir
+
+    def save_checkpoint(self, checkpoint: Checkpoint) -> str:
+        """
+        Save checkpoint to disk and memory.
+
+        Args:
+            checkpoint: Checkpoint to save
+
+        Returns:
+            Checkpoint ID
+        """
+        # Save to memory
+        self._checkpoints[checkpoint.id] = checkpoint
+
+        # Enforce max checkpoints
+        while len(self._checkpoints) > self._max_checkpoints:
+            oldest = self._checkpoints.popitem(last=False)
+            self._delete_checkpoint_file(oldest[1].id, checkpoint.metadata.get("execution_id", "default"))
+
+        # Save to disk
+        self._save_to_disk(checkpoint)
+
+        return checkpoint.id
+
+    def load_checkpoint(self, checkpoint_id: str, execution_id: str) -> Optional[Checkpoint]:
+        """
+        Load checkpoint from disk or memory.
+
+        Args:
+            checkpoint_id: Checkpoint ID
+            execution_id: Execution ID
+
+        Returns:
+            Checkpoint or None if not found
+        """
+        # Check memory first
+        if checkpoint_id in self._checkpoints:
+            return self._checkpoints[checkpoint_id]
+
+        # Try to load from disk
+        return self._load_from_disk(checkpoint_id, execution_id)
+
+    def list_checkpoints(self, execution_id: str) -> List[Checkpoint]:
+        """
+        List all checkpoints for an execution.
+
+        Args:
+            execution_id: Execution ID
+
+        Returns:
+            List of checkpoints
+        """
+        checkpoints = []
+
+        # Load from disk
+        exec_dir = self._checkpoint_dir / execution_id
+        if exec_dir.exists():
+            for file_path in exec_dir.glob("*.json"):
+                checkpoint = self._read_checkpoint_file(file_path)
+                if checkpoint:
+                    checkpoints.append(checkpoint)
+
+        # Add memory checkpoints
+        for checkpoint in self._checkpoints.values():
+            if checkpoint.metadata.get("execution_id") == execution_id:
+                if checkpoint not in checkpoints:
+                    checkpoints.append(checkpoint)
+
+        # Sort by timestamp
+        checkpoints.sort(key=lambda c: c.timestamp)
+        return checkpoints
+
+    def delete_checkpoint(self, checkpoint_id: str, execution_id: str) -> bool:
+        """
+        Delete a checkpoint.
+
+        Args:
+            checkpoint_id: Checkpoint ID
+            execution_id: Execution ID
+
+        Returns:
+            True if deleted
+        """
+        # Remove from memory
+        if checkpoint_id in self._checkpoints:
+            del self._checkpoints[checkpoint_id]
+
+        # Remove from disk
+        return self._delete_checkpoint_file(checkpoint_id, execution_id)
+
+    def delete_all_checkpoints(self, execution_id: str) -> None:
+        """Delete all checkpoints for an execution."""
+        # Clear memory
+        to_remove = [
+            cid for cid, cp in self._checkpoints.items()
+            if cp.metadata.get("execution_id") == execution_id
+        ]
+        for cid in to_remove:
+            del self._checkpoints[cid]
+
+        # Clear disk
+        exec_dir = self._checkpoint_dir / execution_id
+        if exec_dir.exists():
+            for file_path in exec_dir.glob("*.json"):
+                file_path.unlink()
+            exec_dir.rmdir()
+
+    def _get_checkpoint_path(self, checkpoint_id: str, execution_id: str) -> Path:
+        """Get file path for checkpoint."""
+        exec_dir = self._checkpoint_dir / execution_id
+        return exec_dir / f"{checkpoint_id}.json"
+
+    def _save_to_disk(self, checkpoint: Checkpoint) -> None:
+        """Save checkpoint to disk."""
+        execution_id = checkpoint.metadata.get("execution_id", "default")
+        file_path = self._get_checkpoint_path(checkpoint.id, execution_id)
+
+        # Ensure directory exists
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Serialize checkpoint
+        data = {
+            "id": checkpoint.id,
+            "label": checkpoint.label,
+            "timestamp": checkpoint.timestamp,
+            "global_state": checkpoint.global_state,
+            "local_states": checkpoint.local_states,
+            "metadata": checkpoint.metadata,
+        }
+
+        # Write atomically
+        tmp_path = file_path.with_suffix(".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, default=str)
+        tmp_path.replace(file_path)
+
+    def _load_from_disk(self, checkpoint_id: str, execution_id: str) -> Optional[Checkpoint]:
+        """Load checkpoint from disk."""
+        file_path = self._get_checkpoint_path(checkpoint_id, execution_id)
+
+        if not file_path.exists():
+            return None
+
+        return self._read_checkpoint_file(file_path)
+
+    def _read_checkpoint_file(self, file_path: Path) -> Optional[Checkpoint]:
+        """Read checkpoint from file."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            return Checkpoint(
+                id=data["id"],
+                label=data["label"],
+                timestamp=data["timestamp"],
+                global_state=data["global_state"],
+                local_states=data["local_states"],
+                metadata=data.get("metadata", {}),
+            )
+        except Exception:
+            return None
+
+    def _delete_checkpoint_file(self, checkpoint_id: str, execution_id: str) -> bool:
+        """Delete checkpoint file."""
+        file_path = self._get_checkpoint_path(checkpoint_id, execution_id)
+        if file_path.exists():
+            file_path.unlink()
+            return True
+        return False
 
 
 @dataclass

@@ -60,7 +60,8 @@ class GraphTraversal:
         # Kahn's algorithm
         in_degree = {node.id: 0 for node in self.graph.nodes}
         for edge in self.graph.edges:
-            in_degree[edge.target] += 1
+            if edge.target in in_degree:
+                in_degree[edge.target] += 1
 
         queue = deque([node_id for node_id, degree in in_degree.items() if degree == 0])
         result = []
@@ -70,9 +71,10 @@ class GraphTraversal:
             result.append(node_id)
 
             for neighbor in self._adjacency.get(node_id, []):
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
+                if neighbor in in_degree:
+                    in_degree[neighbor] -= 1
+                    if in_degree[neighbor] == 0:
+                        queue.append(neighbor)
 
         if len(result) != len(self.graph.nodes):
             raise CycleError("Graph contains a cycle")

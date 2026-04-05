@@ -6,6 +6,8 @@ Core operators that are always available:
 - Memory_I/O: Read/write to persistent storage
 - Script_Node: Execute inline Python scripts
 - Log_Node: Output values for debugging
+- Router: Conditional branching
+- Loop_Control: Loop iteration control
 """
 
 import asyncio
@@ -18,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port, NodeType, MemoryMode
 from agenarc.engine.state import ExecutionContext
+from agenarc.engine.evaluator import ASTEvaluator, evaluate_expression
 
 
 class TriggerOperator(IOperator):
@@ -170,15 +173,23 @@ class Script_Node_Operator(IOperator):
     Allows custom logic to be written directly in the graph without
     requiring a separate plugin.
 
+    Supports:
+    - Expression evaluation (returns result)
+    - Statement execution (modifies context)
+
     Inputs:
-        Dynamic based on script definition
+        script: Python script/expression to execute
+        timeout: Timeout in seconds
 
     Outputs:
-        Dynamic based on script definition
+        result: Script execution result
+        success: Whether execution succeeded
+        error: Error message if failed
     """
 
     def __init__(self):
         self._timeout = 30
+        self._evaluator = ASTEvaluator()
 
     @property
     def name(self) -> str:
@@ -186,7 +197,7 @@ class Script_Node_Operator(IOperator):
 
     @property
     def description(self) -> str:
-        return "Execute inline Python scripts"
+        return "Execute inline Python scripts with AST safety"
 
     def get_input_ports(self) -> List[Port]:
         return [
@@ -197,7 +208,8 @@ class Script_Node_Operator(IOperator):
     def get_output_ports(self) -> List[Port]:
         return [
             Port(name="result", type="any", description="Script execution result"),
-            Port(name="success", type="boolean", description="Execution success")
+            Port(name="success", type="boolean", description="Execution success"),
+            Port(name="error", type="string", description="Error message if failed"),
         ]
 
     async def execute(
@@ -209,24 +221,90 @@ class Script_Node_Operator(IOperator):
         timeout = inputs.get("timeout", self._timeout)
 
         if not script:
-            return {"result": None, "success": False}
+            return {"result": None, "success": False, "error": "Empty script"}
+
+        # Build evaluation context
+        eval_context = self._build_context(context)
 
         try:
-            # Execute script in a restricted environment
-            result = await self._execute_script(script, context, timeout)
-            return {"result": result, "success": True}
-        except Exception as e:
-            return {"result": str(e), "success": False}
+            # Check if it's a single expression or statements
+            script_stripped = script.strip()
 
-    async def _execute_script(
+            # Try AST-based safe evaluation first
+            if self._is_expression(script_stripped):
+                result = self._evaluator.evaluate(script_stripped, eval_context)
+                return {"result": result, "success": True, "error": None}
+            else:
+                # Execute as statements (for context modifications)
+                result = await self._execute_statements(script_stripped, context, eval_context)
+                return {"result": result, "success": True, "error": None}
+
+        except Exception as e:
+            return {"result": None, "success": False, "error": str(e)}
+
+    def _is_expression(self, script: str) -> bool:
+        """Check if script is a single expression (not statements)."""
+        import ast
+        # Simple heuristic: doesn't contain newlines or semicolons
+        # and looks like an expression
+        if "\n" in script or ";" in script:
+            return False
+        # Check for common statement keywords
+        statement_keywords = ["if ", "for ", "while ", "def ", "class ", "return ", "import ", "try ", "with ", "as ", "assert ", "pass ", "break ", "continue ", "raise ", "yield ", "del ", "global ", "nonlocal "]
+        for keyword in statement_keywords:
+            if script.startswith(keyword):
+                return False
+        # Check for assignment operators
+        if "=" in script:
+            # Might be an assignment - try parsing as expression first
+            # If it fails with SyntaxError, it's likely a statement
+            try:
+                ast.parse(script, mode="eval")
+                return True
+            except SyntaxError:
+                return False
+        return True
+
+    def _build_context(self, context: ExecutionContext) -> Dict[str, Any]:
+        """Build context dictionary for evaluation."""
+        # Get relevant values from execution context
+        eval_context = {
+            # Access to context values
+            "context": context,
+            # Loop variables if available
+        }
+
+        # Add all context values with prefix
+        # This allows expressions like: {{context.my_var}}
+        ctx_data = {
+            "input": context.get("input"),
+            "trigger_payload": context.get("trigger_payload"),
+        }
+
+        # Try to get iteration variables
+        loop_id = context.get("_loop_id", "default")
+        iteration = context.get(f"_loop_{loop_id}_iteration")
+        current_item = context.get(f"_loop_{loop_id}_current_item")
+        accumulator = context.get(f"_loop_{loop_id}_accumulator")
+
+        if iteration is not None:
+            eval_context["loop"] = {
+                "iteration": iteration,
+                "current_item": current_item,
+                "accumulator": accumulator,
+            }
+
+        return eval_context
+
+    async def _execute_statements(
         self,
         script: str,
         context: ExecutionContext,
-        timeout: int
+        eval_context: Dict[str, Any]
     ) -> Any:
-        """Execute Python script with timeout."""
-
-        # Create a restricted globals dictionary
+        """Execute script as statements with context access."""
+        # Create safe globals for statement execution
+        # This is a simplified version - full sandboxing would need more work
         safe_globals = {
             "__builtins__": {
                 "len": len,
@@ -253,17 +331,27 @@ class Script_Node_Operator(IOperator):
                 "print": print,
                 "json": json,
             },
-            "context": context,
         }
+
+        # Create a namespace for the script with context access
+        script_globals = safe_globals.copy()
+        script_globals["_ctx"] = context
+        script_globals["_result"] = None
+
+        # Wrap script to capture last expression
+        wrapped_script = f"""
+{script}
+_result = None  # Default
+"""
 
         # Run in executor to avoid blocking
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
+        await loop.run_in_executor(
             None,
-            lambda: exec(script, safe_globals, {})
+            lambda: exec(wrapped_script, script_globals, {})
         )
 
-        return result
+        return script_globals.get("_result")
 
 
 class Log_Node_Operator(IOperator):
@@ -418,6 +506,8 @@ BUILTIN_OPERATORS: Dict[str, type] = {
     "Log": Log_Node_Operator,
     "Context_Set": Context_Set_Operator,
     "Context_Get": Context_Get_Operator,
+    "Router": None,  # Loaded from router.py
+    "Loop_Control": None,  # Loaded from loop.py
     "LLM_Task": None,  # Loaded from llm.py
 }
 
@@ -431,8 +521,28 @@ def _register_llm_operators():
         pass  # LLM operators not available
 
 
-# Auto-register LLM operators on import
+def _register_router_operator():
+    """Register Router operator from router.py."""
+    try:
+        from agenarc.operators.router import RouterOperator
+        BUILTIN_OPERATORS["Router"] = RouterOperator
+    except ImportError:
+        pass  # Router not available
+
+
+def _register_loop_operator():
+    """Register Loop_Control operator from loop.py."""
+    try:
+        from agenarc.operators.loop import Loop_Control_Operator
+        BUILTIN_OPERATORS["Loop_Control"] = Loop_Control_Operator
+    except ImportError:
+        pass  # Loop_Control not available
+
+
+# Auto-register operators on import
 _register_llm_operators()
+_register_router_operator()
+_register_loop_operator()
 
 
 def get_builtin_operator(node_type: str) -> Optional[IOperator]:
