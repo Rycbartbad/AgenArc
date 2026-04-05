@@ -418,7 +418,21 @@ BUILTIN_OPERATORS: Dict[str, type] = {
     "Log": Log_Node_Operator,
     "Context_Set": Context_Set_Operator,
     "Context_Get": Context_Get_Operator,
+    "LLM_Task": None,  # Loaded from llm.py
 }
+
+
+def _register_llm_operators():
+    """Register LLM operators from llm.py."""
+    try:
+        from agenarc.operators.llm import LLM_Task_Operator
+        BUILTIN_OPERATORS["LLM_Task"] = LLM_Task_Operator
+    except ImportError:
+        pass  # LLM operators not available
+
+
+# Auto-register LLM operators on import
+_register_llm_operators()
 
 
 def get_builtin_operator(node_type: str) -> Optional[IOperator]:
