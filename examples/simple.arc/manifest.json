@@ -1,0 +1,15 @@
+{
+  "name": "simple_example",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "description": "Simple example demonstrating basic AgenArc features",
+  "permissions": {
+    "allow_script_read": true,
+    "allow_script_write": false,
+    "allow_prompt_read": true,
+    "allow_prompt_write": false,
+    "allowed_modules": ["json", "re"]
+  },
+  "immutable_nodes": ["trigger_1"],
+  "hot_reload": false
+}

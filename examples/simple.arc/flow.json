@@ -1,0 +1,81 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "name": "Simple Example",
+    "description": "A minimal example demonstrating basic node execution",
+    "author": "AgenArc"
+  },
+  "entryPoint": "trigger_1",
+
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "Start Trigger",
+      "outputs": [
+        {
+          "name": "payload",
+          "type": "any"
+        }
+      ],
+      "config": {
+        "source": "manual"
+      }
+    },
+    {
+      "id": "log_hello",
+      "type": "Log",
+      "label": "Log Hello",
+      "inputs": [
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "data",
+          "type": "any"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "data",
+          "type": "any"
+        }
+      ]
+    },
+    {
+      "id": "log_world",
+      "type": "Log",
+      "label": "Log World",
+      "inputs": [
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "data",
+          "type": "any"
+        }
+      ]
+    }
+  ],
+
+  "edges": [
+    {
+      "source": "trigger_1",
+      "sourcePort": "payload",
+      "target": "log_hello",
+      "targetPort": "message"
+    },
+    {
+      "source": "log_hello",
+      "sourcePort": "message",
+      "target": "log_world",
+      "targetPort": "message"
+    }
+  ]
+}
