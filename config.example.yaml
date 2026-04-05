@@ -1,0 +1,27 @@
+# AgenArc Configuration
+# Copy this file to config.yaml and fill in your API keys
+
+# OpenAI API Configuration
+openai:
+  api_key: ""
+  base_url: ""  # Optional: for proxy/custom endpoints
+  default_model: "gpt-4"
+  default_temperature: 0.7
+
+# Anthropic API Configuration
+anthropic:
+  api_key: ""
+  default_model: "claude-3-sonnet-20240229"
+  default_temperature: 0.7
+  max_tokens: 4096
+
+# Agent Configuration
+agent:
+  checkpoint_dir: "~/.agenarc/checkpoints"
+  storage_dir: "~/.agenarc/storage"
+  log_level: "INFO"
+
+# Plugin Configuration
+plugins:
+  search_paths:
+    - "~/.agenarc/plugins"

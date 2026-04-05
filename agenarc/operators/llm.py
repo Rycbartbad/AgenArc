@@ -13,6 +13,12 @@ from agenarc.protocol.schema import Port
 from agenarc.engine.state import ExecutionContext
 
 
+def _get_llm_config():
+    """Lazy import config to avoid circular dependency."""
+    from agenarc.config import get_config
+    return get_config()
+
+
 class LLM_Task_Operator(IOperator):
     """
     LLM Task operator - execute LLM inference.
@@ -60,8 +66,10 @@ class LLM_Task_Operator(IOperator):
         if self._client is None:
             try:
                 from openai import AsyncOpenAI
-                api_key = os.environ.get("OPENAI_API_KEY", "")
-                base_url = os.environ.get("OPENAI_BASE_URL", None)
+                config = _get_llm_config()
+
+                api_key = config.get_openai_api_key() or ""
+                base_url = config.get_openai_base_url()
 
                 self._client = AsyncOpenAI(
                     api_key=api_key,
@@ -90,9 +98,10 @@ class LLM_Task_Operator(IOperator):
         Returns:
             Dict with 'response' and 'usage'
         """
+        config = _get_llm_config()
         prompt = inputs.get("prompt", "")
-        model = context.get("_llm_model", "gpt-4")
-        temperature = context.get("_llm_temperature", 0.7)
+        model = context.get("_llm_model") or config.get_openai_model()
+        temperature = context.get("_llm_temperature") or config.get_openai_temperature()
         system_prompt = context.get("_llm_system_prompt", "")
 
         if not prompt:
@@ -174,7 +183,8 @@ class Anthropic_Task_Operator(IOperator):
         if self._client is None:
             try:
                 from anthropic import AsyncAnthropic
-                api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+                config = _get_llm_config()
+                api_key = config.get_anthropic_api_key() or ""
 
                 self._client = AsyncAnthropic(api_key=api_key)
             except ImportError:
@@ -191,9 +201,10 @@ class Anthropic_Task_Operator(IOperator):
         context: ExecutionContext
     ) -> Dict[str, Any]:
         """Execute Claude inference."""
+        config = _get_llm_config()
         prompt = inputs.get("prompt", "")
         system = inputs.get("system", "")
-        model = context.get("_claude_model", "claude-3-sonnet-20240229")
+        model = context.get("_claude_model") or config.get_anthropic_model()
         temperature = context.get("_claude_temperature", 0.7)
         max_tokens = context.get("_claude_max_tokens", 4096)
 
