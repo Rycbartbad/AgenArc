@@ -294,6 +294,10 @@ class StateManager:
         # Per-node local states
         self._local: Dict[str, Dict[str, Any]] = {}
 
+        # Transactional memory storage
+        self._transactional_pending: Dict[str, Any] = {}
+        self._transactional_enabled: bool = False
+
         # Checkpoints
         self._checkpoints: OrderedDict[str, Checkpoint] = OrderedDict()
 
@@ -365,6 +369,45 @@ class StateManager:
     def set(self, key: str, value: Any) -> None:
         """Alias for set_global."""
         self.set_global(key, value)
+
+    # ========== Transactional Memory ==========
+
+    def enable_transaction(self) -> None:
+        """Enable transactional mode for Memory_I/O operations."""
+        self._transactional_enabled = True
+        self._transactional_pending = {}
+
+    def get_transactional(self, key: str, default: Any = None) -> Any:
+        """Get value, checking pending transactional writes first."""
+        if key in self._transactional_pending:
+            return self._transactional_pending[key]
+        return self._global.get(key, default)
+
+    def set_transactional(self, key: str, value: Any) -> None:
+        """Set value in transactional pending (not committed yet)."""
+        self._transactional_pending[key] = value
+
+    def commit_transaction(self) -> None:
+        """Commit all pending transactional writes to global state."""
+        for key, value in self._transactional_pending.items():
+            if value is None:
+                # None means delete
+                if key in self._global:
+                    del self._global[key]
+            else:
+                self._global[key] = value
+        self._transactional_pending = {}
+        self._transactional_enabled = False
+
+    def rollback_transaction(self) -> None:
+        """Rollback all pending transactional writes."""
+        self._transactional_pending = {}
+        self._transactional_enabled = False
+
+    @property
+    def in_transaction(self) -> bool:
+        """Check if transaction is in progress."""
+        return self._transactional_enabled
 
     # ========== Local State ==========
 

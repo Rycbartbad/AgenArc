@@ -182,6 +182,7 @@ class Graph:
     version: str = "1.0.0"
     metadata: GraphMetadata = field(default_factory=GraphMetadata)
     entryPoint: str = ""
+    errorNode: str = ""  # Global error handler node ID
 
     nodes: List[Node] = field(default_factory=list)
     edges: List[Edge] = field(default_factory=list)

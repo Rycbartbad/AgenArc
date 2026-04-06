@@ -237,7 +237,15 @@ class ExecutionEngine:
             else:
                 await self._execute_sync(entry_node)
 
+            # Commit transactional Memory_I/O if any
+            if self._state.in_transaction:
+                self._state.commit_transaction()
+
         except Exception as e:
+            # Rollback transactional Memory_I/O on failure
+            if self._state.in_transaction:
+                self._state.rollback_transaction()
+
             duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
             return GraphResult(
                 execution_id=self._execution_id,
@@ -258,6 +266,9 @@ class ExecutionEngine:
 
         if has_failed:
             status = "failed"
+            # Rollback on failure even if committed above
+            if self._state.in_transaction:
+                self._state.rollback_transaction()
         elif has_skipped:
             status = "partial"
         else:
@@ -467,8 +478,21 @@ class ExecutionEngine:
         error_handling = node.errorHandling
 
         if not error_handling:
-            # No error handling, propagate to caller
-            return
+            # No local error handling configured
+            # Check for global error node
+            if self._graph and self._graph.errorNode:
+                # Execute global error handler
+                error_node = self._graph.get_node(self._graph.errorNode)
+                if error_node:
+                    # Set error info in context for the error handler
+                    context.set("_error_node_id", node.id)
+                    context.set("_error_message", str(error))
+                    context.set("_error_type", type(error).__name__)
+                    await self._execute_node(error_node)
+                    return
+            # Default to ABORT if no error handling configured
+            # This prevents silent swallowing of errors
+            raise error
 
         strategy = error_handling.strategy
 

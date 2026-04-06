@@ -8,7 +8,7 @@ Supports both standalone flow.json and .arc bundle format.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agenarc.protocol.schema import (
     AGENARC_SCHEMA,
@@ -156,6 +156,9 @@ class ProtocolLoader:
         nodes = [self._parse_node(n) for n in data.get("nodes", [])]
         edges = [self._parse_edge(e) for e in data.get("edges", [])]
 
+        # Expand output_to_context shorthand into Context_Set nodes
+        nodes, edges = self._expand_output_to_context(nodes, edges)
+
         return Graph(
             version=data.get("version", "1.0.0"),
             metadata=metadata,
@@ -163,6 +166,71 @@ class ProtocolLoader:
             nodes=nodes,
             edges=edges,
         )
+
+    def _expand_output_to_context(
+        self,
+        nodes: List[Node],
+        edges: List[Edge]
+    ) -> Tuple[List[Node], List[Edge]]:
+        """
+        Expand output_to_context shorthand in node configs into Context_Set nodes.
+
+        When a node has output_to_context in its config like:
+            "output_to_context": {"result": {"ref": "outputs.response"}}
+
+        This is expanded into a Context_Set node that runs after the original node.
+
+        Args:
+            nodes: List of parsed nodes
+            edges: List of parsed edges
+
+        Returns:
+            Tuple of (expanded_nodes, expanded_edges)
+        """
+        expanded_nodes = list(nodes)
+        expanded_edges = list(edges)
+
+        for node in nodes:
+            config = node.metadata.get("config", {})
+            output_to_context = config.get("output_to_context", {})
+
+            if not output_to_context:
+                continue
+
+            # Create a Context_Set node for each output_to_context entry
+            for ctx_key, mapping in output_to_context.items():
+                ref = mapping.get("ref", "")
+
+                # Parse the ref to get source node and output port
+                # Expected format: "outputs.<port_name>"
+                if not ref.startswith("outputs."):
+                    continue
+
+                output_port = ref[len("outputs."):]
+
+                # Generate unique ID for the Context_Set node
+                context_node_id = f"{node.id}_ctx_{ctx_key}"
+
+                # Create the Context_Set node
+                # Store the context key name in config so Context_Set operator can read it
+                context_node = Node(
+                    id=context_node_id,
+                    type=NodeType.CONTEXT_SET,
+                    label=f"Set {ctx_key}",
+                    config=NodeConfig(data={"_context_key": ctx_key}),
+                )
+
+                # Create edge from original node's output to context node's value input
+                context_edge = Edge(
+                    source=node.id,
+                    sourcePort=output_port,
+                    target=context_node_id,
+                    targetPort="value",
+                )
+                expanded_nodes.append(context_node)
+                expanded_edges.append(context_edge)
+
+        return expanded_nodes, expanded_edges
 
     def _parse_node(self, data: Dict[str, Any]) -> Node:
         """

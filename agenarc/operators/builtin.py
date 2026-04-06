@@ -71,6 +71,7 @@ class Memory_IO_Operator(IOperator):
     - read: Read value from storage
     - write: Write value to storage
     - delete: Delete value from storage
+    - transactional: Write to pending list, commit on success
 
     Inputs:
         key: Storage key
@@ -90,7 +91,7 @@ class Memory_IO_Operator(IOperator):
 
     @property
     def description(self) -> str:
-        return "Read/write to persistent memory storage"
+        return "Read/write to persistent memory storage with optional transactions"
 
     def get_input_ports(self) -> List[Port]:
         return [
@@ -113,25 +114,51 @@ class Memory_IO_Operator(IOperator):
         if not key:
             return {"value": None, "success": False}
 
+        # Get node config for transactional setting
+        node_config = context.get("_node_config", {})
+        transactional = node_config.get("transactional", False)
+
+        # Get the underlying state manager (handles both ExecutionContext and raw StateManager)
+        state = getattr(context, '_state', context)
+
+        # Enable transaction mode if configured and not already enabled
+        if transactional and not state.in_transaction:
+            state.enable_transaction()
+
         mode = context.get("_memory_mode", MemoryMode.READ.value)
 
         if mode == MemoryMode.READ.value or mode == "read":
+            # In transactional mode, check pending writes first
+            if state.in_transaction:
+                value = state.get_transactional(key)
+                if value is not None or key in state._transactional_pending:
+                    return {"value": value, "success": True}
             value = self._storage.get(key)
             return {"value": value, "success": value is not None}
 
         elif mode == MemoryMode.WRITE.value or mode == "write":
             value = inputs.get("value")
-            self._storage[key] = value
 
-            # If checkpoint requested, persist to disk
-            if context.get("_memory_checkpoint"):
-                self._persist_to_disk(key, value)
+            if state.in_transaction:
+                # Add to pending writes (not yet committed)
+                state.set_transactional(key, value)
+            else:
+                # Direct write (original behavior)
+                self._storage[key] = value
+
+                # If checkpoint requested, persist to disk
+                if context.get("_memory_checkpoint"):
+                    self._persist_to_disk(key, value)
 
             return {"value": value, "success": True}
 
         elif mode == MemoryMode.DELETE.value or mode == "delete":
-            if key in self._storage:
-                del self._storage[key]
+            if state.in_transaction:
+                # Mark for deletion in pending
+                state.set_transactional(key, None)
+            else:
+                if key in self._storage:
+                    del self._storage[key]
             return {"value": None, "success": True}
 
         return {"value": None, "success": False}
@@ -488,6 +515,11 @@ class Context_Set_Operator(IOperator):
         key = inputs.get("key")
         value = inputs.get("value")
 
+        # If key not provided via input, check node config (for output_to_context expansion)
+        if not key:
+            node_config = context.get("_node_config", {})
+            key = node_config.get("_context_key")
+
         if key:
             context.set(key, value)
             return {"success": True}
@@ -547,6 +579,7 @@ BUILTIN_OPERATORS: Dict[str, type] = {
     "Log": Log_Node_Operator,
     "Context_Set": Context_Set_Operator,
     "Context_Get": Context_Get_Operator,
+    "Join": None,  # Loaded from join.py
     "Router": None,  # Loaded from router.py
     "Loop_Control": None,  # Loaded from loop.py
     "LLM_Task": None,  # Loaded from llm.py
@@ -580,6 +613,15 @@ def _register_loop_operator():
         pass  # Loop_Control not available
 
 
+def _register_join_operator():
+    """Register Join operator from join.py."""
+    try:
+        from agenarc.operators.join import JoinOperator
+        BUILTIN_OPERATORS["Join"] = JoinOperator
+    except ImportError:
+        pass  # Join not available
+
+
 def _register_evolution_operators():
     """Register evolution operators (Asset_Reader, Asset_Writer, Runtime_Reload)."""
     try:
@@ -595,6 +637,7 @@ def _register_evolution_operators():
 _register_llm_operators()
 _register_router_operator()
 _register_loop_operator()
+_register_join_operator()
 _register_evolution_operators()
 
 

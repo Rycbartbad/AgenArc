@@ -387,7 +387,10 @@ class TestExecuteNode:
         engine._builtin_operators["LLM_Task"] = MagicMock(return_value=mock_op)
 
         llm_node = engine._graph.get_node("llm_1")
-        await engine._execute_node(llm_node)
+
+        # Without errorHandling, errors should propagate (ABORT behavior)
+        with pytest.raises(RuntimeError, match="Node error"):
+            await engine._execute_node(llm_node)
 
         assert engine._node_statuses[llm_node.id] == NodeStatus.FAILED
         assert llm_node.id in engine._node_errors
@@ -549,7 +552,7 @@ class TestHandleNodeError:
 
     @pytest.mark.asyncio
     async def test_handle_error_no_error_handling(self):
-        """Test error with no error handling configured."""
+        """Test error with no error handling configured - should ABORT by default."""
         engine = ExecutionEngine()
         engine.load_protocol(create_test_graph_dict())
         engine._state = StateManager()
@@ -559,7 +562,11 @@ class TestHandleNodeError:
         engine._builtin_operators["LLM_Task"] = MagicMock(return_value=mock_op)
 
         llm_node = engine._graph.get_node("llm_1")
-        await engine._execute_node(llm_node)
+
+        # Without errorHandling, errors should propagate (ABORT behavior)
+        with pytest.raises(RuntimeError, match="Error"):
+            await engine._execute_node(llm_node)
+
         assert engine._node_statuses[llm_node.id] == NodeStatus.FAILED
 
     @pytest.mark.asyncio
