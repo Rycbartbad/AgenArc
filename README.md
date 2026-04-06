@@ -2,10 +2,6 @@
 
 Directed-graph Agent Orchestration Engine with protocol-execution-visualization decoupling.
 
-```
-声明式协议 + 模板语法 + 黑板架构 + 自进化资产
-```
-
 ## Core Philosophy
 
 **"Mechanism and Strategy Separation"**
@@ -23,14 +19,14 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
 │  │   Protocol   │  │   Engine     │  │    Visualization    │   │
-│  │    (DSL)     │  │  (Runtime)   │  │      (Future)       │   │
+│  │    (DSL)    │  │  (Runtime)   │  │      (Future)      │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘   │
 │                                                                  │
-│  JSON Schema     Execution Engine     React Canvas IDE           │
-│  + Template      + Scheduler          (Coming Soon)              │
-│  + Conditions    + StateManager                                 │
-│                  + CheckpointManager                            │
-│                  + PluginManager                                 │
+│  JSON Schema       Execution Engine       React Canvas IDE        │
+│  + Template        + Scheduler           (Coming Soon)           │
+│  + Conditions      + StateManager                                │
+│                     + CheckpointManager                          │
+│                     + PluginManager                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,15 +47,16 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 - **CheckpointManager** - File-based persistence for interruption recovery
 - **AST Evaluator** - Safe expression evaluation
 
-### Stage 3: Self-Evolution System (Planned)
+### Stage 3: Self-Evolution System (Complete)
 
-- .arc Bundle format
-- VFS (arc:// protocol mapping)
-- Asset_Reader / Asset_Writer operators
-- Runtime_Reload hot reload
+- **.arc Bundle format** - Self-contained agent package
+- **VFS** - `arc://` protocol mapping for secure file access
+- **Asset_Reader** - Read files from bundle via VFS
+- **Asset_Writer** - Write files with atomic operations
+- **Runtime_Reload** - Hot reload scripts and plugins
 - Schema + AST sanitizer dual validation chain
 
-### Stage 4: Plugin System (Planned)
+### Stage 4: Plugin System (In Progress)
 
 - Hot_Plugin_Loader
 - Python/C++/External loaders
@@ -84,13 +81,37 @@ pip install agenarc
 
 ```bash
 # Run an .arc agent bundle
-agenarc run my_agent.arc
-
-# Or run a protocol file
-agenarc run flow.json
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello"}'
 ```
 
-### CLI Commands
+## Examples
+
+Located in `examples/` directory:
+
+| Agent | Description |
+|-------|-------------|
+| `hello_agent.arc` | Minimal example (Trigger + Log) |
+| `chat_agent.arc` | Basic LLM chat (Trigger + LLM_Task + Log) |
+| `router_agent.arc` | Conditional routing (Trigger + LLM_Task + Router + Log) |
+| `full_agent.arc` | Complete features with manifest and scripts |
+
+### Running Examples
+
+```bash
+# Hello Agent (no LLM needed)
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.arc --input '{}'
+
+# Chat Agent (requires LLM)
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello!"}'
+
+# Router Agent
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.arc --input '{"trigger_payload":"Say hello"}'
+
+# Full Agent
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.arc --input '{"trigger_payload":"What is AI?"}'
+```
+
+## CLI Commands
 
 ```bash
 # Run an agent (.arc) or protocol (.json)
@@ -120,48 +141,59 @@ agenarc info flow.json
 | `Context_Set` | Set values in global context |
 | `Context_Get` | Get values from global context |
 
-## Protocol Example
+## .arc Bundle Structure
+
+```
+my_agent.arc/
+├── manifest.json      # Agent metadata
+├── flow.json         # Workflow definition
+├── prompts/          # Prompt templates
+│   └── system.pt     # System prompt
+├── scripts/          # Custom scripts (optional)
+│   └── tool.py
+└── assets/           # Static assets (optional)
+```
+
+### manifest.json
+
+```json
+{
+  "name": "my_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "permissions": {
+    "allow_script_read": true,
+    "allow_script_write": true,
+    "allow_prompt_read": true
+  },
+  "immutable_nodes": ["trigger_1"],
+  "hot_reload": true
+}
+```
+
+### flow.json
 
 ```json
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {
-    "name": "example_agent",
-    "description": "Example AgenArc agent"
-  },
+  "metadata": {"name": "my_agent"},
   "nodes": [
+    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
     {
-      "id": "trigger_1",
-      "type": "Trigger",
-      "label": "Start"
-    },
-    {
-      "id": "router_1",
-      "type": "Router",
-      "label": "Route Decision",
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "Chat",
       "config": {
-        "conditions": [
-          {"ref": "input", "operator": "eq", "value": "go", "output": "A"}
-        ],
-        "default": "B"
+        "model": "deepseek-chat",
+        "system_prompt": "arc://prompts/system.pt"
       }
     },
-    {
-      "id": "log_a",
-      "type": "Log",
-      "label": "Log A"
-    },
-    {
-      "id": "log_b",
-      "type": "Log",
-      "label": "Log B"
-    }
+    {"id": "log_1", "type": "Log", "label": "Output"}
   ],
   "edges": [
-    {"source": "trigger_1", "target": "router_1"},
-    {"source": "router_1", "sourcePort": "output_A", "target": "log_a"},
-    {"source": "router_1", "sourcePort": "output_B", "target": "log_b"}
+    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
+    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"}
   ]
 }
 ```
@@ -174,26 +206,24 @@ AgenArc uses YAML configuration for API keys and settings:
 # config.yaml
 openai:
   api_key: your-api-key
-  base_url: https://api.openai.com/v1
-  default_model: gpt-4
-  default_temperature: 0.7
-
-anthropic:
-  api_key: your-anthropic-key
-  default_model: claude-3-sonnet-20240229
-
-agent:
-  checkpoint_dir: ~/.agenarc/checkpoints
-  storage_dir: ~/.agenarc/storage
+  base_url: https://api.deepseek.com
+  default_model: deepseek-chat
+  temperature: 0.7
 ```
+
+**Supported API endpoints:**
+
+| Provider | base_url |
+|----------|----------|
+| DeepSeek | `https://api.deepseek.com` |
+| OpenAI | `https://api.openai.com/v1` |
+| Ollama (local) | `http://localhost:11434/v1` |
 
 Environment variables override config file:
 
 - `AGENARC_OPENAI_API_KEY`
-- `AGENARC_ANTHROPIC_API_KEY`
-- `AGENARC_OPENAI_MODEL`
 - `AGENARC_OPENAI_BASE_URL`
-- `AGENARC_CHECKPOINT_DIR`
+- `AGENARC_OPENAI_MODEL`
 
 ## Development
 
@@ -205,16 +235,15 @@ agenarc/
 ├── engine/           # Execution layer
 │   ├── executor.py   # Core engine
 │   ├── state.py     # State management + CheckpointManager
-│   ├── evaluator.py # AST safe expression evaluator
-│   └── scheduler.py # Scheduling strategies
+│   └── evaluator.py # AST safe expression evaluator
 ├── operators/        # Built-in operators
 │   ├── builtin.py   # Core operators
 │   ├── router.py    # Router operator
 │   ├── loop.py      # Loop_Control operator
-│   └── llm.py       # LLM operators
+│   └── llm.py      # LLM operators
+├── vfs/             # Virtual filesystem (arc://)
 ├── plugins/         # Plugin system
 ├── graph/           # Graph data structures
-├── vfs/             # Virtual filesystem (arc://)
 └── cli/             # Command-line interface
 ```
 
@@ -234,8 +263,8 @@ pytest tests/unit/test_builtin_operators.py -v
 ### Current Test Status
 
 ```
-======================== 317 passed ========================
-Coverage: 82%
+======================== 396 passed ========================
+Coverage: 85%
 ```
 
 ## Roadmap
@@ -244,8 +273,8 @@ Coverage: 82%
 |-------|----------|--------|
 | v0.1 | MVP Engine | Complete |
 | v0.2 | Complete Execution Engine | Complete |
-| v0.3 | Self-Evolution System | Planned |
-| v0.4 | Plugin System | Planned |
+| v0.3 | Self-Evolution System | Complete |
+| v0.4 | Plugin System | In Progress |
 | v0.5 | Visualization Platform | Planned |
 
 ## License
