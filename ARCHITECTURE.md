@@ -478,16 +478,21 @@ DANGEROUS_CALLS = {
 - 扫描不通过者将被拒绝执行，并返回 `SecurityError`
 - `manifest.json` 中 `permissions.allowed_modules` 白名单优先于黑名单
 
-**白名单模式（高安全场景）：**
+**三档信任模式：**
 
 ```json
 {
   "permissions": {
-    "script_mode": "whitelist",
-    "allowed_modules": ["math", "json", "re", "datetime"]
+    "script_trust_level": "locked|trusted|developer"
   }
 }
 ```
+
+| 级别 | 描述 | 限制 |
+|------|------|------|
+| `locked` | 不可信外部输入 | 仅 AST Evaluator 表达式，无 `exec()` |
+| `trusted` | 内部可信脚本 | `exec()` + `safe_globals`（当前实现）|
+| `developer` | 开发者模式 | 完整 Python（仅本地开发用）|
 
 > 白名单模式下，只有 `allowed_modules` 中的模块可导入，完全禁止 `__import__`、`eval`、`exec` 等危险调用。适用于高风险自进化 Agent。
 
@@ -593,6 +598,77 @@ Checkpoint (检查点)
 ├── 全状态快照
 └── 用于中断恢复
 ```
+
+### 上下文隔离与 Copy-on-Write
+
+Context 默认**引用传递**，在 PARALLEL 模式下会导致数据竞争。需配合声明式隔离：
+
+```json
+{
+  "context": {
+    "mode": "copy_on_write",
+    "large_object_keys": ["crawled_data", "base64_images"],
+    "strict_mode": true
+  }
+}
+```
+
+**实现机制**：
+
+| 机制 | 描述 |
+|------|------|
+| `large_object_keys` | 声明后，走延迟深拷贝（CoW） |
+| `strict_mode` | 启用 in-place 篡改检测 |
+| `_origin_ids` | 内部追踪对象 ID，检测直接修改 |
+
+### 并发控制：乐观锁与 CAS
+
+高并发 Join 场景下，使用乐观锁避免 Context 级锁的性能瓶颈：
+
+```json
+{
+  "concurrent_mode": {
+    "strategy": "optimistic",
+    "max_retries": 3,
+    "backoff": "exponential",
+    "backoff_base": 2
+  }
+}
+```
+
+**CAS 冲突重试流程**：
+
+```
+1. 读取当前值 expected
+2. 执行 compare_and_set(key, expected, new_value)
+3. 若 ConflictError，指数退避重试（最多 max_retries 次）
+4. 超限后进入 ERROR_FATAL
+```
+
+### 事务性 Memory_I/O 与补偿节点
+
+Memory_I/O 支持事务模式，但外部 I/O（HTTP/邮件/支付）本质不可回滚，需通过**补偿节点**实现：
+
+```json
+{
+  "id": "send_email",
+  "type": "Script_Node",
+  "side_effects": ["irreversible"],
+  "compensation": "send_retry_email"
+}
+```
+
+**副作用类型**：
+
+| 类型 | 可回滚？ | 处理方式 |
+|------|----------|----------|
+| `memory_write` | 是 | Context 快照 |
+| `file_write` | 是 | WAL 回滚 |
+| `http_post` | 否 | 补偿节点 |
+| `payment` | 否 | 补偿 + 告警 |
+| `email` | 否 | 补偿 |
+
+**补偿不嵌套原则**：补偿节点本身失败时，不递归寻找其补偿，直接进入 `ERROR_FATAL`，记录 WAL 日志等待人工介入。
 
 ---
 
@@ -785,3 +861,4 @@ agenarc/
 | v0.5 | 2026-04-06 | 新增：Quiescence 热重载机制、白名单脚本模式、自愈 Error Port、environment_requirements 预检 |
 | v0.6 | 2026-04-06 | 测试覆盖：411 passed, 85% |
 | v0.7 | 2026-04-06 | 阶段3完成：VFS + Asset_Reader/Writer + Runtime_Reload |
+| v0.8 | 2026-04-06 | 新增：三档信任模式、CoW隔离、乐观锁CAS、补偿节点不嵌套原则 |
