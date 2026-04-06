@@ -755,8 +755,8 @@ agenarc/
 
 | 指标 | 值 |
 |------|-----|
-| 测试数量 | 317 |
-| 覆盖率 | 81% |
+| 测试数量 | 411 |
+| 覆盖率 | 85% |
 | 目标覆盖率 | 80% ✅ |
 
 ---
@@ -783,3 +783,4 @@ agenarc/
 | v0.3 | 2026-04-05 | 新增自进化架构：.arc Bundle、VFS、自进化算子、双重校验链 |
 | v0.4 | 2026-04-06 | 阶段2完成：Router、Loop_Control、CheckpointManager、AST Evaluator |
 | v0.5 | 2026-04-06 | 新增：Quiescence 热重载机制、白名单脚本模式、自愈 Error Port、environment_requirements 预检 |
+| v0.6 | 2026-04-06 | 测试覆盖：411 passed, 85% |

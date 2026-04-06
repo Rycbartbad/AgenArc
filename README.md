@@ -263,7 +263,7 @@ pytest tests/unit/test_builtin_operators.py -v
 ### Current Test Status
 
 ```
-======================== 396 passed ========================
+======================== 411 passed ========================
 Coverage: 85%
 ```
 
