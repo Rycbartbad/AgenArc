@@ -68,6 +68,15 @@ class Asset_Reader_Operator(IOperator):
                 "success": False
             }
 
+        # Check if arc:// access is allowed (level_0 blocks it)
+        allow_arc_access = context.get("_allow_arc_access", True)
+        if not allow_arc_access:
+            return {
+                "content": "",
+                "metadata": {"error": "arc:// access denied - level_0 Zero Knowledge mode"},
+                "success": False
+            }
+
         # Get bundle path from context
         bundle_path = context.get("_bundle_path")
         if not bundle_path:
@@ -171,6 +180,15 @@ class Asset_Writer_Operator(IOperator):
                 "success": False,
                 "path": "",
                 "error": "Path is required"
+            }
+
+        # Check if arc:// access is allowed (level_0 blocks it)
+        allow_arc_access = context.get("_allow_arc_access", True)
+        if not allow_arc_access:
+            return {
+                "success": False,
+                "path": vfs_path,
+                "error": "arc:// access denied - level_0 Zero Knowledge mode"
             }
 
         # Get bundle path from context

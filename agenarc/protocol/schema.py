@@ -47,6 +47,22 @@ class MemoryMode(str, Enum):
     DELETE = "delete"
 
 
+class AutonomyLevel(str, Enum):
+    """
+    Trust-based autonomy levels for Agent self-evolution.
+
+    level_0 (Zero Knowledge): Agent is unaware of arc:// protocol and bundle system.
+                              Cannot access prompts/, scripts/, or any VFS paths.
+    level_1 (Supervised): Agent can only modify prompts/ and evaluate expressions.
+    level_2 (Autonomous): Agent can modify flow.json and trigger Runtime_Reload.
+    level_3 (Self-Evolving): Agent has full power including manifest.json and plugin installation.
+    """
+    LEVEL_0_ZERO_KNOWLEDGE = "level_0"
+    LEVEL_1_SUPERVISED = "level_1"
+    LEVEL_2_AUTONOMOUS = "level_2"
+    LEVEL_3_SELF_EVOLVING = "level_3"
+
+
 class ConditionOperator(str, Enum):
     """Condition operators."""
     EQ = "eq"
@@ -71,6 +87,56 @@ class Port:
     type: str  # "any", "string", "number", "boolean", "object", "array"
     description: str = ""
     default: Any = None
+
+
+@dataclass
+class Permissions:
+    """
+    Asset bundle permissions for VFS access control.
+
+    Controls what the Agent can read/write within its .arc bundle.
+    """
+    allow_arc_access: bool = True  # level_0 = False (Agent unaware of arc://)
+    allow_script_read: bool = True
+    allow_script_write: bool = False
+    allow_prompt_read: bool = True
+    allow_prompt_write: bool = False
+    allow_flow_modification: bool = False  # level_2+
+    allow_manifest_modification: bool = False  # level_3
+    allowed_modules: List[str] = field(default_factory=list)
+    autonomy_level: AutonomyLevel = AutonomyLevel.LEVEL_1_SUPERVISED
+    gas_budget: int = 1000  # Expression evaluation gas limit
+    max_memory_mb: int = 128  # SafeContext memory limit
+
+
+@dataclass
+class ImmutableAnchor:
+    """
+    Immutable anchor - core security audit node locked by kernel.
+
+    Even in level_3, these nodes cannot be modified or deleted.
+    """
+    node_id: str
+    reason: str = ""
+
+
+@dataclass
+class Manifest:
+    """
+    Manifest for .arc asset bundle.
+
+    Contains metadata and permissions for the Agent asset bundle.
+    """
+    name: str = ""
+    version: str = "1.0.0"
+    entry: str = "flow.json"
+    description: str = ""
+    permissions: Permissions = field(default_factory=Permissions)
+    immutable_nodes: List[str] = field(default_factory=list)
+    immutable_anchors: List[ImmutableAnchor] = field(default_factory=list)
+    hot_reload: bool = True
+    gas_budget: int = 1000  # Expression evaluation gas limit
+    max_memory_mb: int = 128  # SafeContext memory limit
 
 
 @dataclass

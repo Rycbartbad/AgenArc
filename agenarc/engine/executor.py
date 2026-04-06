@@ -20,12 +20,14 @@ from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from agenarc.protocol.loader import ProtocolLoader
 from agenarc.protocol.schema import (
+    AutonomyLevel,
     Edge,
     ErrorHandling,
     ErrorStrategy,
     Graph,
     Node,
     NodeType,
+    Permissions,
 )
 from agenarc.graph.traversal import GraphTraversal
 from agenarc.engine.state import StateManager, ExecutionContext
@@ -106,6 +108,9 @@ class ExecutionEngine:
         self._state: Optional[StateManager] = None
         self._operators: Dict[str, "IOperator"] = {}
 
+        # Manifest permissions (for Trust-based Autonomy)
+        self._permissions: Permissions = Permissions()
+
         # Execution tracking
         self._node_statuses: Dict[str, NodeStatus] = {}
         self._node_outputs: Dict[str, Dict[str, Any]] = {}
@@ -117,6 +122,49 @@ class ExecutionEngine:
 
         # Running flag
         self._running: bool = False
+
+    def load_manifest(self, manifest_path: Any) -> None:
+        """
+        Load manifest.json from .arc bundle.
+
+        Args:
+            manifest_path: Path to manifest.json or .arc bundle directory
+        """
+        import json
+        from pathlib import Path
+
+        manifest_path = Path(manifest_path)
+
+        # If it's a directory, look for manifest.json inside
+        if manifest_path.is_dir():
+            manifest_file = manifest_path / "manifest.json"
+        else:
+            manifest_file = manifest_path
+
+        if not manifest_file.exists():
+            return  # Use defaults
+
+        try:
+            with open(manifest_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            permissions_data = data.get("permissions", {})
+            self._permissions = Permissions(
+                allow_script_read=permissions_data.get("allow_script_read", True),
+                allow_script_write=permissions_data.get("allow_script_write", False),
+                allow_prompt_read=permissions_data.get("allow_prompt_read", True),
+                allow_prompt_write=permissions_data.get("allow_prompt_write", False),
+                allow_flow_modification=permissions_data.get("allow_flow_modification", False),
+                allow_manifest_modification=permissions_data.get("allow_manifest_modification", False),
+                allowed_modules=permissions_data.get("allowed_modules", []),
+                autonomy_level=AutonomyLevel(
+                    permissions_data.get("autonomy_level", "level_1")
+                ),
+                gas_budget=permissions_data.get("gas_budget", 1000),
+                max_memory_mb=permissions_data.get("max_memory_mb", 128),
+            )
+        except Exception:
+            pass  # Use defaults on error
 
     def register_builtin_operator(
         self,
@@ -218,6 +266,17 @@ class ExecutionEngine:
         if initial_inputs:
             for key, value in initial_inputs.items():
                 self._state.set_global(key, value)
+
+        # Set manifest autonomy level for Script_Node operators
+        autonomy_value = 1
+        if self._permissions.autonomy_level == AutonomyLevel.LEVEL_2_AUTONOMOUS:
+            autonomy_value = 2
+        elif self._permissions.autonomy_level == AutonomyLevel.LEVEL_3_SELF_EVOLVING:
+            autonomy_value = 3
+        self._state.set_global("_manifest_autonomy_level", autonomy_value)
+        self._state.set_global("_allow_arc_access", self._permissions.allow_arc_access)
+        self._state.set_global("_gas_budget", self._permissions.gas_budget)
+        self._state.set_global("_max_memory_mb", self._permissions.max_memory_mb)
 
         # Get entry point
         entry_node = self._graph.get_node(self._graph.entryPoint)

@@ -288,10 +288,15 @@ my_agent.arc/
     "allow_prompt_read": true,
     "allow_prompt_write": false,
     "allowed_modules": ["os", "json", "re"],
-    "script_mode": "blacklist"
+    "autonomy_level": "level_2"
   },
-  "immutable_nodes": ["trigger_1", "security_audit"],
+  "immutable_anchors": [
+    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"},
+    {"node_id": "audit_1", "reason": "Security audit node - kernel enforced lock"}
+  ],
   "hot_reload": true,
+  "gas_budget": 1000,
+  "max_memory_mb": 128,
   "environment_requirements": {
     "keys": ["OPENAI_API_KEY", "DEEPSEEK_API_KEY"],
     "min_memory": "512MB"
@@ -303,9 +308,10 @@ my_agent.arc/
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| `permissions.script_mode` | `blacklist \| whitelist` | 脚本安全模式 |
-| `environment_requirements.keys` | `string[]` | 必需的 API Key 环境变量 |
-| `environment_requirements.min_memory` | `string` | 最小内存要求 |
+| `permissions.autonomy_level` | `level_0 \| level_1 \| level_2 \| level_3` | 信任式自主等级 |
+| `immutable_anchors` | `ImmutableAnchor[]` | 内核强制锁定的节点 |
+| `gas_budget` | `integer` | 表达式求值的 Gas 上限 |
+| `max_memory_mb` | `integer` | SafeContext 内存限制 |
 
 > **Loader 预检机制**：在执行前检查宿主机是否注入了 `environment_requirements.keys` 中的所有环境变量，未满足则拒绝运行并提示缺失的 Key。
 
@@ -457,44 +463,101 @@ Runtime_Reload:
 └─────────────────────────────────────────────────────────┘
 ```
 
-### AST 扫描（脚本净化）
+### AST 扫描（信任式自治）
 
-**危险系统调用黑名单：**
+**核心哲学转变：从"防御型沙箱"到"信任 AI"**
+
+```
+防御型沙箱：拦截一切，只允许白名单
+信任式自治：允许一切，除了明确危险的内核属性
+```
+
+**危险属性黑名单（仅拦截这些）：**
 
 ```python
-DANGEROUS_CALLS = {
-    "os": ["system", "popen", "exec", "spawn"],
-    "subprocess": ["Popen", "call", "run", "exec"],
-    "builtins": ["eval", "exec", "open", "__import__"],
-    "urllib": ["urlopen"],
-    "requests": ["get", "post", "put", "delete"],
-    "socket": ["socket"],
+DANGEROUS_ATTRIBUTES = {
+    # Interpreter internals
+    "__globals__", "__builtins__", "__code__", "__func__",
+    "__closure__", "__class__", "__bases__", "__mro__",
+    "__subclasses__", "__dicto__",
+    # Frame/traceback
+    "f_back", "f_builtins", "f_code", "f_globals", "f_locals",
+    "tb_frame", "tb_lasti", "tb_next",
+    # System escape
+    "system", "popen", "spawn", "fork", "exec", "eval",
+    "exec_file", "run_code",
+    # File operations
+    "remove", "unlink", "rmdir", "rename",
+    # Import machinery
+    "__import__", "import_module",
 }
 ```
 
-**拦截规则：**
+**信任式自治原则：**
 
-- 任何新生成的脚本必须通过 AST 扫描
-- 扫描不通过者将被拒绝执行，并返回 `SecurityError`
-- `manifest.json` 中 `permissions.allowed_modules` 白名单优先于黑名单
+| 特性 | level_0 (Zero Knowledge) | level_1 (Supervised) | level_2 (Autonomous) | level_3 (Self-Evolving) |
+|------|----------------------|---------------------|---------------------|------------------------|
+| arc:// 访问 | 禁用 | 启用 | 启用 | 启用 |
+| Script_Node trust_level | locked | locked | trusted | developer |
+| 属性访问 | 仅安全方法 | 仅安全方法 | 全部允许 | 全部允许 |
+| 推导式 | 禁用 | 禁用 | 启用 | 启用 |
+| open/compile | 禁用 | 禁用 | 启用 | 启用 |
+| flow.json 修改 | 禁用 | 禁用 | 启用 | 启用 |
+| manifest.json 修改 | 禁用 | 禁用 | 禁用 | 启用 |
+| Gas 计费 | 500 ops | 1000 ops | 1000 ops | 无限制 |
+| SafeContext 内存 | 64MB | 128MB | 128MB | 256MB |
 
-**三档信任模式：**
+**Script_Node 与 manifest autonomy_level 联动：**
 
-```json
-{
-  "permissions": {
-    "script_trust_level": "locked|trusted|developer"
-  }
-}
+```
+manifest.json:
+  permissions:
+    autonomy_level: "level_3"  →  Script_Node 自动获得 developer trust_level
+
+Node config 可覆盖：
+  node.config.script_trust_level: "locked"  →  即使 level_3 也强制 locked
 ```
 
-| 级别 | 描述 | 限制 |
+| trust_level | 表达式 | 语句 | 适用场景 |
+|-------------|--------|------|----------|
+| `locked` | ASTEvaluator | 拒绝 | level_0/1 默认，最安全 |
+| `trusted` | ASTEvaluator | safe exec | level_2 默认，平衡 |
+| `developer` | ASTEvaluator | full exec | level_3 默认，最强 |
+
+**level_0 (Zero Knowledge) 设计意义：**
+
+```
+level_0: Agent 是"纯函数"——输入 → 推理 → 输出
+         Agent 不知道自己在 Agent 框架中运行
+         不知道 arc://、prompts/、scripts/ 的存在
+         只能通过 prompt/input 接收信息，通过 output 返回结果
+
+适用场景：
+• 第三方 LLM API 调用（Claude/GPT）
+• 极度敏感的数据处理（不允许任何文件系统访问）
+• 简单的请求-响应模式
+```
+
+| 字段 | 类型 | 描述 |
 |------|------|------|
-| `locked` | 不可信外部输入 | 仅 AST Evaluator 表达式，无 `exec()` |
-| `trusted` | 内部可信脚本 | `exec()` + `safe_globals`（当前实现）|
-| `developer` | 开发者模式 | 完整 Python（仅本地开发用）|
+| `permissions.allow_arc_access` | `boolean` | 是否允许访问 arc:// 协议（level_0=false）|
 
-> 白名单模式下，只有 `allowed_modules` 中的模块可导入，完全禁止 `__import__`、`eval`、`exec` 等危险调用。适用于高风险自进化 Agent。
+**Gas 计费机制：**
+
+每次 AST 节点访问消耗 1 Gas。超出 `gas_budget` 限制时抛出 `GasExceededError`，防止无限循环。
+
+**SafeContext 包装器：**
+
+使用 `tracemalloc` 追踪表达式求值过程中的内存分配，确保不会溢出宿主机内存。
+
+**黑名单 vs 白名单：**
+
+```
+旧：黑名单模式（拦截 DANGEROUS_CALLS 中列出的所有调用）
+新：信任模式（仅拦截 DANGEROUS_ATTRIBUTES 中的内核属性）
+```
+
+> 信任式自治让 Agent 能够使用标准库方法（split, append, regex, json 等），同时保持内核安全。
 
 ### Error Port 机制
 
@@ -530,20 +593,60 @@ Error_Stack:
 
 ## 第五层：安全性与不可变性
 
-### 不可变节点保护
+### 不可变锚点（Immutable Anchors）
 
-`manifest.json` 中的 `immutable_nodes` 数组：
+`manifest.json` 中的 `immutable_anchors` 数组：
 
 ```json
 {
-  "immutable_nodes": ["trigger_1", "security_audit"]
+  "immutable_anchors": [
+    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"},
+    {"node_id": "audit_1", "reason": "Security audit node - kernel enforced lock"}
+  ]
 }
 ```
 
 **保护规则：**
-- `Asset_Writer` 拒绝修改 `immutable_nodes` 内的节点
-- 尝试修改将返回 `ImmutableNodeError`
-- 唯一解除方式是手动编辑 `manifest.json`
+
+- `Asset_Writer` 拒绝修改 `immutable_anchors` 内的节点
+- 即使在 `level_3`（Self-Evolving）模式下，某些核心节点也由**内核强制锁定**
+- 尝试修改将返回 `ImmutableAnchorError`
+- 唯一解除方式是手动编辑 `manifest.json`（需要重启引擎）
+
+**不可变锚点的设计意义：**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Agent 自我进化闭环                          │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│   Asset_Reader          LLM              Asset_Writer         │
+│   (读取flow.json)  →  (优化逻辑)  →    (回写flow.json)         │
+│         ↑                                      │             │
+│         │                                      ↓             │
+│         │                              Runtime_Reload         │
+│         │                                      │             │
+│         └──────────────────────────────────────┘             │
+│                          闭环                                 │
+│                                                              │
+│   ┌──────────────────────────────────────────────────────┐   │
+│   │  Immutable Anchors (内核锁定)                         │   │
+│   │  • trigger_1: 入口点不可修改                          │   │
+│   │  • audit_1: 安全审计节点不可删除                       │   │
+│   │  • error_handler: 错误处理节点不可删除                  │   │
+│   └──────────────────────────────────────────────────────┘   │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**内核锁定的节点类型：**
+
+| 节点类型 | 原因 | 是否可配置 |
+|----------|------|------------|
+| `Trigger` | 图的唯一起点 | 是（可通过 immutable_anchors） |
+| 安全审计节点 | 合规要求 | 是（可通过 immutable_anchors） |
+| 错误处理节点 | 系统完整性 | 是（可通过 immutable_anchors） |
+| 其他节点 | 业务需求 | 由 autonomy_level 决定 |
 
 ### 上下文保持
 

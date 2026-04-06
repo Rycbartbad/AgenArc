@@ -166,13 +166,19 @@ agent_name.arc/
   "entry": "flow.json",
   "description": "我的第一个 Agent",
   "permissions": {
+    "allow_arc_access": true,
     "allow_script_read": true,
     "allow_script_write": true,
     "allow_prompt_read": true,
     "allow_prompt_write": false,
-    "allowed_modules": ["os", "json", "re"]
+    "allowed_modules": ["os", "json", "re"],
+    "autonomy_level": "level_1",
+    "gas_budget": 1000,
+    "max_memory_mb": 128
   },
-  "immutable_nodes": ["trigger_1"],
+  "immutable_anchors": [
+    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"}
+  ],
   "hot_reload": true
 }
 ```
@@ -186,26 +192,43 @@ agent_name.arc/
 | `entry` | 是 | string | 入口文件，通常是 "flow.json" |
 | `description` | 否 | string | Agent 描述 |
 | `permissions` | 否 | object | 权限配置 |
-| `immutable_nodes` | 否 | array | 不可变节点 ID 列表 |
+| `immutable_anchors` | 否 | array | 不可变锚点列表（内核锁定） |
 | `hot_reload` | 否 | boolean | 是否启用热重载，默认 false |
 
 ### permissions 权限配置
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
+| `allow_arc_access` | boolean | true | 是否允许访问 arc:// 协议（level_0=false） |
 | `allow_script_read` | boolean | true | 是否允许读取 scripts/ 目录 |
 | `allow_script_write` | boolean | false | 是否允许写入 scripts/ 目录 |
 | `allow_prompt_read` | boolean | true | 是否允许读取 prompts/ 目录 |
 | `allow_prompt_write` | boolean | false | 是否允许写入 prompts/ 目录 |
-| `allowed_modules` | array | [] | 允许导入的 Python 模块 |
+| `allow_flow_modification` | boolean | false | 是否允许修改 flow.json（level_2+） |
+| `allow_manifest_modification` | boolean | false | 是否允许修改 manifest.json（level_3） |
+| `autonomy_level` | string | "level_1" | 信任式自主等级 |
+| `gas_budget` | integer | 1000 | 表达式求值的 Gas 上限 |
+| `max_memory_mb` | integer | 128 | SafeContext 内存限制（MB） |
 
-### immutable_nodes 不可变节点
+### autonomy_level 信任式自主等级
 
-这是一个字符串数组，指定哪些节点不能被修改：
+| 等级 | 说明 | Script_Node trust_level |
+|------|------|------------------------|
+| `level_0` | Zero Knowledge - Agent 不知道 arc:// 存在 | locked |
+| `level_1` | Supervised - 仅表达式求值 | locked |
+| `level_2` | Autonomous - 可修改 flow.json | trusted |
+| `level_3` | Self-Evolving - 最高权力 | developer |
+
+### immutable_anchors 不可变锚点
+
+这是一个对象数组，指定哪些节点由内核强制锁定，即使 level_3 也不能修改：
 
 ```json
 {
-  "immutable_nodes": ["trigger_1", "security_check"]
+  "immutable_anchors": [
+    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"},
+    {"node_id": "audit_1", "reason": "Security audit node"}
+  ]
 }
 ```
 
@@ -1138,10 +1161,14 @@ full_agent.arc/
   "version": "1.0.0",
   "entry": "flow.json",
   "permissions": {
+    "allow_arc_access": true,
     "allow_script_read": true,
-    "allow_script_write": false
+    "allow_script_write": false,
+    "autonomy_level": "level_2"
   },
-  "immutable_nodes": ["trigger_1"],
+  "immutable_anchors": [
+    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"}
+  ],
   "hot_reload": true
 }
 ```

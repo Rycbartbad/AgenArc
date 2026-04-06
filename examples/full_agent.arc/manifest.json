@@ -2,14 +2,21 @@
   "name": "full_agent",
   "version": "1.0.0",
   "entry": "flow.json",
-  "description": "完整功能 Agent - 展示所有节点类型",
+  "description": "完整功能 Agent - 展示所有节点类型及信任式自主架构",
   "permissions": {
+    "allow_arc_access": true,
     "allow_script_read": true,
     "allow_script_write": false,
     "allow_prompt_read": true,
     "allow_prompt_write": false,
-    "allowed_modules": ["os", "json", "re"]
+    "allowed_modules": ["os", "json", "re"],
+    "autonomy_level": "level_2"
   },
-  "immutable_nodes": ["trigger_1"],
-  "hot_reload": true
+  "immutable_anchors": [
+    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"},
+    {"node_id": "audit_1", "reason": "Security audit node - kernel enforced lock"}
+  ],
+  "hot_reload": true,
+  "gas_budget": 1000,
+  "max_memory_mb": 128
 }

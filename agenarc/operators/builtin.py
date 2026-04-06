@@ -193,6 +193,25 @@ class Memory_IO_Operator(IOperator):
         return None
 
 
+
+def _autonomy_to_trust_level(autonomy_level: int) -> str:
+    """
+    Map manifest autonomy level to Script_Node trust level.
+
+    Args:
+        autonomy_level: Integer autonomy level (0-3)
+
+    Returns:
+        trust_level string: "locked", "trusted", or "developer"
+    """
+    if autonomy_level <= 1:
+        return "locked"
+    elif autonomy_level == 2:
+        return "trusted"
+    else:
+        return "developer"
+
+
 class Script_Node_Operator(IOperator):
     """
     Script Node operator - execute inline Python scripts.
@@ -250,9 +269,20 @@ class Script_Node_Operator(IOperator):
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}
 
-        # Get trust level from node config
+        # Get trust level from node config or derive from manifest autonomy_level
         node_config = context.get("_node_config", {})
-        trust_level = node_config.get("script_trust_level", "trusted")
+        explicit_trust = node_config.get("script_trust_level", None)
+        if explicit_trust is not None:
+            # Node config explicitly overrides manifest
+            trust_level = explicit_trust
+        else:
+            # Derive from manifest's autonomy level
+            manifest_autonomy = context.get("_manifest_autonomy_level", 1)
+            trust_level = _autonomy_to_trust_level(manifest_autonomy)
+
+        # Get resource limits from manifest permissions
+        gas_budget = context.get("_gas_budget", 1000)
+        max_memory_mb = context.get("_max_memory_mb", 128)
 
         # Build evaluation context
         eval_context = self._build_context(context)
@@ -261,10 +291,17 @@ class Script_Node_Operator(IOperator):
             # Check if it's a single expression or statements
             script_stripped = script.strip()
 
+            # Create evaluator with autonomy level and resource limits
+            evaluator = ASTEvaluator(
+                autonomy_level=manifest_autonomy,
+                gas_budget=gas_budget,
+                max_memory_mb=max_memory_mb,
+            )
+
             # In "locked" mode: only allow AST-based expression evaluation
             if trust_level == "locked":
                 if self._is_expression(script_stripped):
-                    result = self._evaluator.evaluate(script_stripped, eval_context)
+                    result = evaluator.evaluate(script_stripped, eval_context)
                     return {"result": result, "success": True, "error": None}
                 else:
                     return {
@@ -276,7 +313,7 @@ class Script_Node_Operator(IOperator):
 
             # In "trusted" or "developer" mode: allow statements with restrictions
             if self._is_expression(script_stripped):
-                result = self._evaluator.evaluate(script_stripped, eval_context)
+                result = evaluator.evaluate(script_stripped, eval_context)
                 return {"result": result, "success": True, "error": None}
             else:
                 # Execute as statements (for context modifications)
