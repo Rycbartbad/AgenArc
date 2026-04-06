@@ -274,7 +274,6 @@ class ExecutionEngine:
         elif self._permissions.autonomy_level == AutonomyLevel.LEVEL_3_SELF_EVOLVING:
             autonomy_value = 3
         self._state.set_global("_manifest_autonomy_level", autonomy_value)
-        self._state.set_global("_allow_arc_access", self._permissions.allow_arc_access)
         self._state.set_global("_gas_budget", self._permissions.gas_budget)
         self._state.set_global("_max_memory_mb", self._permissions.max_memory_mb)
 
