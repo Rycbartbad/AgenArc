@@ -1,233 +1,291 @@
-# AgenArc Agent Examples
+# AgenArc Agent 开发完全指南
 
-## 概述
+## 目录
 
-`.arc` 是 AgenArc 的 Agent 资产包格式，一个自包含的目录包，包含执行 Agent 所需的所有组件。
+1. [什么是 .arc Agent](#1-什么是-arc-agent)
+2. [创建你的第一个 Agent](#2-创建你的第一个-agent)
+3. [目录结构详解](#3-目录结构详解)
+4. [manifest.json 完全指南](#4-manifestjson-完全指南)
+5. [flow.json 完全指南](#5-flowjson-完全指南)
+6. [节点类型详解](#6-节点类型详解)
+7. [模板语法](#7-模板语法)
+8. [VFS 虚拟文件系统](#8-vfs-虚拟文件系统)
+9. [运行和调试](#9-运行和调试)
+10. [完整示例](#10-完整示例)
 
-## 目录结构
+---
+
+## 1. 什么是 .arc Agent
+
+`.arc` 是 AgenArc 的 Agent 资产包格式。每个 Agent 是一个文件夹，包含执行所需的所有组件：
+
+- **prompts/** - 提示词模板
+- **scripts/** - 自定义脚本
+- **flow.json** - 工作流定义
+- **manifest.json** - 配置信息
+
+---
+
+## 2. 创建你的第一个 Agent
+
+### 步骤 1：创建目录结构
 
 ```
 my_agent.arc/
-├── manifest.json      # 资产包元数据
-├── flow.json         # 图协议定义
-├── prompts/          # Prompt 模板
-│   ├── system.pt     # 系统提示词
-│   └── user.pt       # 用户提示词
-├── scripts/          # 可执行脚本
-│   └── tool.py       # 自定义工具
-└── assets/           # 静态资源（可选）
-    └── config.yaml
+├── manifest.json
+├── flow.json
+├── prompts/
+│   ├── system.pt
+│   └── user.pt
+└── scripts/
+    └── tool.py
+```
+
+### 步骤 2：编写 manifest.json
+
+```json
+{
+  "name": "my_agent",
+  "version": "1.0.0",
+  "entry": "flow.json"
+}
+```
+
+### 步骤 3：编写 flow.json
+
+```json
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {"name": "my_agent"},
+  "nodes": [
+    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+    {"id": "llm_1", "type": "LLM_Task", "label": "Chat"},
+    {"id": "log_1", "type": "Log", "label": "Output"}
+  ],
+  "edges": [
+    {"source": "trigger_1", "target": "llm_1"},
+    {"source": "llm_1", "target": "log_1"}
+  ]
+}
+```
+
+### 步骤 4：编写 prompts/system.pt
+
+```
+You are a helpful AI assistant.
+{{context}}
+```
+
+### 步骤 5：运行 Agent
+
+```bash
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run my_agent.arc --input '{"trigger_payload":"Hello"}'
 ```
 
 ---
 
-## 1. manifest.json - 资产包配置
+## 3. 目录结构详解
+
+### 最小结构（必须）
+
+```
+agent_name.arc/
+├── manifest.json    # 必须：Agent 配置
+├── flow.json        # 必须：工作流定义
+└── prompts/        # 必须：至少一个 .pt 文件
+    └── system.pt   # 必须：系统提示词
+```
+
+### 完整结构
+
+```
+agent_name.arc/
+├── manifest.json      # Agent 元数据
+├── flow.json         # 工作流定义
+├── prompts/          # Prompt 模板目录
+│   ├── system.pt     # 系统提示词（必须）
+│   └── user.pt       # 用户提示词（可选）
+├── scripts/          # 自定义脚本目录（可选）
+│   ├── tool.py       # 工具脚本
+│   └── processor.py  # 处理脚本
+└── assets/          # 静态资源目录（可选）
+    └── config.yaml  # 配置文件
+```
+
+---
+
+## 4. manifest.json 完全指南
+
+### 完整字段说明
 
 ```json
 {
   "name": "my_agent",
   "version": "1.0.0",
   "entry": "flow.json",
+  "description": "我的第一个 Agent",
   "permissions": {
     "allow_script_read": true,
     "allow_script_write": true,
     "allow_prompt_read": true,
-    "allow_prompt_write": false
+    "allow_prompt_write": false,
+    "allowed_modules": ["os", "json", "re"]
   },
   "immutable_nodes": ["trigger_1"],
   "hot_reload": true
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | string | Agent 名称 |
-| `version` | string | 版本号 |
-| `entry` | string | 入口文件（通常是 flow.json） |
-| `permissions` | object | 权限配置 |
-| `immutable_nodes` | array | 不可变节点列表 |
-| `hot_reload` | boolean | 是否启用热重载 |
+### 字段详解
+
+| 字段 | 必填 | 类型 | 说明 |
+|------|------|------|------|
+| `name` | 是 | string | Agent 名称，只能包含字母、数字、下划线 |
+| `version` | 是 | string | 版本号，格式：X.Y.Z |
+| `entry` | 是 | string | 入口文件，通常是 "flow.json" |
+| `description` | 否 | string | Agent 描述 |
+| `permissions` | 否 | object | 权限配置 |
+| `immutable_nodes` | 否 | array | 不可变节点 ID 列表 |
+| `hot_reload` | 否 | boolean | 是否启用热重载，默认 false |
+
+### permissions 权限配置
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `allow_script_read` | boolean | true | 是否允许读取 scripts/ 目录 |
+| `allow_script_write` | boolean | false | 是否允许写入 scripts/ 目录 |
+| `allow_prompt_read` | boolean | true | 是否允许读取 prompts/ 目录 |
+| `allow_prompt_write` | boolean | false | 是否允许写入 prompts/ 目录 |
+| `allowed_modules` | array | [] | 允许导入的 Python 模块 |
+
+### immutable_nodes 不可变节点
+
+这是一个字符串数组，指定哪些节点不能被修改：
+
+```json
+{
+  "immutable_nodes": ["trigger_1", "security_check"]
+}
+```
 
 ---
 
-## 2. flow.json - 图协议定义
+## 5. flow.json 完全指南
 
-### 2.1 基本结构
+### 基本结构
 
 ```json
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
   "metadata": {
-    "name": "my_agent",
-    "description": "Agent 描述"
+    "name": "agent_name",
+    "description": "描述",
+    "author": "作者",
+    "tags": ["tag1", "tag2"]
   },
   "nodes": [...],
   "edges": [...]
 }
 ```
 
-| 字段 | 说明 |
-|------|------|
-| `version` | 协议版本，固定为 "1.0.0" |
-| `entryPoint` | 入口节点 ID（有且只有一个 Trigger） |
-| `metadata` | 元数据信息 |
-| `nodes` | 节点列表 |
-| `edges` | 边列表（控制流连接） |
+### version 版本号
 
-### 2.2 Node 节点定义
+固定值：`"1.0.0"`
+
+### entryPoint 入口点
+
+必须是某个节点（Node）的 `id`，且该节点类型必须是 `Trigger`。
+
+### metadata 元数据
+
+| 字段 | 必填 | 类型 | 说明 |
+|------|------|------|------|
+| `name` | 是 | string | Agent 名称 |
+| `description` | 否 | string | 描述 |
+| `author` | 否 | string | 作者 |
+| `tags` | 否 | array | 标签列表 |
+
+### nodes 节点列表
+
+节点定义数组，每个节点是一个对象。详见[第6节](#6-节点类型详解)。
+
+### edges 边列表
+
+边定义了节点之间的连接关系：
 
 ```json
 {
-  "id": "unique_node_id",
-  "type": "Trigger",
-  "label": "显示名称",
-  "description": "节点描述",
-  "inputs": [],
-  "outputs": [],
-  "config": {}
+  "source": "node_a",
+  "sourcePort": "output_name",
+  "target": "node_b",
+  "targetPort": "input_name"
 }
 ```
 
-| 字段 | 类型 | 说明 |
+| 字段 | 必填 | 说明 |
 |------|------|------|
-| `id` | string | 唯一标识，节点间不能重复 |
-| `type` | string | 节点类型（见下方类型列表） |
-| `label` | string | UI 显示名称 |
-| `description` | string | 详细描述 |
-| `inputs` | array | 输入端口定义 |
-| `outputs` | array | 输出端口定义 |
-| `config` | object | 节点特定配置 |
+| `source` | 是 | 源节点 ID |
+| `sourcePort` | 否 | 源节点输出端口名，不填则传递所有输出 |
+| `target` | 是 | 目标节点 ID |
+| `targetPort` | 否 | 目标节点输入端口名，不填则传递到第一个输入端口 |
 
-#### 节点类型 (NodeType)
+#### 边的简单表示
 
-| 类型 | 说明 | 用途 |
-|------|------|------|
-| `Trigger` | 触发器 | 图的入口点，只能有一个 |
-| `LLM_Task` | LLM 任务 | 调用语言模型 |
-| `Router` | 路由 | 条件分支 |
-| `Loop_Control` | 循环控制 | 迭代处理 |
-| `Memory_I/O` | 记忆 I/O | 读写持久化存储 |
-| `Script_Node` | 脚本节点 | 执行自定义脚本 |
-| `Log` | 日志 | 输出调试信息 |
-| `Context_Set` | 设置上下文 | 向全局 context 写入 |
-| `Context_Get` | 获取上下文 | 从全局 context 读取 |
-
-### 2.3 Port 端口定义
+如果不需要指定端口，可以简写：
 
 ```json
-{
-  "name": "port_name",
-  "type": "string",
-  "description": "端口描述",
-  "default": "默认值"
-}
+{"source": "trigger_1", "target": "llm_1"}
 ```
 
-| 字段 | 说明 |
-|------|------|
-| `name` | 端口名称 |
-| `type` | 数据类型（string, any, object, array, boolean, integer） |
-| `description` | 描述 |
-| `default` | 默认值（可选） |
-
-### 2.4 Edge 边定义
+这等同于：
 
 ```json
-{
-  "source": "node_id",
-  "sourcePort": "output_port_name",
-  "target": "target_node_id",
-  "targetPort": "input_port_name"
-}
+{"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": ""}
 ```
-
-| 字段 | 说明 |
-|------|------|
-| `source` | 源节点 ID |
-| `sourcePort` | 源节点输出端口（可选） |
-| `target` | 目标节点 ID |
-| `targetPort` | 目标节点输入端口（可选） |
 
 ---
 
-## 3. 模板语法
+## 6. 节点类型详解
 
-在 prompts 和配置中可以使用模板变量：
+### 6.1 Trigger（触发器）
 
-### 3.1 上下文变量
+**作用**：工作流的入口点，每个流程只能有一个 Trigger。
 
-```jinja2
-{{context.user_input}}    # 用户输入
-{{context.loop_count}}   # 循环计数
-{{context.history}}      # 历史记录
-```
-
-### 3.2 节点输出
-
-```jinja2
-{{nodes.llm_1.outputs.response}}  # 获取 llm_1 节点的 response 输出
-```
-
-### 3.3 特殊变量
-
-```jinja2
-{{agent_name}}      # Agent 名称
-{{user_context}}    # 用户上下文
-{{current_time}}    # 当前时间
-```
-
-### 3.4 VFS 路径引用
-
-在节点配置中使用 `arc://` 协议引用 bundle 内部文件：
-
-```yaml
-# LLM_Task 配置示例
-config:
-  system_prompt: "arc://prompts/system.pt"   # 读取 prompts/system.pt
-  script_path: "arc://scripts/tool.py"       # 读取 scripts/tool.py
-```
-
-**VFS 映射规则：**
-
-| VFS 路径 | 实际路径 |
-|----------|----------|
-| `arc://prompts/` | `<bundle>/prompts/` |
-| `arc://scripts/` | `<bundle>/scripts/` |
-| `arc://assets/` | `<bundle>/assets/` |
-| `arc://flow.json` | `<bundle>/flow.json` |
-
----
-
-## 4. 节点详解
-
-### 4.1 Trigger - 触发器
-
-入口节点，生成初始 payload。
+**示例**：
 
 ```json
 {
   "id": "trigger_1",
   "type": "Trigger",
-  "label": "Start"
+  "label": "开始",
+  "description": "工作流入口"
 }
 ```
 
-**输出：**
-- `payload`: 初始数据载荷
+**输出端口**：
 
-### 4.2 LLM_Task - LLM 任务
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `payload` | any | 初始载荷，包含用户输入 |
 
-调用语言模型生成响应。
+---
+
+### 6.2 LLM_Task（LLM 任务）
+
+**作用**：调用语言模型生成响应。
+
+**示例**：
 
 ```json
 {
   "id": "llm_1",
   "type": "LLM_Task",
-  "label": "Chat",
+  "label": "对话",
   "inputs": [
     {"name": "prompt", "type": "string"},
-    {"name": "context", "type": "object", "default": null}
+    {"name": "context", "type": "object"}
   ],
   "outputs": [
     {"name": "response", "type": "string"},
@@ -241,23 +299,42 @@ config:
 }
 ```
 
-**配置项：**
-| 配置 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `model` | string | - | 模型名称 |
-| `temperature` | number | 0.7 | 温度参数 |
-| `system_prompt` | string | - | 系统提示词 |
-| `max_tokens` | integer | - | 最大 token 数 |
+**输入端口**：
 
-### 4.3 Router - 路由
+| 端口名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `prompt` | string | - | 用户输入的提示词 |
+| `context` | object | null | 上下文对象 |
 
-基于条件表达式路由到不同分支。
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `response` | string | LLM 生成的响应 |
+| `usage` | object | token 使用统计 |
+
+**config 配置项**：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `model` | string | - | 模型名称（如 deepseek-chat、gpt-4） |
+| `temperature` | number | 0.7 | 温度参数，控制随机性（0-1） |
+| `system_prompt` | string | - | 系统提示词，可用 VFS 路径 |
+| `max_tokens` | integer | - | 最大生成 token 数 |
+
+---
+
+### 6.3 Router（路由）
+
+**作用**：根据条件将数据路由到不同的分支。
+
+**示例**：
 
 ```json
 {
   "id": "router_1",
   "type": "Router",
-  "label": "Route",
+  "label": "路由",
   "inputs": [
     {"name": "input", "type": "any"}
   ],
@@ -268,7 +345,7 @@ config:
   "config": {
     "conditions": [
       {
-        "ref": "context.user_input",
+        "ref": "input",
         "operator": "contains",
         "value": "quit",
         "output": "B"
@@ -279,29 +356,109 @@ config:
 }
 ```
 
-**条件操作符 (operator)：**
+**输入端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `input` | any | 要判断的输入值 |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `output_A` | any | 条件不满足时的输出 |
+| `output_B` | any | 条件满足时的输出 |
+
+**config 配置项**：
+
+| 配置项 | 类型 | 说明 |
+|--------|------|------|
+| `conditions` | array | 条件数组，按顺序匹配 |
+| `default` | string | 默认分支，"A" 或 "B" |
+
+**conditions 条件数组**：
+
+每个条件对象：
+
+```json
+{
+  "ref": "input",
+  "operator": "contains",
+  "value": "quit",
+  "output": "B"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ref` | string | 引用的变量名 |
+| `operator` | string | 操作符 |
+| `value` | any | 比较的值 |
+| `output` | string | 满足条件时输出 "A" 或 "B" |
+| `and` | array | 与条件数组 |
+| `or` | array | 或条件数组 |
+| `not` | object | 否定条件 |
+
+**操作符 (operator)**：
 
 | 操作符 | 说明 | 示例 |
 |--------|------|------|
 | `eq` | 等于 | `{"operator": "eq", "value": "yes"}` |
 | `ne` | 不等于 | `{"operator": "ne", "value": "no"}` |
 | `gt` | 大于 | `{"operator": "gt", "value": 5}` |
+| `gte` | 大于等于 | `{"operator": "gte", "value": 5}` |
 | `lt` | 小于 | `{"operator": "lt", "value": 10}` |
+| `lte` | 小于等于 | `{"operator": "lte", "value": 10}` |
 | `contains` | 包含 | `{"operator": "contains", "value": "help"}` |
+| `notContains` | 不包含 | `{"operator": "notContains", "value": "bad"}` |
 | `startsWith` | 开头是 | `{"operator": "startsWith", "value": "!"}` |
 | `endsWith` | 结尾是 | `{"operator": "endsWith", "value": "?"}` |
-| `in` | 在列表中 | `{"operator": "in", "value": ["a", "b"]}` |
+| `in` | 在数组中 | `{"operator": "in", "value": ["a", "b"]}` |
+| `notIn` | 不在数组中 | `{"operator": "notIn", "value": ["x", "y"]}` |
 | `exists` | 存在 | `{"operator": "exists"}` |
+| `notExists` | 不存在 | `{"operator": "notExists"}` |
 
-### 4.4 Loop_Control - 循环控制
+**ref 引用路径**：
 
-迭代处理数组或集合。
+| 路径格式 | 说明 | 示例 |
+|----------|------|------|
+| `input` | 输入值 | 直接引用 input 端口 |
+| `context.xxx` | 全局上下文 | `context.user_input` |
+| `nodes.xxx.outputs.yyy` | 节点输出 | `nodes.llm_1.outputs.response` |
+
+**复合条件示例**：
+
+```json
+{
+  "and": [
+    {"ref": "input", "operator": "contains", "value": "help"},
+    {"ref": "context.level", "operator": "gte", "value": 5}
+  ]
+}
+```
+
+```json
+{
+  "or": [
+    {"ref": "input", "operator": "contains", "value": "quit"},
+    {"ref": "input", "operator": "contains", "value": "exit"}
+  ]
+}
+```
+
+---
+
+### 6.4 Loop_Control（循环控制）
+
+**作用**：对数组或集合进行迭代处理。
+
+**示例**：
 
 ```json
 {
   "id": "loop_1",
   "type": "Loop_Control",
-  "label": "Process Items",
+  "label": "处理列表",
   "inputs": [
     {"name": "iterate_on", "type": "array"},
     {"name": "max_iterations", "type": "integer", "default": 100}
@@ -315,15 +472,35 @@ config:
 }
 ```
 
-### 4.5 Memory_I/O - 记忆 I/O
+**输入端口**：
 
-读写持久化存储。
+| 端口名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `iterate_on` | array | - | 要迭代的数组 |
+| `max_iterations` | integer | 100 | 最大迭代次数 |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `iteration_count` | integer | 当前迭代计数 |
+| `current_item` | any | 当前迭代项 |
+| `accumulator` | any | 累积值 |
+| `done` | boolean | 是否完成 |
+
+---
+
+### 6.5 Memory_I/O（记忆 I/O）
+
+**作用**：读写持久化存储。
+
+**示例**：
 
 ```json
 {
   "id": "memory_1",
   "type": "Memory_I/O",
-  "label": "Memory",
+  "label": "记忆",
   "inputs": [
     {"name": "key", "type": "string"},
     {"name": "value", "type": "any"}
@@ -335,17 +512,36 @@ config:
 }
 ```
 
-### 4.6 Script_Node - 脚本节点
+**输入端口**：
 
-执行自定义 Python 脚本。
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `key` | string | 存储键名 |
+| `value` | any | 要存储的值（写模式） |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `value` | any | 读取的值 |
+| `success` | boolean | 操作是否成功 |
+
+---
+
+### 6.6 Script_Node（脚本节点）
+
+**作用**：执行自定义 Python 脚本。
+
+**示例**：
 
 ```json
 {
   "id": "script_1",
   "type": "Script_Node",
-  "label": "Process",
+  "label": "处理",
   "inputs": [
-    {"name": "script", "type": "string", "default": "result = context.get('input', '')"}
+    {"name": "script", "type": "string", "default": "result = input"},
+    {"name": "timeout", "type": "integer", "default": 30}
   ],
   "outputs": [
     {"name": "result", "type": "any"},
@@ -355,28 +551,60 @@ config:
 }
 ```
 
-**脚本示例：**
+**输入端口**：
+
+| 端口名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `script` | string | - | 要执行的 Python 代码 |
+| `timeout` | integer | 30 | 超时时间（秒） |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `result` | any | 脚本执行结果 |
+| `success` | boolean | 是否成功 |
+| `error` | string | 错误信息 |
+
+**脚本示例**：
 
 ```python
-# 获取上下文值
-input_text = context.get('input', '')
+# 获取输入
+text = context.get('input', '')
 
-# 处理数据
-result = input_text.upper()
+# 处理
+words = text.split()
+word_count = len(words)
 
 # 返回结果
-result = {"processed": result}
+result = {
+    'word_count': word_count,
+    'upper': text.upper(),
+    'lower': text.lower()
+}
 ```
 
-### 4.7 Log - 日志节点
+**可用的上下文变量**：
 
-输出调试信息。
+| 变量 | 说明 |
+|------|------|
+| `context` | 执行上下文对象 |
+| `input` | 输入端口的值 |
+| `loop` | 循环信息（iteration, current_item, accumulator） |
+
+---
+
+### 6.7 Log（日志节点）
+
+**作用**：输出调试信息。
+
+**示例**：
 
 ```json
 {
   "id": "log_1",
   "type": "Log",
-  "label": "Debug",
+  "label": "日志",
   "inputs": [
     {"name": "message", "type": "string", "default": ""},
     {"name": "data", "type": "any", "default": null}
@@ -388,15 +616,26 @@ result = {"processed": result}
 }
 ```
 
-### 4.8 Context_Set / Context_Get
+**输入端口**：
 
-设置和获取全局上下文变量。
+| 端口名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `message` | string | "" | 日志消息 |
+| `data` | any | null | 要输出的数据 |
+
+---
+
+### 6.8 Context_Set（设置上下文）
+
+**作用**：向全局上下文写入变量。
+
+**示例**：
 
 ```json
 {
   "id": "set_ctx",
   "type": "Context_Set",
-  "label": "Set Context",
+  "label": "设置变量",
   "inputs": [
     {"name": "key", "type": "string"},
     {"name": "value", "type": "any"}
@@ -407,104 +646,262 @@ result = {"processed": result}
 }
 ```
 
+**输入端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `key` | string | 变量名 |
+| `value` | any | 变量值 |
+
 ---
 
-## 5. prompts/ 目录
+### 6.9 Context_Get（获取上下文）
 
-存放 Prompt 模板文件，支持模板变量。
+**作用**：从全局上下文读取变量。
 
-### 示例：system.pt
+**示例**：
+
+```json
+{
+  "id": "get_ctx",
+  "type": "Context_Get",
+  "label": "获取变量",
+  "inputs": [
+    {"name": "key", "type": "string"},
+    {"name": "default", "type": "any", "default": null}
+  ],
+  "outputs": [
+    {"name": "value", "type": "any"}
+  ]
+}
+```
+
+**输入端口**：
+
+| 端口名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `key` | string | - | 变量名 |
+| `default` | any | null | 默认值（变量不存在时返回） |
+
+---
+
+## 7. 模板语法
+
+在 prompts/*.pt 文件和某些配置项中，可以使用模板变量。
+
+### 7.1 基础变量
+
+| 语法 | 说明 |
+|------|------|
+| `{{agent_name}}` | Agent 名称 |
+| `{{user_context}}` | 用户上下文 |
+| `{{current_time}}` | 当前时间 |
+
+### 7.2 上下文变量
+
+| 语法 | 说明 |
+|------|------|
+| `{{context}}` | 整个上下文对象 |
+| `{{context.xxx}}` | 上下文中的特定字段 |
+| `{{context.user_input}}` | 用户输入 |
+| `{{context.history}}` | 对话历史 |
+
+### 7.3 节点输出变量
+
+| 语法 | 说明 |
+|------|------|
+| `{{nodes.xxx.outputs.yyy}}` | 获取节点 xxx 的 yyy 输出 |
+
+**示例**：
+
+```jinja2
+The LLM said: {{nodes.llm_1.outputs.response}}
+Token usage: {{nodes.llm_1.outputs.usage.total_tokens}}
+```
+
+### 7.4 循环变量
+
+| 语法 | 说明 |
+|------|------|
+| `{{loop.current_item}}` | 当前迭代项 |
+| `{{loop.iteration}}` | 当前迭代数 |
+| `{{loop.accumulator}}` | 累积值 |
+
+### 7.5 环境变量
+
+| 语法 | 说明 |
+|------|------|
+| `{{env.VAR_NAME}}` | 系统环境变量 |
+
+### 7.6 条件模板
+
+```jinja2
+{% if context.is_admin %}
+Welcome, admin!
+{% else %}
+Welcome, user!
+{% endif %}
+```
+
+### 7.7 循环模板
+
+```jinja2
+{% for item in items %}
+- {{ item }}
+{% endfor %}
+```
+
+### 7.8 模板使用示例
+
+**prompts/system.pt**：
 
 ```jinja2
 You are {{agent_name}}, a helpful AI assistant.
 
-Guidelines:
-- Be concise and helpful
-- Use context: {{context}}
-- Think step by step
+User context: {{context.user_context}}
+
+{% if context.is_premium %}
+You have premium access.
+{% endif %}
 
 Current conversation:
-{{history}}
+{{context.history}}
 ```
 
-### 示例：user.pt
+**prompts/user.pt**：
 
 ```jinja2
 {{user_input}}
+
+{% if context.attachments %}
+Attachments: {{context.attachments}}
+{% endif %}
 ```
 
 ---
 
-## 6. scripts/ 目录
+## 8. VFS 虚拟文件系统
 
-存放可执行的 Python 脚本，供 Script_Node 调用。
+VFS 允许通过 `arc://` 协议安全地访问 bundle 内部的资源，而不需要暴露实际文件系统路径。
 
-### 示例：tool.py
+### 8.1 VFS 路径映射
 
-```python
-"""自定义工具函数"""
+| VFS 路径 | 实际路径 |
+|----------|----------|
+| `arc://prompts/` | `<bundle>/prompts/` |
+| `arc://scripts/` | `<bundle>/scripts/` |
+| `arc://assets/` | `<bundle>/assets/` |
+| `arc://flow.json` | `<bundle>/flow.json` |
 
-def process_text(text: str) -> dict:
-    """处理文本"""
-    return {
-        "upper": text.upper(),
-        "lower": text.lower(),
-        "length": len(text)
-    }
+### 8.2 在配置中使用 VFS
 
-def calculate(expression: str) -> dict:
-    """安全计算数学表达式"""
-    allowed = set("0123456789+-*/.() ")
-    if not all(c in allowed for c in expression):
-        return {"error": "Invalid characters"}
+**LLM_Task 配置示例**：
 
-    try:
-        result = eval(expression)
-        return {"result": result}
-    except ZeroDivisionError:
-        return {"error": "Division by zero"}
-    except Exception as e:
-        return {"error": str(e)}
+```json
+{
+  "id": "llm_1",
+  "type": "LLM_Task",
+  "config": {
+    "system_prompt": "arc://prompts/system.pt"
+  }
+}
 ```
+
+**Asset_Reader 配置示例**：
+
+```json
+{
+  "id": "reader_1",
+  "type": "Asset_Reader",
+  "config": {
+    "path": "arc://scripts/tool.py"
+  }
+}
+```
+
+### 8.3 完整 VFS 路径示例
+
+| 用途 | VFS 路径 |
+|------|----------|
+| 系统提示词 | `arc://prompts/system.pt` |
+| 用户提示词 | `arc://prompts/user.pt` |
+| 工具脚本 | `arc://scripts/tool.py` |
+| 配置文件 | `arc://assets/config.yaml` |
+| 流程定义 | `arc://flow.json` |
 
 ---
 
-## 7. 运行 Agent
+## 9. 运行和调试
 
-### 配置 API Key
+### 9.1 配置 API Key
 
-在项目根目录的 `config.yaml` 中配置：
+在项目根目录创建或编辑 `config.yaml`：
 
 ```yaml
 openai:
-  api_key: your-api-key
+  api_key: your-api-key-here
   base_url: https://api.deepseek.com
   default_model: deepseek-chat
   temperature: 0.7
 ```
 
-### 运行命令
+**常用 API 端点**：
+
+| 服务商 | base_url | 模型示例 |
+|--------|----------|----------|
+| DeepSeek | `https://api.deepseek.com` | deepseek-chat |
+| OpenAI | `https://api.openai.com/v1` | gpt-4, gpt-3.5-turbo |
+| Ollama (本地) | `http://localhost:11434/v1` | llama2, mistral |
+
+### 9.2 运行命令
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc \
-  --input '{"trigger_payload":"Hello"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent-path> --input '<json>'
 ```
 
-### 输入格式
+### 9.3 输入格式
 
-`--input` 参数需要是有效的 JSON：
+`--input` 参数必须是有效的 JSON：
 
-```json
-{"trigger_payload": "用户输入内容"}
-{"user_input": "问题"}
-{"input": "命令"}
+**简单字符串**：
+
+```bash
+--input '{"trigger_payload": "Hello"}'
 ```
+
+**带上下文的输入**：
+
+```bash
+--input '{"trigger_payload": {"user_input": "Hello", "context": {"name": "Alice"}}}'
+```
+
+**多字段输入**：
+
+```bash
+--input '{"user_input": "Help me", "mode": "detailed", "language": "zh"}'
+```
+
+### 9.4 运行选项
+
+| 选项 | 说明 |
+|------|------|
+| `--input <json>` | 输入数据（JSON 格式） |
+| `--mode <mode>` | 执行模式：sync, async, parallel（默认 async） |
+| `-v, --verbose` | 显示详细输出 |
+
+### 9.5 调试技巧
+
+1. **使用 Log 节点**：在关键节点后添加 Log 节点查看输出
+2. **简化流程**：先用一个 LLM_Task 测试，再逐步添加其他节点
+3. **检查输出**：使用 `-v` 查看完整的节点输出
 
 ---
 
-## 8. 完整示例
+## 10. 完整示例
 
-### chat_agent.arc - 对话 Agent
+### 10.1 chat_agent.arc - 简单对话 Agent
+
+**目录结构**：
 
 ```
 chat_agent.arc/
@@ -515,36 +912,207 @@ chat_agent.arc/
     └── user.pt
 ```
 
-**flow.json 核心结构：**
+**manifest.json**：
 
 ```json
 {
+  "name": "chat_agent",
+  "version": "1.0.0",
+  "entry": "flow.json"
+}
+```
+
+**flow.json**：
+
+```json
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {"name": "chat_agent"},
   "nodes": [
-    {"id": "trigger_1", "type": "Trigger"},
-    {"id": "llm_1", "type": "LLM_Task"},
-    {"id": "log_response", "type": "Log"}
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "开始"
+    },
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "对话",
+      "inputs": [
+        {"name": "prompt", "type": "string"},
+        {"name": "context", "type": "object"}
+      ],
+      "outputs": [
+        {"name": "response", "type": "string"},
+        {"name": "usage", "type": "object"}
+      ],
+      "config": {
+        "model": "deepseek-chat",
+        "temperature": 0.7,
+        "system_prompt": "arc://prompts/system.pt"
+      }
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "输出",
+      "inputs": [
+        {"name": "message", "type": "string"}
+      ]
+    }
   ],
   "edges": [
     {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
-    {"source": "llm_1", "sourcePort": "response", "target": "log_response", "targetPort": "message"}
+    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"}
   ]
 }
 ```
 
-**运行：**
+**prompts/system.pt**：
+
+```
+You are a helpful AI assistant.
+{{context}}
+```
+
+**prompts/user.pt**：
+
+```
+{{user_input}}
+```
+
+**运行**：
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc \
-  --input '{"trigger_payload":"What is AI?"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello, who are you?"}'
 ```
 
 ---
 
-## 9. 最佳实践
+### 10.2 带路由的 Agent
 
-1. **节点 ID 命名**：使用有意义的名称，如 `llm_chat`、`router_main`
-2. **错误处理**：为关键节点配置 `errorHandling`
-3. **模块化**：将复杂逻辑放入 scripts/ 目录
-4. **Prompt 模板**：使用 `{{variable}}` 语法提高复用性
-5. **VFS 引用**：优先使用 `arc://` 协议而非绝对路径
-6. **不可变节点**：将核心 Trigger 等节点加入 `immutable_nodes`
+```json
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {"name": "router_agent"},
+  "nodes": [
+    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "Chat",
+      "config": {"system_prompt": "You are a helpful assistant."}
+    },
+    {
+      "id": "router_1",
+      "type": "Router",
+      "label": "Route",
+      "config": {
+        "conditions": [
+          {
+            "ref": "nodes.llm_1.outputs.response",
+            "operator": "contains",
+            "value": "goodbye",
+            "output": "B"
+          }
+        ],
+        "default": "A"
+      }
+    },
+    {"id": "log_end", "type": "Log", "label": "End"},
+    {"id": "log_continue", "type": "Log", "label": "Continue"}
+  ],
+  "edges": [
+    {"source": "trigger_1", "target": "llm_1"},
+    {"source": "llm_1", "target": "router_1"},
+    {"source": "router_1", "sourcePort": "output_A", "target": "log_continue"},
+    {"source": "router_1", "sourcePort": "output_B", "target": "log_end"}
+  ]
+}
+```
+
+---
+
+### 10.3 带循环的 Agent
+
+```json
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {"name": "loop_agent"},
+  "nodes": [
+    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+    {
+      "id": "loop_1",
+      "type": "Loop_Control",
+      "label": "Process Items",
+      "inputs": [
+        {"name": "iterate_on", "type": "array"}
+      ]
+    },
+    {
+      "id": "llm_item",
+      "type": "LLM_Task",
+      "label": "Process Item"
+    },
+    {
+      "id": "log_results",
+      "type": "Log",
+      "label": "Results"
+    }
+  ],
+  "edges": [
+    {"source": "trigger_1", "target": "loop_1"},
+    {"source": "loop_1", "sourcePort": "current_item", "target": "llm_item"},
+    {"source": "loop_1", "sourcePort": "done", "target": "log_results"}
+  ]
+}
+```
+
+---
+
+## 附录：常见问题
+
+### Q: 如何创建新的节点类型？
+A: 目前节点类型是预定义的，不能自定义添加新的内置类型。但可以通过 Script_Node 实现自定义逻辑。
+
+### Q: 如何处理错误？
+A: 在节点中添加 errorHandling 配置：
+
+```json
+{
+  "errorHandling": {
+    "strategy": "retry",
+    "maxRetries": 3,
+    "fallbackNode": "fallback_id"
+  }
+}
+```
+
+### Q: 如何实现多轮对话？
+A: 当前版本需要在外部维护对话历史，通过 context 传递历史记录。
+
+### Q: 支持哪些编程语言？
+A: Script_Node 目前只支持 Python。
+
+---
+
+## 附录：配置文件参考
+
+### config.yaml 完整示例
+
+```yaml
+openai:
+  api_key: your-api-key
+  base_url: https://api.deepseek.com
+  default_model: deepseek-chat
+  temperature: 0.7
+  max_tokens: 2000
+
+agent:
+  checkpoint_dir: ~/.agenarc
+  enable_checkpoint: true
+  max_parallel: 4
+```
