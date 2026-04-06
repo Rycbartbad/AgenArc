@@ -80,22 +80,29 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 pip install agenarc
 ```
 
-### Run a Protocol
+### Run an Agent
 
 ```bash
-agenarc run protocol.json
+# Run an .arc agent bundle
+agenarc run my_agent.arc
+
+# Or run a protocol file
+agenarc run flow.json
 ```
 
 ### CLI Commands
 
 ```bash
-# Run a protocol
+# Run an agent (.arc) or protocol (.json)
+agenarc run my_agent.arc
 agenarc run flow.json --input '{"key": "value"}' --mode async
 
-# Validate a protocol
+# Validate an agent or protocol
+agenarc validate my_agent.arc
 agenarc validate flow.json
 
-# Show protocol info
+# Show agent/protocol info
+agenarc info my_agent.arc
 agenarc info flow.json
 ```
 

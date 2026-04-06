@@ -4,9 +4,9 @@ AgenArc CLI
 Command-line interface for AgenArc execution engine.
 
 Usage:
-    python -m agenarc run <protocol.json>
-    python -m agenarc validate <protocol.json>
-    python -m agenarc info <protocol.json>
+    agenarc run <agent.arc|flow.json>
+    agenarc validate <agent.arc|flow.json>
+    agenarc info <agent.arc|flow.json>
 """
 
 import argparse
@@ -22,6 +22,49 @@ from agenarc.engine.state import StateManager
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
 from agenarc.protocol.loader import ProtocolLoader, LoaderError
+
+
+def _resolve_bundle_path(file_path: Path) -> Path:
+    """
+    Resolve a bundle path to the actual protocol file.
+
+    Supports:
+    - .arc directory bundles (contains flow.json)
+    - .arc files (treated as direct protocol JSON)
+    - .json files (direct protocol)
+
+    Args:
+        file_path: Input path from user
+
+    Returns:
+        Path to the protocol JSON file
+    """
+    path = Path(file_path)
+
+    # If it's a directory ending in .arc, look for flow.json inside
+    if path.is_dir():
+        flow_file = path / "flow.json"
+        if flow_file.exists():
+            return flow_file
+        manifest_file = path / "manifest.json"
+        if manifest_file.exists():
+            # It's a bundle - return the directory for bundle processing
+            return path
+
+    # If it's a .arc file, check if it's a directory or a JSON file
+    if path.suffix == ".arc":
+        if path.is_dir():
+            # .arc directory bundle
+            flow_file = path / "flow.json"
+            if flow_file.exists():
+                return flow_file
+            return path
+        else:
+            # .arc file treated as JSON
+            return path
+
+    # Regular JSON file
+    return path
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -42,12 +85,12 @@ def create_parser() -> argparse.ArgumentParser:
     # run command
     run_parser = subparsers.add_parser(
         "run",
-        help="Execute a protocol file"
+        help="Execute an agent (.arc or .json)"
     )
     run_parser.add_argument(
         "file",
         type=Path,
-        help="Path to protocol JSON file"
+        help="Path to agent bundle (.arc) or protocol (.json)"
     )
     run_parser.add_argument(
         "--input",
@@ -72,23 +115,23 @@ def create_parser() -> argparse.ArgumentParser:
     # validate command
     validate_parser = subparsers.add_parser(
         "validate",
-        help="Validate a protocol file"
+        help="Validate an agent bundle or protocol"
     )
     validate_parser.add_argument(
         "file",
         type=Path,
-        help="Path to protocol JSON file"
+        help="Path to agent bundle (.arc) or protocol (.json)"
     )
 
     # info command
     info_parser = subparsers.add_parser(
         "info",
-        help="Show protocol information"
+        help="Show agent/protocol information"
     )
     info_parser.add_argument(
         "file",
         type=Path,
-        help="Path to protocol JSON file"
+        help="Path to agent bundle (.arc) or protocol (.json)"
     )
 
     return parser
@@ -111,10 +154,10 @@ def command_run(
     verbose: bool = False
 ) -> int:
     """
-    Execute a protocol file.
+    Execute an agent bundle or protocol file.
 
     Args:
-        file: Path to protocol file
+        file: Path to agent bundle (.arc) or protocol (.json)
         input_json: Initial input as JSON string
         mode: Execution mode
         verbose: Verbose output flag
@@ -122,6 +165,9 @@ def command_run(
     Returns:
         Exit code (0 for success, 1 for failure)
     """
+    # Resolve bundle path
+    protocol_path = _resolve_bundle_path(file)
+
     # Parse initial inputs
     initial_inputs = {}
     if input_json:
@@ -141,10 +187,10 @@ def command_run(
 
     # Load protocol
     if verbose:
-        print(f"Loading protocol from {file}...")
+        print(f"Loading agent from {protocol_path}...")
 
     try:
-        engine.load_protocol(file)
+        engine.load_protocol(protocol_path)
     except LoaderError as e:
         print_error(f"Failed to load protocol: {e}")
         return 1
@@ -204,17 +250,20 @@ def command_run(
 
 def command_validate(file: Path) -> int:
     """
-    Validate a protocol file.
+    Validate an agent bundle or protocol file.
 
     Args:
-        file: Path to protocol file
+        file: Path to agent bundle (.arc) or protocol (.json)
 
     Returns:
         Exit code (0 for valid, 1 for invalid)
     """
+    # Resolve bundle path
+    protocol_path = _resolve_bundle_path(file)
+
     try:
         loader = ProtocolLoader(validate=True)
-        graph = loader.load(file)
+        graph = loader.load(protocol_path)
 
         print_success(f"Protocol is valid")
         print(f"  Version: {graph.version}")
@@ -231,17 +280,20 @@ def command_validate(file: Path) -> int:
 
 def command_info(file: Path) -> int:
     """
-    Show protocol information.
+    Show agent/protocol information.
 
     Args:
-        file: Path to protocol file
+        file: Path to agent bundle (.arc) or protocol (.json)
 
     Returns:
         Exit code
     """
+    # Resolve bundle path
+    protocol_path = _resolve_bundle_path(file)
+
     try:
         loader = ProtocolLoader(validate=False)
-        graph = loader.load(file)
+        graph = loader.load(protocol_path)
 
         print(f"AgenArc Protocol Information")
         print(f"=" * 40)
