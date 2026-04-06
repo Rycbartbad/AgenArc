@@ -91,19 +91,28 @@ my_agent.arc/
   "metadata": {"name": "my_agent"},
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "Start"},
-    {"id": "llm_1", "type": "LLM_Task", "label": "Chat"},
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "Chat",
+      "inputs": [{"name": "prompt", "type": "string"}],
+      "config": {
+        "model": "deepseek-chat",
+        "system_prompt": "arc://prompts/system.pt"
+      }
+    },
     {"id": "log_1", "type": "Log", "label": "Output"}
   ],
   "edges": [
-    {"source": "trigger_1", "target": "llm_1"},
-    {"source": "llm_1", "target": "log_1"}
+    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
+    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"}
   ]
 }
 ```
 
 ### 步骤 4：编写 prompts/system.pt
 
-```
+```jinja2
 You are a helpful AI assistant.
 {{context}}
 ```
