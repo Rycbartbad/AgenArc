@@ -1,0 +1,6 @@
+{
+  "name": "router_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "description": "带路由功能的 Agent，展示条件分支"
+}

@@ -1,15 +1,15 @@
 {
-  "name": "my_agent",
+  "name": "full_agent",
   "version": "1.0.0",
   "entry": "flow.json",
+  "description": "完整功能 Agent - 展示所有节点类型",
   "permissions": {
     "allow_script_read": true,
-    "allow_script_write": true,
+    "allow_script_write": false,
     "allow_prompt_read": true,
     "allow_prompt_write": false,
     "allowed_modules": ["os", "json", "re"]
   },
-  "immutable_nodes": [],
-  "hot_reload": true,
-  "description": "Example agent with prompt templates"
+  "immutable_nodes": ["trigger_1"],
+  "hot_reload": true
 }

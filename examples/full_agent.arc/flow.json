@@ -1,0 +1,121 @@
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {
+    "name": "full_agent",
+    "description": "完整 Agent - 展示所有节点类型"
+  },
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "开始",
+      "description": "工作流入口"
+    },
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "AI 处理",
+      "description": "LLM 生成回复",
+      "inputs": [
+        {"name": "prompt", "type": "string"},
+        {"name": "context", "type": "object", "default": null}
+      ],
+      "outputs": [
+        {"name": "response", "type": "string"},
+        {"name": "usage", "type": "object"}
+      ],
+      "config": {
+        "model": "deepseek-chat",
+        "temperature": 0.7,
+        "system_prompt": "arc://prompts/system.pt"
+      }
+    },
+    {
+      "id": "router_1",
+      "type": "Router",
+      "label": "路由",
+      "description": "根据内容路由",
+      "inputs": [
+        {"name": "input", "type": "any"}
+      ],
+      "outputs": [
+        {"name": "output_A", "type": "any"},
+        {"name": "output_B", "type": "any"}
+      ],
+      "config": {
+        "conditions": [
+          {
+            "ref": "input",
+            "operator": "contains",
+            "value": "?",
+            "output": "A"
+          }
+        ],
+        "default": "B"
+      }
+    },
+    {
+      "id": "log_question",
+      "type": "Log",
+      "label": "问题日志",
+      "inputs": [
+        {"name": "message", "type": "string", "default": "Question detected"}
+      ]
+    },
+    {
+      "id": "log_statement",
+      "type": "Log",
+      "label": "陈述日志",
+      "inputs": [
+        {"name": "message", "type": "string", "default": "Statement detected"}
+      ]
+    },
+    {
+      "id": "log_final",
+      "type": "Log",
+      "label": "最终输出",
+      "description": "输出最终结果",
+      "inputs": [
+        {"name": "message", "type": "string", "default": ""},
+        {"name": "data", "type": "any", "default": null}
+      ],
+      "outputs": [
+        {"name": "message", "type": "string"},
+        {"name": "data", "type": "any"}
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "trigger_1",
+      "sourcePort": "payload",
+      "target": "llm_1",
+      "targetPort": "prompt"
+    },
+    {
+      "source": "llm_1",
+      "sourcePort": "response",
+      "target": "router_1",
+      "targetPort": "input"
+    },
+    {
+      "source": "router_1",
+      "sourcePort": "output_A",
+      "target": "log_question",
+      "targetPort": "message"
+    },
+    {
+      "source": "router_1",
+      "sourcePort": "output_B",
+      "target": "log_statement",
+      "targetPort": "message"
+    },
+    {
+      "source": "llm_1",
+      "sourcePort": "response",
+      "target": "log_final",
+      "targetPort": "message"
+    }
+  ]
+}

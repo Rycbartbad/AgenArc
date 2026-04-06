@@ -2,21 +2,30 @@
   "version": "1.0.0",
   "entryPoint": "trigger_1",
   "metadata": {
-    "name": "chat_agent",
-    "description": "对话 Agent - 展示 LLM 调用和日志输出"
+    "name": "loop_agent",
+    "description": "循环 Agent - 展示循环控制结构"
   },
   "nodes": [
     {
       "id": "trigger_1",
       "type": "Trigger",
       "label": "开始",
-      "description": "工作流入口，接收用户输入"
+      "description": "工作流入口"
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "触发日志",
+      "description": "输出触发信息",
+      "inputs": [
+        {"name": "message", "type": "string", "default": "Loop agent started"}
+      ]
     },
     {
       "id": "llm_1",
       "type": "LLM_Task",
-      "label": "对话",
-      "description": "调用 LLM 生成回复",
+      "label": "批量处理",
+      "description": "处理批量任务",
       "inputs": [
         {"name": "prompt", "type": "string"},
         {"name": "context", "type": "object", "default": null}
@@ -28,25 +37,25 @@
       "config": {
         "model": "deepseek-chat",
         "temperature": 0.7,
-        "system_prompt": "arc://prompts/system.pt"
+        "system_prompt": "You process items in a list. Current item: {{context.current_item}}"
       }
     },
     {
-      "id": "log_response",
+      "id": "log_result",
       "type": "Log",
-      "label": "输出回复",
-      "description": "输出 LLM 的回复",
+      "label": "结果",
       "inputs": [
-        {"name": "message", "type": "string", "default": ""},
-        {"name": "data", "type": "any", "default": null}
-      ],
-      "outputs": [
-        {"name": "message", "type": "string"},
-        {"name": "data", "type": "any"}
+        {"name": "message", "type": "string", "default": ""}
       ]
     }
   ],
   "edges": [
+    {
+      "source": "trigger_1",
+      "sourcePort": "payload",
+      "target": "log_1",
+      "targetPort": "message"
+    },
     {
       "source": "trigger_1",
       "sourcePort": "payload",
@@ -56,7 +65,7 @@
     {
       "source": "llm_1",
       "sourcePort": "response",
-      "target": "log_response",
+      "target": "log_result",
       "targetPort": "message"
     }
   ]

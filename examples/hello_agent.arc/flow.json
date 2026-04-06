@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {
+    "name": "hello_agent",
+    "description": "最简单的 Hello World Agent"
+  },
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "开始"
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "输出",
+      "inputs": [
+        {"name": "message", "type": "string", "default": "Hello from AgenArc!"},
+        {"name": "data", "type": "any", "default": null}
+      ],
+      "outputs": [
+        {"name": "message", "type": "string"},
+        {"name": "data", "type": "any"}
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "trigger_1",
+      "sourcePort": "payload",
+      "target": "log_1",
+      "targetPort": "message"
+    }
+  ]
+}

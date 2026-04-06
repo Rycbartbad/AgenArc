@@ -1,0 +1,6 @@
+{
+  "name": "loop_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "description": "循环 Agent - 展示迭代处理功能"
+}

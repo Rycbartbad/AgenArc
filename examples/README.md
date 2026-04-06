@@ -2,16 +2,47 @@
 
 ## 目录
 
-1. [什么是 .arc Agent](#1-什么是-arc-agent)
-2. [创建你的第一个 Agent](#2-创建你的第一个-agent)
-3. [目录结构详解](#3-目录结构详解)
-4. [manifest.json 完全指南](#4-manifestjson-完全指南)
-5. [flow.json 完全指南](#5-flowjson-完全指南)
-6. [节点类型详解](#6-节点类型详解)
-7. [模板语法](#7-模板语法)
-8. [VFS 虚拟文件系统](#8-vfs-虚拟文件系统)
-9. [运行和调试](#9-运行和调试)
-10. [完整示例](#10-完整示例)
+1. [示例 Agents](#示例-agents)
+2. [什么是 .arc Agent](#1-什么是-arc-agent)
+3. [创建你的第一个 Agent](#2-创建你的第一个-agent)
+4. [目录结构详解](#3-目录结构详解)
+5. [manifest.json 完全指南](#4-manifestjson-完全指南)
+6. [flow.json 完全指南](#5-flowjson-完全指南)
+7. [节点类型详解](#6-节点类型详解)
+8. [模板语法](#7-模板语法)
+9. [VFS 虚拟文件系统](#8-vfs-虚拟文件系统)
+10. [运行和调试](#9-运行和调试)
+11. [完整示例](#10-完整示例)
+
+---
+
+## 示例 Agents
+
+本目录包含以下示例 Agent，按照复杂度递增排列：
+
+| Agent | 说明 | 关键特性 |
+|-------|------|----------|
+| **hello_agent** | 最简单的 Hello World | Trigger + Log |
+| **chat_agent** | 简单对话 | Trigger + LLM_Task + Log |
+| **router_agent** | 带路由 | Trigger + LLM_Task + Router + Log |
+| **loop_agent** | 带循环结构 | Trigger + LLM_Task + Log |
+| **full_agent** | 完整功能 | Trigger + LLM_Task + Router + Log + manifest |
+
+### 运行示例
+
+```bash
+# Hello Agent（无需 LLM）
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.arc --input '{}'
+
+# Chat Agent
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello!"}'
+
+# Router Agent
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.arc --input '{"trigger_payload":"Say hello"}'
+
+# Full Agent
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.arc --input '{"trigger_payload":"What is AI?"}'
+```
 
 ---
 
