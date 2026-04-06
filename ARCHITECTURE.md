@@ -287,12 +287,27 @@ my_agent.arc/
     "allow_script_write": true,
     "allow_prompt_read": true,
     "allow_prompt_write": false,
-    "allowed_modules": ["os", "json", "re"]
+    "allowed_modules": ["os", "json", "re"],
+    "script_mode": "blacklist"
   },
   "immutable_nodes": ["trigger_1", "security_audit"],
-  "hot_reload": true
+  "hot_reload": true,
+  "environment_requirements": {
+    "keys": ["OPENAI_API_KEY", "DEEPSEEK_API_KEY"],
+    "min_memory": "512MB"
+  }
 }
 ```
+
+**字段说明：**
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `permissions.script_mode` | `blacklist \| whitelist` | 脚本安全模式 |
+| `environment_requirements.keys` | `string[]` | 必需的 API Key 环境变量 |
+| `environment_requirements.min_memory` | `string` | 最小内存要求 |
+
+> **Loader 预检机制**：在执行前检查宿主机是否注入了 `environment_requirements.keys` 中的所有环境变量，未满足则拒绝运行并提示缺失的 Key。
 
 ### VFS（虚拟文件系统）
 
@@ -409,11 +424,15 @@ Runtime_Reload:
 
 **执行流程：**
 
-1. 扫描 `scripts/` 目录
-2. 对新增/修改的 `.py` 文件执行 AST 扫描
-3. 刷新 PluginManager 注册表
-4. 保持全局 Context 不丢失
-5. 返回重载结果
+1. **Quiescence（静默期）**：暂停接收新任务，等待当前原子节点执行完毕
+2. **Snapshot 保存**：保存当前 Global Context 完整状态
+3. 扫描 `scripts/` 目录
+4. 对新增/修改的 `.py` 文件执行 AST 扫描
+5. 刷新 PluginManager 注册表
+6. 恢复 Context（保持不丢失）
+7. 返回重载结果
+
+> **Quiescence 机制**：确保 Loop_Control 等中间状态节点在重载前完成当前原子操作，避免状态不一致。
 
 ---
 
@@ -454,9 +473,23 @@ DANGEROUS_CALLS = {
 ```
 
 **拦截规则：**
+
 - 任何新生成的脚本必须通过 AST 扫描
 - 扫描不通过者将被拒绝执行，并返回 `SecurityError`
 - `manifest.json` 中 `permissions.allowed_modules` 白名单优先于黑名单
+
+**白名单模式（高安全场景）：**
+
+```json
+{
+  "permissions": {
+    "script_mode": "whitelist",
+    "allowed_modules": ["math", "json", "re", "datetime"]
+  }
+}
+```
+
+> 白名单模式下，只有 `allowed_modules` 中的模块可导入，完全禁止 `__import__`、`eval`、`exec` 等危险调用。适用于高风险自进化 Agent。
 
 ### Error Port 机制
 
@@ -470,6 +503,17 @@ Error_Stack:
   path: "flow.json#/nodes/0"
   suggestion: "Available ports: output_A, output_B"
 ```
+
+**自愈提示逻辑：**
+
+引擎在检测到 Schema 错误时，直接将正确的信息填充到 `suggestion` 字段：
+
+| 错误类型 | suggestion 示例 |
+|----------|-----------------|
+| 端口引用错误 | `Available ports: output_A, output_B` |
+| 缺失必填字段 | `Required fields: model, system_prompt` |
+| 循环引用检测 | `Cycle detected at: trigger_1 → llm_1 → router_1` |
+| AST 安全拦截 | `Blocked call: os.exec. Allowed: math, json, re` |
 
 **Agent 自修复闭环：**
 
@@ -738,3 +782,4 @@ agenarc/
 | v0.2 | 2026-04-05 | DSL 修订：移除 Edge guard，onFailure 移至 Node + Error Port |
 | v0.3 | 2026-04-05 | 新增自进化架构：.arc Bundle、VFS、自进化算子、双重校验链 |
 | v0.4 | 2026-04-06 | 阶段2完成：Router、Loop_Control、CheckpointManager、AST Evaluator |
+| v0.5 | 2026-04-06 | 新增：Quiescence 热重载机制、白名单脚本模式、自愈 Error Port、environment_requirements 预检 |
