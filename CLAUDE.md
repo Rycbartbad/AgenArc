@@ -1,100 +1,150 @@
-# AgenArc 项目指南
+# CLAUDE.md
 
-## 项目概述
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-AgenArc 是一个基于有向图的声明式 Agent 编排框架，核心理念是"机制与策略分离"。
+## Project Overview
 
-**核心哲学：**
-- 内核：极致稳定，仅负责安全调度与资源校验
-- 自修复/逻辑进化：由用户在图流程内自行构建
-- 资产边界：`arc://` 虚拟协议隔离
+AgenArc is a directed-graph Agent orchestration framework with "mechanism and strategy separation" philosophy:
+- **Kernel**: Secure scheduling and resource validation (stable)
+- **Strategy**: Self-repair/evolution built by users in graph flows
+- **Boundary**: `arc://` virtual protocol isolation for assets
 
-## 关键文档
+## Commands
 
-| 文档 | 作用 | 阅读优先级 |
-|------|------|------------|
-| `ARCHITECTURE.md` | 完整架构设计文档 | **必须阅读** |
-| `.claude/plans/*.md` | 当前规划文件 | 必须阅读 |
-
-**重要：任何代码变更前，必须先阅读 ARCHITECTURE.md 了解上下文。**
-
-## 架构定性
-
-```
-声明式协议 + 模板语法 + 黑板架构 + 自进化资产
+### Running Agents
+```bash
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent.arc|flow.json> --input '{"key": "value"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.arc --input '{}'
 ```
 
-### 核心文件结构
-
-```
-agenarc/
-├── protocol/                 # 协议层（JSON Schema 定义）
-├── engine/                   # 执行层（核心引擎）
-├── vfs/                      # 虚拟文件系统（arc:// 协议）
-├── plugins/                  # 插件系统
-├── operators/                # 内置算子库
-└── graph/                    # 图数据结构
+### CLI Commands
+```bash
+agenarc run <file> [--input JSON] [--mode sync|async|parallel]  # Execute
+agenarc validate <file>                                          # Validate protocol
+agenarc info <file>                                              # Show agent info
 ```
 
-### .arc Bundle 结构
+### Running Tests
+```bash
+pytest tests/                                    # All tests
+pytest tests/ --cov=agenarc --cov-report=term-missing  # With coverage
+pytest tests/unit/test_builtin_operators.py -v  # Single file
+```
 
+## Architecture
+
+### Core Execution Flow
+```
+ProtocolLoader → Graph → GraphTraversal → ExecutionEngine → Operators → StateManager
+```
+
+### Key Components
+
+| Layer | Files | Purpose |
+|-------|-------|---------|
+| **Protocol** | `schema.py`, `loader.py` | JSON Schema definitions + graph parsing |
+| **Engine** | `executor.py`, `state.py`, `evaluator.py` | Core execution, checkpoints, AST evaluation |
+| **Operators** | `operator.py`, `builtin.py`, `llm.py`, `router.py`, `loop.py`, `evolution.py` | Node type implementations |
+| **VFS** | `filesystem.py` | `arc://` virtual protocol mapping |
+| **Graph** | `node.py`, `edge.py`, `traversal.py` | Graph data structures |
+| **Plugins** | `manager.py`, `hot_loader.py`, `loaders/*.py` | Plugin discovery, hot reload, multi-language loaders |
+
+### IOperator Interface
+All operators implement [`operator.py:15`](agenarc/operators/operator.py#L15):
+```python
+class IOperator(ABC):
+    name: str                           # "plugin.operator" format
+    def get_input_ports() -> List[Port]
+    def get_output_ports() -> List[Port]
+    async def execute(inputs, context) -> Dict[str, Any]
+```
+
+### ExecutionEngine
+[`executor.py:78`](agenarc/engine/executor.py#L78) - Central orchestrator that:
+1. Loads graph via `ProtocolLoader`
+2. Registers built-in operators
+3. Executes nodes via `GraphTraversal.get_execution_order()`
+4. Routes errors to global `errorNode` if configured
+
+### Trust-Based Autonomy
+[`schema.py:50-63`](agenarc/protocol/schema.py#L50-L63) - Four levels control Agent capabilities:
+- `level_0`: Agent unaware of arc://, VFS, bundle system (pure function)
+- `level_1`: Can read prompts/scripts, evaluate expressions
+- `level_2`: Can modify `flow.json`, trigger `Runtime_Reload`
+- `level_3`: Full power including `manifest.json` and plugin installation
+
+### State Management
+[`state.py`](agenarc/engine/state.py) - `StateManager` handles:
+- Global context (cross-node variables)
+- Checkpoint/restore for interruption recovery
+- Transactional Memory_I/O with rollback
+
+### VFS (Virtual File System)
+[`filesystem.py`](agenarc/vfs/filesystem.py) - `arc://` protocol mapping:
+| VFS Path | Actual Path |
+|----------|-------------|
+| `arc://prompts/` | `<bundle>/prompts/` |
+| `arc://scripts/` | `<bundle>/scripts/` |
+| `arc://assets/` | `<bundle>/assets/` |
+
+### Node Types
+[`schema.py:13-24`](agenarc/protocol/schema.py#L13-L24):
+- `Trigger` - Entry point
+- `LLM_Task` - LLM inference
+- `Router` - Conditional branching
+- `Loop_Control` - Loop iteration
+- `Memory_I/O` - Persistent storage
+- `Script_Node` - Custom Python scripts with AST safety
+- `Log`, `Context_Set`, `Context_Get` - Utility nodes
+
+### .arc Bundle Structure
 ```
 my_agent.arc/
-├── manifest.json           # 资产包元数据
-├── flow.json              # 图协议
-├── prompts/               # Prompt 模板
-├── scripts/               # 可执行脚本
-└── assets/                # 静态资源
+├── manifest.json      # Permissions, autonomy level, immutable anchors
+├── flow.json         # Graph definition
+├── prompts/          # Prompt templates (arc:// access)
+├── scripts/          # Executable scripts (arc:// access)
+└── assets/           # Static resources
 ```
 
-## 开发指南
+## Key Patterns
 
-### 1. 协议层开发
+### Adding a New Operator
+1. Create class implementing `IOperator`
+2. Register in [`BUILTIN_OPERATORS`](agenarc/operators/builtin.py) dict
+3. Use `@property` for `name` (e.g., `"builtin.trigger"`)
 
-协议层位于 `agenarc/protocol/`：
+### Error Handling
+Nodes have optional [`ErrorHandling`](agenarc/protocol/schema.py#L143) config:
+- `strategy`: retry | fallback | skip | abort
+- `fallbackNode`: Alternative node to execute on failure
+- Global error handler via `graph.errorNode`
 
-- `schema.py` - JSON Schema 定义
-- `loader.py` - 协议加载器
-- `validator.py` - 验证器
+### Checkpoint Usage
+Set `node.checkpoint: true` in flow.json for automatic state snapshots before node execution.
 
-### 2. 执行引擎开发
+### Plugin System (Stage 4 Complete)
+Plugin system with three loader types:
+- **PythonPluginLoader** - Dynamic import of Python plugins from `agenarc.json` manifests
+- **CppPluginLoader** - ctypes loading of compiled `.so`/`.dll`/`.dylib` libraries
+- **ExternalPluginLoader** - IPC via stdio JSON-RPC or HTTP REST
 
-执行引擎位于 `agenarc/engine/`：
+Hot reload via [`hot_loader.py`](agenarc/plugins/hot_loader.py):
+- File watching with watchdog (fallback to polling)
+- Atomic plugin replacement (zero-downtime)
+- Debounced reload (500ms) to avoid thrashing
 
-- `executor.py` - 核心引擎
-- `guardrail.py` - 校验链（Schema + AST）
-- `state.py` - 状态管理
-- `scheduler.py` - 调度策略
+Plugin manifest format:
+```json
+{
+  "name": "my_plugin",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "operators": ["MyOperator"]
+}
+```
 
-### 3. 自进化系统
-
-新增功能位于：
-
-- `agenarc/vfs/` - VFS 虚拟文件系统
-- `agenarc/operators/evolution.py` - 自进化算子
-- `agenarc/plugins/hot_loader.py` - 热重载加载器
-
-## 约定
-
-### 代码规范
-
-- 使用 Python type hints
-- 异步优先（async/await）
-- 遵循 PEP 8
-
-### Git 提交规范
-
-提交信息应清晰描述变更内容。
-
-### 文档更新
-
-- 架构变更必须同步更新 `ARCHITECTURE.md`
-- 重大决策应在变更日志中记录
-
-## 阶段里程碑
-
-1. **MVP 引擎** - 线性流 + 基础算子
-2. **完整执行引擎** - 条件/循环/并行
-3. **自进化资产系统** - .arc Bundle + VFS + 热重载
-4. **插件系统** - Hot_Plugin_Loader
-5. **可视化平台** - React Canvas IDE
+## File Locations
+- Examples: `examples/*.arc`
+- Tests: `tests/unit/`, `tests/integration/`
+- Config: `config.example.yaml` (copy to `config.yaml`)

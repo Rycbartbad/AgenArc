@@ -22,6 +22,7 @@ class NodeType(str, Enum):
     LOG = "Log"
     CONTEXT_SET = "Context_Set"
     CONTEXT_GET = "Context_Get"
+    PLUGIN = "Plugin"  # Custom plugin operator
 
 
 class ErrorStrategy(str, Enum):

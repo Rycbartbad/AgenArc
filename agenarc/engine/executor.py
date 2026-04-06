@@ -222,12 +222,22 @@ class ExecutionEngine:
         Returns:
             Operator instance or None
         """
+        # Plugin node type - always use plugin manager
+        if node.type == NodeType.PLUGIN:
+            if self.plugin_manager:
+                config = node.metadata.get("config", {})
+                plugin_name = config.get("plugin", "")
+                function_name = config.get("function", "")
+                if plugin_name and function_name:
+                    return self.plugin_manager.get_operator(plugin_name, function_name)
+            return None
+
         # Check built-in operators first
         if node.type.value in self._builtin_operators:
             operator_class = self._builtin_operators[node.type.value]
             return operator_class()
 
-        # Check plugin manager
+        # Check plugin manager for unknown types (backward compatibility)
         if self.plugin_manager:
             config = node.metadata.get("config", {})
             plugin_name = config.get("plugin", "builtin")

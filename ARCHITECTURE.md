@@ -189,6 +189,31 @@ Subgraph:
       type: "object"
 ```
 
+#### [扩展] Plugin
+
+调用自定义插件算子。
+
+```yaml
+Plugin:
+  inputs: "dynamic"
+  outputs: "dynamic"
+  config:
+    - name: "plugin"
+      type: "string"              # 插件名称
+    - name: "function"
+      type: "string"              # 算子名称
+```
+
+**使用示例：**
+
+```yaml
+- id: "my_operator"
+  type: "Plugin"
+  config:
+    plugin: "text_tools"
+    function: "transform"
+```
+
 ---
 
 ### Node 通用结构
@@ -839,12 +864,12 @@ agenarc/
 │
 ├── plugins/                   # 插件系统
 │   ├── manager.py            # 插件管理器
+│   ├── hot_loader.py         # 热重载加载器
 │   ├── operator.py           # 算子接口
-│   ├── hot_loader.py         # 热重载加载器（新增）
-│   └── loaders/
-│       ├── python.py
-│       ├── cpp.py
-│       └── external.py
+│   └── loaders/              # 多语言加载器
+│       ├── python.py         # Python 插件加载器
+│       ├── cpp.py            # C++ 插件加载器 (ctypes)
+│       └── external.py       # 外部插件 (stdio/HTTP)
 │
 ├── operators/                 # 内置算子库（新增）
 │   ├── __init__.py
@@ -892,11 +917,13 @@ agenarc/
 - 双重校验链（Schema + AST Sanitizer）
 - immutable_nodes 保护
 
-### 阶段 4: 插件系统 (4-6 周) 📋 待开始
+### 阶段 4: 插件系统 (4-6 周) ✅ 完成
 
-- PluginManager 核心
-- Hot_Plugin_Loader（文件监听 + 原子替换）
-- PythonPluginLoader / CppPluginLoader / ExternalPluginLoader
+- PluginManager 核心 - 完整的插件注册和发现机制
+- Hot_Plugin_Loader - 文件监听 + 原子替换 + 零停机重载
+- PythonPluginLoader - 动态导入 Python 插件
+- CppPluginLoader - ctypes 加载编译的共享库
+- ExternalPluginLoader - stdio/HTTP IPC 外部插件
 - 插件开发文档
 
 ### 阶段 5: 可视化平台 (8-12 周) 📋 待开始
@@ -921,7 +948,8 @@ agenarc/
 | P1 | `agenarc/engine/guardrail.py` | 校验链（Schema + AST） | 📋 |
 | P1 | `agenarc/vfs/filesystem.py` | VFS arc:// 协议实现 | ✅ |
 | P1 | `agenarc/operators/evolution.py` | 自进化算子 | ✅ |
-| P1 | `agenarc/plugins/hot_loader.py` | 热重载加载器 | 📋 |
+| P1 | `agenarc/plugins/hot_loader.py` | 热重载加载器 | ✅ |
+| P1 | `agenarc/plugins/loaders/*.py` | 多语言插件加载器 | ✅ |
 | P2 | `agenarc/engine/scheduler.py` | 调度策略 | 📋 |
 
 ---
@@ -930,7 +958,7 @@ agenarc/
 
 | 指标 | 值 |
 |------|-----|
-| 测试数量 | 411 |
+| 测试数量 | 424 |
 | 覆盖率 | 85% |
 | 目标覆盖率 | 80% ✅ |
 

@@ -58,19 +58,15 @@ class TestPluginManager:
         assert retrieved is operator
 
     def test_get_operator_with_empty_function_name(self):
-        """Test getting operator with empty function name uses plugin_name as key."""
+        """Test getting operator with plugin_name as key when function_name is empty."""
         manager = PluginManager()
         operator = MockOperator()
-        # Note: register always uses "plugin.function" format
-        # When function_name is "", the key becomes "mock."
+        # Register with empty function_name uses plugin_name as key
         manager.register_operator("mock", "", operator)
 
-        # get_operator uses plugin_name alone when function_name is empty
-        # But register stored under "mock." so this returns None (demonstrates the mismatch)
-        # This test documents the current behavior
+        # With empty function_name, key is "plugin_name"
         retrieved = manager.get_operator("mock", "")
-        # The bug: register stores "mock." but get looks up "mock"
-        assert retrieved is None
+        assert retrieved is operator
 
     def test_get_nonexistent_operator(self):
         """Test getting non-existent operator returns None."""
@@ -103,8 +99,35 @@ class TestPluginManager:
         # Should not raise
         manager.discover_plugins()
 
-    def test_reload_plugin(self):
-        """Test reload_plugin returns False (stub)."""
+    @pytest.mark.asyncio
+    async def test_initialize(self):
+        """Test manager initialization."""
+        manager = PluginManager(plugin_dirs=["/nonexistent/path"])
+        await manager.initialize()
+        assert manager.is_initialized is True
+        await manager.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_reload_plugin_no_loader(self):
+        """Test reload_plugin returns False when hot loader not initialized."""
         manager = PluginManager()
-        result = manager.reload_plugin("nonexistent")
+        result = await manager.reload_plugin("nonexistent")
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_shutdown(self):
+        """Test manager shutdown."""
+        manager = PluginManager()
+        await manager.initialize()
+        await manager.shutdown()
+        assert manager.is_initialized is False
+
+    def test_list_plugins_empty(self):
+        """Test listing plugins when none discovered."""
+        manager = PluginManager()
+        assert manager.list_plugins() == []
+
+    def test_hot_loader_property(self):
+        """Test hot_loader property returns None when not initialized."""
+        manager = PluginManager()
+        assert manager.hot_loader is None
