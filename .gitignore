@@ -206,10 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# AgenArc - Project specific
-ARCHITECTURE.md
-CLAUDE.md
-
 # Local configuration (contains API keys)
 config.yaml
 .env

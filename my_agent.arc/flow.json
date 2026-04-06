@@ -1,0 +1,45 @@
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {
+    "name": "my_agent",
+    "description": "Agent with prompt templates"
+  },
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "Start",
+      "outputs": [{"name": "payload", "type": "any"}]
+    },
+    {
+      "id": "asset_reader_system",
+      "type": "Asset_Reader",
+      "label": "Read System Prompt",
+      "config": {
+        "path": "arc://prompts/system.pt",
+        "encoding": "utf-8"
+      }
+    },
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "Chat",
+      "inputs": [{"name": "prompt", "type": "string"}],
+      "outputs": [{"name": "response", "type": "string"}],
+      "config": {
+        "system_prompt": "arc://prompts/system.pt"
+      }
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "Log Response"
+    }
+  ],
+  "edges": [
+    {"source": "trigger_1", "target": "asset_reader_system"},
+    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
+    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"}
+  ]
+}

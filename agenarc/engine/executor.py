@@ -465,7 +465,7 @@ class ExecutionEngine:
         strategy = error_handling.strategy
 
         if strategy == ErrorStrategy.RETRY:
-            max_retries = error_handling.max_retries
+            max_retries = error_handling.maxRetries
             retry_count = context.get(f"retry_{node.id}", 0)
 
             if retry_count < max_retries:

@@ -539,10 +539,22 @@ def _register_loop_operator():
         pass  # Loop_Control not available
 
 
+def _register_evolution_operators():
+    """Register evolution operators (Asset_Reader, Asset_Writer, Runtime_Reload)."""
+    try:
+        from agenarc.operators.evolution import get_evolution_operators
+        evolution_ops = get_evolution_operators()
+        for name, op_class in evolution_ops.items():
+            BUILTIN_OPERATORS[name] = op_class
+    except ImportError:
+        pass  # Evolution operators not available
+
+
 # Auto-register operators on import
 _register_llm_operators()
 _register_router_operator()
 _register_loop_operator()
+_register_evolution_operators()
 
 
 def get_builtin_operator(node_type: str) -> Optional[IOperator]:
