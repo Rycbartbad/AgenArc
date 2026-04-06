@@ -939,7 +939,59 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent-path> --input '<json>'
 
 ## 10. 完整示例
 
-### 10.1 chat_agent.arc - 简单对话 Agent
+### 10.1 hello_agent.arc - 最简单的 Agent
+
+**目录结构**：
+
+```
+hello_agent.arc/
+├── manifest.json
+└── flow.json
+```
+
+**manifest.json**：
+
+```json
+{
+  "name": "hello_agent",
+  "version": "1.0.0",
+  "entry": "flow.json"
+}
+```
+
+**flow.json**：
+
+```json
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {"name": "hello_agent"},
+  "nodes": [
+    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "输出",
+      "inputs": [
+        {"name": "message", "type": "string", "default": "Hello from AgenArc!"}
+      ]
+    }
+  ],
+  "edges": [
+    {"source": "trigger_1", "sourcePort": "payload", "target": "log_1", "targetPort": "message"}
+  ]
+}
+```
+
+**运行**（无需 LLM）：
+
+```bash
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.arc --input '{}'
+```
+
+---
+
+### 10.2 chat_agent.arc - 简单对话 Agent
 
 **目录结构**：
 
@@ -948,8 +1000,7 @@ chat_agent.arc/
 ├── manifest.json
 ├── flow.json
 └── prompts/
-    ├── system.pt
-    └── user.pt
+    └── system.pt
 ```
 
 **manifest.json**：
@@ -970,145 +1021,169 @@ chat_agent.arc/
   "entryPoint": "trigger_1",
   "metadata": {"name": "chat_agent"},
   "nodes": [
-    {
-      "id": "trigger_1",
-      "type": "Trigger",
-      "label": "开始"
-    },
+    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {
       "id": "llm_1",
       "type": "LLM_Task",
       "label": "对话",
-      "inputs": [
-        {"name": "prompt", "type": "string"},
-        {"name": "context", "type": "object"}
-      ],
-      "outputs": [
-        {"name": "response", "type": "string"},
-        {"name": "usage", "type": "object"}
-      ],
+      "inputs": [{"name": "prompt", "type": "string"}],
       "config": {
         "model": "deepseek-chat",
         "temperature": 0.7,
         "system_prompt": "arc://prompts/system.pt"
       }
     },
-    {
-      "id": "log_1",
-      "type": "Log",
-      "label": "输出",
-      "inputs": [
-        {"name": "message", "type": "string"}
-      ]
-    }
+    {"id": "log_response", "type": "Log", "label": "输出回复"}
   ],
   "edges": [
     {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
-    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"}
+    {"source": "llm_1", "sourcePort": "response", "target": "log_response", "targetPort": "message"}
   ]
 }
 ```
 
 **prompts/system.pt**：
 
-```
-You are a helpful AI assistant.
-{{context}}
-```
+```jinja2
+You are a helpful and friendly AI assistant.
 
-**prompts/user.pt**：
+Guidelines:
+- Respond in the same language as the user
+- Be concise and helpful
+- Use friendly tone
 
-```
-{{user_input}}
+Context: {{context}}
 ```
 
 **运行**：
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello, who are you?"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello!"}'
 ```
 
 ---
 
-### 10.2 带路由的 Agent
+### 10.3 router_agent.arc - 带路由的 Agent
+
+**目录结构**：
+
+```
+router_agent.arc/
+├── manifest.json
+└── flow.json
+```
+
+**flow.json**（关键部分）：
 
 ```json
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {"name": "router_agent"},
   "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
-    {
-      "id": "llm_1",
-      "type": "LLM_Task",
-      "label": "Chat",
-      "config": {"system_prompt": "You are a helpful assistant."}
-    },
+    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
+    {"id": "llm_1", "type": "LLM_Task", "label": "处理请求"},
     {
       "id": "router_1",
       "type": "Router",
-      "label": "Route",
+      "label": "检查结束",
+      "inputs": [{"name": "input", "type": "any"}],
       "config": {
         "conditions": [
-          {
-            "ref": "nodes.llm_1.outputs.response",
-            "operator": "contains",
-            "value": "goodbye",
-            "output": "B"
-          }
+          {"ref": "input", "operator": "contains", "value": "quit", "output": "B"},
+          {"ref": "input", "operator": "contains", "value": "bye", "output": "B"},
+          {"ref": "input", "operator": "contains", "value": "goodbye", "output": "B"}
         ],
         "default": "A"
       }
     },
-    {"id": "log_end", "type": "Log", "label": "End"},
-    {"id": "log_continue", "type": "Log", "label": "Continue"}
+    {"id": "log_goodbye", "type": "Log", "label": "结束语"},
+    {"id": "log_continue", "type": "Log", "label": "继续"}
   ],
   "edges": [
-    {"source": "trigger_1", "target": "llm_1"},
-    {"source": "llm_1", "target": "router_1"},
+    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
+    {"source": "llm_1", "sourcePort": "response", "target": "router_1", "targetPort": "input"},
     {"source": "router_1", "sourcePort": "output_A", "target": "log_continue"},
-    {"source": "router_1", "sourcePort": "output_B", "target": "log_end"}
+    {"source": "router_1", "sourcePort": "output_B", "target": "log_goodbye"}
   ]
 }
 ```
 
+**运行**：
+
+```bash
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.arc --input '{"trigger_payload":"Say hello"}'
+```
+
 ---
 
-### 10.3 带循环的 Agent
+### 10.4 full_agent.arc - 完整功能 Agent
+
+**目录结构**：
+
+```text
+full_agent.arc/
+├── manifest.json
+├── flow.json
+├── prompts/
+│   └── system.pt
+└── scripts/
+    └── text_tools.py
+```
+
+**manifest.json**：
+
+```json
+{
+  "name": "full_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "permissions": {
+    "allow_script_read": true,
+    "allow_script_write": false
+  },
+  "immutable_nodes": ["trigger_1"],
+  "hot_reload": true
+}
+```
+
+**flow.json**（关键部分）：
 
 ```json
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {"name": "loop_agent"},
   "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
+    {"id": "llm_1", "type": "LLM_Task", "label": "AI 处理"},
     {
-      "id": "loop_1",
-      "type": "Loop_Control",
-      "label": "Process Items",
-      "inputs": [
-        {"name": "iterate_on", "type": "array"}
-      ]
+      "id": "router_1",
+      "type": "Router",
+      "label": "路由",
+      "config": {
+        "conditions": [
+          {"ref": "input", "operator": "contains", "value": "?", "output": "A"}
+        ],
+        "default": "B"
+      }
     },
-    {
-      "id": "llm_item",
-      "type": "LLM_Task",
-      "label": "Process Item"
-    },
-    {
-      "id": "log_results",
-      "type": "Log",
-      "label": "Results"
-    }
+    {"id": "log_question", "type": "Log", "label": "问题日志"},
+    {"id": "log_statement", "type": "Log", "label": "陈述日志"},
+    {"id": "log_final", "type": "Log", "label": "最终输出"}
   ],
   "edges": [
-    {"source": "trigger_1", "target": "loop_1"},
-    {"source": "loop_1", "sourcePort": "current_item", "target": "llm_item"},
-    {"source": "loop_1", "sourcePort": "done", "target": "log_results"}
+    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
+    {"source": "llm_1", "sourcePort": "response", "target": "router_1", "targetPort": "input"},
+    {"source": "router_1", "sourcePort": "output_A", "target": "log_question"},
+    {"source": "router_1", "sourcePort": "output_B", "target": "log_statement"},
+    {"source": "llm_1", "sourcePort": "response", "target": "log_final", "targetPort": "message"}
   ]
 }
+```
+
+**运行**：
+
+```bash
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.arc --input '{"trigger_payload":"What is AI?"}'
 ```
 
 ---
