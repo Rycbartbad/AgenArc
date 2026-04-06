@@ -708,7 +708,7 @@ agenarc/
 - AST 安全表达式求值器
 - CLI 支持 `.arc` 代理包
 
-### 阶段 3: 自进化资产系统 (4-6 周) 🚧 进行中
+### 阶段 3: 自进化资产系统 (4-6 周) ✅ 完成
 
 - .arc Bundle 格式定义
 - VFS（arc:// 协议映射）
@@ -744,8 +744,8 @@ agenarc/
 | P0 | `agenarc/operators/loop.py` | Loop_Control算子 | ✅ |
 | P0 | `agenarc/engine/state.py` | CheckpointManager | ✅ |
 | P1 | `agenarc/engine/guardrail.py` | 校验链（Schema + AST） | 📋 |
-| P1 | `agenarc/vfs/filesystem.py` | VFS arc:// 协议实现 | 📋 |
-| P1 | `agenarc/operators/evolution.py` | 自进化算子 | 📋 |
+| P1 | `agenarc/vfs/filesystem.py` | VFS arc:// 协议实现 | ✅ |
+| P1 | `agenarc/operators/evolution.py` | 自进化算子 | ✅ |
 | P1 | `agenarc/plugins/hot_loader.py` | 热重载加载器 | 📋 |
 | P2 | `agenarc/engine/scheduler.py` | 调度策略 | 📋 |
 
@@ -784,3 +784,4 @@ agenarc/
 | v0.4 | 2026-04-06 | 阶段2完成：Router、Loop_Control、CheckpointManager、AST Evaluator |
 | v0.5 | 2026-04-06 | 新增：Quiescence 热重载机制、白名单脚本模式、自愈 Error Port、environment_requirements 预检 |
 | v0.6 | 2026-04-06 | 测试覆盖：411 passed, 85% |
+| v0.7 | 2026-04-06 | 阶段3完成：VFS + Asset_Reader/Writer + Runtime_Reload |
