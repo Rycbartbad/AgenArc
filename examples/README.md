@@ -166,7 +166,6 @@ agent_name.arc/
   "entry": "flow.json",
   "description": "我的第一个 Agent",
   "permissions": {
-    "allow_arc_access": true,
     "allow_script_read": true,
     "allow_script_write": true,
     "allow_prompt_read": true,
@@ -199,7 +198,6 @@ agent_name.arc/
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `allow_arc_access` | boolean | true | 是否允许访问 arc:// 协议（level_0=false） |
 | `allow_script_read` | boolean | true | 是否允许读取 scripts/ 目录 |
 | `allow_script_write` | boolean | false | 是否允许写入 scripts/ 目录 |
 | `allow_prompt_read` | boolean | true | 是否允许读取 prompts/ 目录 |
@@ -214,7 +212,7 @@ agent_name.arc/
 
 | 等级 | 说明 | Script_Node trust_level |
 |------|------|------------------------|
-| `level_0` | Zero Knowledge - Agent 不知道 arc:// 存在 | locked |
+| `level_0` | Zero Knowledge - AI 感知不到 arc:// 协议 | locked |
 | `level_1` | Supervised - 仅表达式求值 | locked |
 | `level_2` | Autonomous - 可修改 flow.json | trusted |
 | `level_3` | Self-Evolving - 最高权力 | developer |
@@ -1161,7 +1159,6 @@ full_agent.arc/
   "version": "1.0.0",
   "entry": "flow.json",
   "permissions": {
-    "allow_arc_access": true,
     "allow_script_read": true,
     "allow_script_write": false,
     "autonomy_level": "level_2"

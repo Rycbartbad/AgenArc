@@ -96,7 +96,7 @@ class Permissions:
 
     Controls what the Agent can read/write within its .arc bundle.
     """
-    allow_arc_access: bool = True  # level_0 = False (Agent unaware of arc://)
+    allow_arc_access: bool = True  # AI perception only (level_0 = AI unaware of arc://)
     allow_script_read: bool = True
     allow_script_write: bool = False
     allow_prompt_read: bool = True

@@ -538,10 +538,6 @@ level_0: Agent 是"纯函数"——输入 → 推理 → 输出
 • 简单的请求-响应模式
 ```
 
-| 字段 | 类型 | 描述 |
-|------|------|------|
-| `permissions.allow_arc_access` | `boolean` | 是否允许访问 arc:// 协议（level_0=false）|
-
 **Gas 计费机制：**
 
 每次 AST 节点访问消耗 1 Gas。超出 `gas_budget` 限制时抛出 `GasExceededError`，防止无限循环。
