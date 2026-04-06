@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger_1",
+  "metadata": {
+    "name": "simple_chat",
+    "description": "Simple DeepSeek chat"
+  },
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "Start",
+      "outputs": [{"name": "payload", "type": "any"}]
+    },
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "Chat",
+      "inputs": [{"name": "prompt", "type": "string"}],
+      "outputs": [{"name": "response", "type": "string"}]
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "Log"
+    }
+  ],
+  "edges": [
+    {
+      "source": "trigger_1",
+      "sourcePort": "payload",
+      "target": "llm_1",
+      "targetPort": "prompt"
+    },
+    {
+      "source": "llm_1",
+      "sourcePort": "response",
+      "target": "log_1",
+      "targetPort": "message"
+    }
+  ]
+}
