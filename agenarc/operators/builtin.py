@@ -223,6 +223,10 @@ class Script_Node_Operator(IOperator):
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}
 
+        # Get trust level from node config
+        node_config = context.get("_node_config", {})
+        trust_level = node_config.get("script_trust_level", "trusted")
+
         # Build evaluation context
         eval_context = self._build_context(context)
 
@@ -230,13 +234,30 @@ class Script_Node_Operator(IOperator):
             # Check if it's a single expression or statements
             script_stripped = script.strip()
 
-            # Try AST-based safe evaluation first
+            # In "locked" mode: only allow AST-based expression evaluation
+            if trust_level == "locked":
+                if self._is_expression(script_stripped):
+                    result = self._evaluator.evaluate(script_stripped, eval_context)
+                    return {"result": result, "success": True, "error": None}
+                else:
+                    return {
+                        "result": None,
+                        "success": False,
+                        "error": "Script_Node in 'locked' mode only supports expressions. "
+                                 "Use 'trusted' or 'developer' mode for statements."
+                    }
+
+            # In "trusted" or "developer" mode: allow statements with restrictions
             if self._is_expression(script_stripped):
                 result = self._evaluator.evaluate(script_stripped, eval_context)
                 return {"result": result, "success": True, "error": None}
             else:
                 # Execute as statements (for context modifications)
-                result = await self._execute_statements(script_stripped, context, eval_context)
+                # In "developer" mode, use less restricted globals
+                result = await self._execute_statements(
+                    script_stripped, context, eval_context,
+                    trust_level == "developer"
+                )
                 return {"result": result, "success": True, "error": None}
 
         except Exception as e:
@@ -300,9 +321,18 @@ class Script_Node_Operator(IOperator):
         self,
         script: str,
         context: ExecutionContext,
-        eval_context: Dict[str, Any]
+        eval_context: Dict[str, Any],
+        developer_mode: bool = False
     ) -> Any:
-        """Execute script as statements with context access."""
+        """
+        Execute script as statements with context access.
+
+        Args:
+            script: Python script to execute
+            context: Execution context
+            eval_context: Evaluation context
+            developer_mode: If True, use less restricted globals (DANGEROUS)
+        """
         # Create safe globals for statement execution
         # This is a simplified version - full sandboxing would need more work
         safe_globals = {
@@ -332,6 +362,17 @@ class Script_Node_Operator(IOperator):
                 "json": json,
             },
         }
+
+        # Developer mode: add more builtins (DANGEROUS - only for local development)
+        if developer_mode:
+            safe_globals["__builtins__"].update({
+                "open": open,
+                "file": open,
+                "input": input,
+                "compile": compile,
+                "eval": eval,
+                "exec": exec,
+            })
 
         # Create a namespace for the script with context access
         script_globals = safe_globals.copy()

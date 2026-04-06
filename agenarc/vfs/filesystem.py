@@ -40,14 +40,20 @@ class VFS:
     # Allowed directories within bundle
     ALLOWED_DIRS = {"prompts", "scripts", "assets"}
 
-    def __init__(self, bundle_path: Path):
+    def __init__(self, bundle_path: Path, permissions: Dict[str, bool] = None):
         """
         Initialize VFS with bundle path.
 
         Args:
             bundle_path: Path to .arc bundle directory
+            permissions: Optional permissions dict from manifest.json
+                         e.g., {"allow_script_read": True, "allow_prompt_write": False}
+                         If None, no permission checks are performed (backward compatible).
         """
         self._bundle_path = Path(bundle_path).resolve()
+
+        # Permissions - if None, no checks are performed
+        self._permissions = permissions
 
         # Validate bundle exists and is a directory
         if not self._bundle_path.exists():
@@ -129,7 +135,15 @@ class VFS:
 
         Returns:
             File content as string
+
+        Raises:
+            VFSError: If permission denied or path invalid
         """
+        directory, _ = self._parse_vfs_path(vfs_path)
+
+        # Check read permission
+        self._check_permission(directory, "read")
+
         real_path = self._get_real_path(vfs_path)
 
         if not real_path.exists():
@@ -143,6 +157,32 @@ class VFS:
         except Exception as e:
             raise VFSError(f"Failed to read {vfs_path}: {e}")
 
+    def _check_permission(self, directory: str, operation: str) -> None:
+        """
+        Check if operation is permitted based on manifest permissions.
+
+        Args:
+            directory: VFS directory (prompts, scripts, assets)
+            operation: "read" or "write"
+
+        Raises:
+            VFSError: If permission denied
+        """
+        # If no permissions configured (None or empty dict), skip checks
+        if not self._permissions:
+            return
+
+        if operation == "read":
+            if directory == "scripts" and not self._permissions.get("allow_script_read", False):
+                raise VFSError(f"Permission denied: script read not allowed")
+            if directory == "prompts" and not self._permissions.get("allow_prompt_read", False):
+                raise VFSError(f"Permission denied: prompt read not allowed")
+        elif operation == "write":
+            if directory == "scripts" and not self._permissions.get("allow_script_write", False):
+                raise VFSError(f"Permission denied: script write not allowed")
+            if directory == "prompts" and not self._permissions.get("allow_prompt_write", False):
+                raise VFSError(f"Permission denied: prompt write not allowed")
+
     def write(self, vfs_path: str, content: str, encoding: str = "utf-8") -> None:
         """
         Write content to VFS path.
@@ -151,7 +191,15 @@ class VFS:
             vfs_path: VFS path like "arc://scripts/tool.py"
             content: Content to write
             encoding: File encoding (default utf-8)
+
+        Raises:
+            VFSError: If permission denied or path invalid
         """
+        directory, _ = self._parse_vfs_path(vfs_path)
+
+        # Check write permission
+        self._check_permission(directory, "write")
+
         real_path = self._get_real_path(vfs_path)
 
         # Security check: ensure we're not writing outside bundle

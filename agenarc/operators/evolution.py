@@ -78,8 +78,12 @@ class Asset_Reader_Operator(IOperator):
             # For now, try current directory
             bundle_path = Path.cwd()
 
+        # Get permissions from node config
+        node_config = context.get("_node_config", {})
+        permissions = node_config.get("permissions", {})
+
         try:
-            vfs = VFS(bundle_path)
+            vfs = VFS(bundle_path, permissions)
             content = vfs.read(vfs_path, encoding)
 
             # Get metadata
@@ -174,8 +178,12 @@ class Asset_Writer_Operator(IOperator):
         if not bundle_path:
             bundle_path = Path.cwd()
 
+        # Get permissions from node config
+        node_config = context.get("_node_config", {})
+        permissions = node_config.get("permissions", {})
+
         try:
-            vfs = VFS(bundle_path)
+            vfs = VFS(bundle_path, permissions)
 
             if operation == "delete":
                 # Check immutable_nodes

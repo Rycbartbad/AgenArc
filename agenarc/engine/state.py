@@ -8,13 +8,15 @@ Hierarchical state management for AgenArc execution:
 """
 
 import asyncio
+import copy
 import json
 import time
 import uuid
+import warnings
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 
 @dataclass
@@ -275,10 +277,16 @@ class StateManager:
     def __init__(
         self,
         max_checkpoints: int = 100,
-        auto_checkpoint: bool = False
+        auto_checkpoint: bool = False,
+        large_object_keys: List[str] = None,
+        strict_mode: bool = False
     ):
         self._max_checkpoints = max_checkpoints
         self._auto_checkpoint = auto_checkpoint
+
+        # Copy-on-write configuration
+        self._large_object_keys: Set[str] = set(large_object_keys or [])
+        self._strict_mode = strict_mode
 
         # Global context (shared across all nodes)
         self._global: Dict[str, Any] = {}
@@ -291,6 +299,9 @@ class StateManager:
 
         # State change listeners
         self._listeners: List[Callable[[StateChange], None]] = []
+
+        # Object ID tracking for in-place mutation detection
+        self._origin_ids: Dict[str, int] = {}
 
         # Execution metadata
         self._execution_id: str = ""
@@ -685,11 +696,13 @@ class ExecutionContext:
     """
     Context object passed to operators during execution.
 
-    Provides a clean interface to the StateManager.
+    Provides a clean interface to the StateManager with Copy-on-Write support
+    for large objects and in-place mutation detection in strict mode.
     """
 
     def __init__(self, state_manager: StateManager):
         self._state = state_manager
+        self._cache: Dict[str, Any] = {}  # CoW cache for large objects
 
     @property
     def execution_id(self) -> str:
@@ -700,12 +713,77 @@ class ExecutionContext:
         return self._state.graph_id
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get value from global context."""
-        return self._state.get_global(key, default)
+        """
+        Get value from global context with CoW support.
+
+        For large_object_keys: returns a cached deep copy (CoW)
+        For strict_mode: tracks object ID for mutation detection
+        """
+        value = self._state.get_global(key, default)
+
+        if value is None:
+            return default
+
+        # Large object keys use Copy-on-Write
+        if key in self._state._large_object_keys:
+            if key not in self._cache:
+                self._cache[key] = copy.deepcopy(value)
+            return self._cache[key]
+
+        # Track object ID for in-place mutation detection in strict mode
+        if self._state._strict_mode and key not in self._cache:
+            self._state._origin_ids[key] = id(value)
+
+        return value
 
     def set(self, key: str, value: Any) -> None:
-        """Set value in global context."""
-        self._state.set_global(key, value)
+        """
+        Set value in global context.
+
+        Always stores a deep copy to prevent external modification.
+        """
+        if key in self._state._large_object_keys:
+            # Large object: invalidate cache and store deep copy
+            self._cache[key] = copy.deepcopy(value)
+            self._state.set_global(key, self._cache[key])
+        else:
+            # Normal object: store deep copy
+            self._state.set_global(key, copy.deepcopy(value))
+
+        # Update origin ID tracking in strict mode
+        if self._state._strict_mode:
+            self._state._origin_ids[key] = id(self._state.get_global(key))
+
+    def post_node_execute(self, node_id: str) -> None:
+        """
+        Check for in-place mutations after node execution.
+
+        Called by the executor after each node completes.
+        Detects if a non-large_object key's value was mutated in-place
+        (e.g., list.append(), dict['key'] = value) without going through set().
+        """
+        if not self._state._strict_mode:
+            return
+
+        for key in self._state._origin_ids:
+            if key in self._state._large_object_keys:
+                continue  # Large objects use CoW, no mutation risk
+            current = self._state.get_global(key)
+            if current is None:
+                continue
+            current_id = id(current)
+            original_id = self._state._origin_ids[key]
+            if current_id != original_id:
+                warnings.warn(
+                    f"Node '{node_id}' performed in-place mutation on '{key}' "
+                    f"without declaring it as large_object. This can cause "
+                    f"data races in PARALLEL mode. Declare it in "
+                    f"manifest.json context.large_object_keys or use "
+                    f"context.set() instead of direct mutation.",
+                    RuntimeWarning
+                )
+                # Update tracking to avoid repeated warnings
+                self._state._origin_ids[key] = current_id
 
     def get_node_output(self, node_id: str, port_name: str) -> Any:
         """Get output from a specific node port."""

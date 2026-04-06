@@ -392,6 +392,11 @@ class ExecutionEngine:
         # Resolve inputs
         inputs = self._resolve_inputs(node)
 
+        # Set node config in context for operators to access
+        node_config = node.metadata.get("config", {})
+        context.set("_node_type", node.type.value)
+        context.set("_node_config", node_config)
+
         # Create checkpoint before execution
         if self.enable_checkpoint and node.checkpoint:
             checkpoint_id = self._state.checkpoint(f"pre_{node.id}")
@@ -404,6 +409,9 @@ class ExecutionEngine:
             # Store outputs
             self._node_outputs[node.id] = outputs
             self._state.store_output(node.id, outputs)
+
+            # Check for in-place mutations in strict mode
+            context.post_node_execute(node.id)
 
             # Update status
             self._node_statuses[node.id] = NodeStatus.COMPLETED
