@@ -17,7 +17,6 @@ from agenarc.protocol.schema import (
     ErrorHandling,
     ErrorStrategy,
     Graph,
-    GraphMetadata,
     Node,
     NodeConfig,
     NodeType,
@@ -159,16 +158,6 @@ class ProtocolLoader:
         Returns:
             Graph object
         """
-        metadata_data = data.get("metadata", {})
-        metadata = GraphMetadata(
-            name=metadata_data.get("name", ""),
-            description=metadata_data.get("description", ""),
-            author=metadata_data.get("author", ""),
-            version=metadata_data.get("version", "1.0.0"),
-            created=metadata_data.get("created", datetime.now().isoformat()),
-            tags=metadata_data.get("tags", []),
-        )
-
         nodes = [self._parse_node(n) for n in data.get("nodes", [])]
         edges = [self._parse_edge(e) for e in data.get("edges", [])]
 
@@ -177,7 +166,6 @@ class ProtocolLoader:
 
         return Graph(
             version=data.get("version", "1.0.0"),
-            metadata=metadata,
             entryPoint=data.get("entryPoint", ""),
             nodes=nodes,
             edges=edges,

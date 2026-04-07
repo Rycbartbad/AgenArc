@@ -122,10 +122,6 @@ class TestCommandInfo:
         protocol_file.write_text(json.dumps({
             "version": "1.0.0",
             "entryPoint": "trigger_1",
-            "metadata": {
-                "name": "Test Protocol",
-                "description": "A test protocol"
-            },
             "nodes": [
                 {
                     "id": "trigger_1",
@@ -142,7 +138,6 @@ class TestCommandInfo:
 
         assert result == 0
         captured = capsys.readouterr()
-        assert "Test Protocol" in captured.out
         assert "trigger_1" in captured.out
 
     def test_info_nonexistent_file(self, tmp_path, capsys):

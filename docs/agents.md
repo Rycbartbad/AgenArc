@@ -88,7 +88,6 @@ my_agent.agrc/
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {"name": "my_agent"},
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "Start"},
     {
@@ -250,12 +249,6 @@ agent_name.agrc/
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {
-    "name": "agent_name",
-    "description": "描述",
-    "author": "作者",
-    "tags": ["tag1", "tag2"]
-  },
   "nodes": [...],
   "edges": [...]
 }
@@ -268,15 +261,6 @@ agent_name.agrc/
 ### entryPoint 入口点
 
 必须是某个节点（Node）的 `id`，且该节点类型必须是 `Trigger`。
-
-### metadata 元数据
-
-| 字段 | 必填 | 类型 | 说明 |
-|------|------|------|------|
-| `name` | 是 | string | Agent 名称 |
-| `description` | 否 | string | 描述 |
-| `author` | 否 | string | 作者 |
-| `tags` | 否 | array | 标签列表 |
 
 ### nodes 节点列表
 
@@ -1135,7 +1119,6 @@ hello_agent.agrc/
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {"name": "hello_agent"},
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {
@@ -1189,7 +1172,6 @@ chat_agent.agrc/
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {"name": "chat_agent"},
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {

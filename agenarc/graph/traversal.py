@@ -187,7 +187,6 @@ class GraphTraversal:
 
         new_graph = Graph(
             version=self.graph.version,
-            metadata=self.graph.metadata,
             entryPoint=self.graph.entryPoint if self.graph.entryPoint in node_ids else "",
             nodes=nodes,
             edges=edges,

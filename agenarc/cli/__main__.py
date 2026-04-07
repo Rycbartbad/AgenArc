@@ -384,7 +384,7 @@ class InteractiveREPL:
             self.engine._state = StateManager()
             self.engine._state.initialize(
                 self.engine._execution_id or "reset",
-                self.engine._graph.metadata.name if self.engine._graph else "agent"
+                self.engine._graph.entryPoint if self.engine._graph else "agent"
             )
             print("State reset.")
             return True
@@ -394,7 +394,7 @@ class InteractiveREPL:
                 print(f"Entry Point: {self.engine._graph.entryPoint}")
                 print(f"Nodes: {len(self.engine._graph.nodes)}")
                 print(f"Edges: {len(self.engine._graph.edges)}")
-                print(f"Status: {self.engine._graph.metadata.name}")
+                print(f"Status: {self.engine._graph.entryPoint or 'unknown'}")
             else:
                 print("No agent loaded.")
             return True
@@ -712,17 +712,31 @@ def command_info(file: Path) -> int:
         loader = ProtocolLoader(validate=False)
         graph = loader.load(protocol_path)
 
+        # Try to load manifest for additional info
+        manifest_path = protocol_path / "manifest.json" if protocol_path.is_dir() else protocol_path.parent / "manifest.json"
+        manifest_name = ""
+        manifest_description = ""
+        manifest_author = ""
+        if manifest_path.exists():
+            try:
+                with open(manifest_path) as f:
+                    manifest_data = json.load(f)
+                    manifest_name = manifest_data.get("name", "")
+                    manifest_description = manifest_data.get("description", "")
+                    manifest_author = manifest_data.get("author", "")
+            except Exception:
+                pass
+
         print(f"AgenArc Protocol Information")
         print(f"=" * 40)
         print(f"Version: {graph.version}")
         print(f"Entry Point: {graph.entryPoint}")
-
-        if graph.metadata.name:
-            print(f"Name: {graph.metadata.name}")
-        if graph.metadata.description:
-            print(f"Description: {graph.metadata.description}")
-        if graph.metadata.author:
-            print(f"Author: {graph.metadata.author}")
+        if manifest_name:
+            print(f"Name: {manifest_name}")
+        if manifest_description:
+            print(f"Description: {manifest_description}")
+        if manifest_author:
+            print(f"Author: {manifest_author}")
 
         print(f"\nNodes ({len(graph.nodes)}):")
         for node in graph.nodes:

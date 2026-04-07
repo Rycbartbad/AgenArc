@@ -41,24 +41,6 @@ class TestProtocolLoader:
         assert graph.entryPoint == "trigger_1"
         assert len(graph.nodes) == 1
 
-    def test_load_from_dict_with_metadata(self):
-        """Test loading from dict with metadata."""
-        data = {
-            "version": "1.0.0",
-            "entryPoint": "trigger_1",
-            "metadata": {
-                "name": "Test Graph",
-                "author": "Tester"
-            },
-            "nodes": [],
-            "edges": []
-        }
-        loader = ProtocolLoader(validate=False)
-        graph = loader.load_dict(data)
-
-        assert graph.metadata.name == "Test Graph"
-        assert graph.metadata.author == "Tester"
-
     def test_load_node_with_ports(self):
         """Test loading node with input/output ports."""
         data = {

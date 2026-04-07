@@ -277,7 +277,7 @@ class ExecutionEngine:
         # Initialize execution
         self._execution_id = str(uuid.uuid4())
         self._state = StateManager(auto_checkpoint=self.enable_checkpoint)
-        self._state.initialize(self._execution_id, self._graph.metadata.name)
+        self._state.initialize(self._execution_id, self._graph.entryPoint or "unknown")
 
         # Seed initial inputs
         if initial_inputs:

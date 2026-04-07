@@ -247,7 +247,6 @@ class Graph:
     This is the root structure loaded from flow.json.
     """
     version: str = "1.0.0"
-    metadata: GraphMetadata = field(default_factory=GraphMetadata)
     entryPoint: str = ""
     errorNode: str = ""  # Global error handler node ID
 
@@ -282,17 +281,6 @@ AGENARC_SCHEMA = {
             "type": "string",
             "pattern": "^\\d+\\.\\d+\\.\\d+$",
             "description": "Semantic version"
-        },
-        "metadata": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "description": {"type": "string"},
-                "author": {"type": "string"},
-                "version": {"type": "string"},
-                "created": {"type": "string", "format": "date-time"},
-                "tags": {"type": "array", "items": {"type": "string"}}
-            }
         },
         "entryPoint": {
             "type": "string",

@@ -180,7 +180,6 @@ my_agent.agrc/
 {
   "version": "1.0.0",
   "entryPoint": "trigger_1",
-  "metadata": {"name": "my_agent"},
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "Start"},
     {
