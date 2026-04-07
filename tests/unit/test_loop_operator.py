@@ -24,16 +24,17 @@ class TestLoopControlOperator:
     def test_description(self):
         """Test operator description."""
         op = Loop_Control_Operator()
-        assert op.description == "Iterate over collections with accumulation"
+        assert op.description == "Iterate over collections with feedback loop support"
 
     def test_input_ports(self):
         """Test operator input ports."""
         op = Loop_Control_Operator()
         ports = op.get_input_ports()
-        assert len(ports) == 2
+        assert len(ports) == 3
         port_names = {p.name for p in ports}
         assert "iterate_on" in port_names
         assert "max_iterations" in port_names
+        assert "accumulator_input" in port_names
 
     def test_output_ports(self):
         """Test operator output ports."""

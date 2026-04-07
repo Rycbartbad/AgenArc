@@ -141,6 +141,32 @@ manager = PluginManager(plugin_dirs=["~/.agenarc/plugins"])
 await manager.initialize()
 ```
 
+### 嵌入插件（随 Agent 分发）
+
+插件可以内嵌到 `.agrc` 资产包中，随 Agent 一起分发：
+
+```text
+my_agent.agrc/
+├── manifest.json
+├── flow.json
+├── plugins/              # Python 嵌入插件（自动发现）
+│   └── my_embedded_plugin/
+│       ├── agenarc.json
+│       └── plugin.py
+└── assets/
+    └── plugins/          # C++/External 插件（自动安装到全局）
+        └── my_cpp_plugin/
+            ├── agenarc.json
+            └── libmy_plugin.so
+```
+
+**加载机制：**
+
+| 位置 | 类型 | 加载方式 |
+| :--- | :--- | :--- |
+| `<bundle>/plugins/` | Python | 自动发现，直接使用 |
+| `<bundle>/assets/plugins/` | C++/External | 首次运行时安装到 `~/.agenarc/plugins/` |
+
 ## 热重载
 
 `HotPluginLoader` 在文件变更时自动重载插件：

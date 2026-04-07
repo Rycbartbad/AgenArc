@@ -107,6 +107,7 @@ class ExecutionEngine:
         self._traversal: Optional[GraphTraversal] = None
         self._state: Optional[StateManager] = None
         self._operators: Dict[str, "IOperator"] = {}
+        self._adjacency: Dict[str, List[str]] = {}  # For loop support
 
         # Manifest permissions (for Trust-based Autonomy)
         self._permissions: Permissions = Permissions()
@@ -125,10 +126,10 @@ class ExecutionEngine:
 
     def load_manifest(self, manifest_path: Any) -> None:
         """
-        Load manifest.json from .arc bundle.
+        Load manifest.json from .agrc bundle.
 
         Args:
-            manifest_path: Path to manifest.json or .arc bundle directory
+            manifest_path: Path to manifest.json or .agrc bundle directory
         """
         import json
         from pathlib import Path
@@ -199,6 +200,12 @@ class ExecutionEngine:
         loader = ProtocolLoader(validate=validate)
         self._graph = loader.load(source)
         self._traversal = GraphTraversal(self._graph)
+
+        # Build adjacency list for loop support
+        self._adjacency = {node.id: [] for node in self._graph.nodes}
+        for edge in self._graph.edges:
+            if edge.source in self._adjacency:
+                self._adjacency[edge.source].append(edge.target)
 
         # Validate graph structure
         errors = self._traversal.validate()
@@ -366,7 +373,9 @@ class ExecutionEngine:
 
     async def _execute_async(self, entry_node: Node) -> None:
         """
-        Async execution with dependency tracking.
+        Async execution with dependency tracking and loop support.
+
+        Supports feedback loops via Loop_Control nodes with done=False signaling.
 
         Args:
             entry_node: Entry point node
@@ -376,26 +385,195 @@ class ExecutionEngine:
             node.id for node in self._graph.nodes
         }
 
+        # Track waiting nodes (loop iterations waiting for feedback)
+        waiting_for_feedback: Dict[str, str] = {}  # node_id -> loop_id
+        loop_iterations: Dict[str, int] = {}  # loop_id -> iteration count
+
         while pending and self._running:
             # Find nodes ready to execute
             ready = self._traversal.get_ready_nodes(executed, pending)
 
             if not ready:
-                # No nodes ready, check for deadlocks
-                if pending:
-                    remaining = list(pending)
-                    raise RuntimeError(
-                        f"Deadlock detected. Remaining nodes: {remaining}"
-                    )
-                break
+                # No nodes ready, check if we're waiting for feedback
+                if waiting_for_feedback:
+                    # Check if any feedback has arrived
+                    for node_id in list(waiting_for_feedback.keys()):
+                        # Check if all successors have completed (feedback arrived)
+                        successors = self._adjacency.get(node_id, [])
+                        all_successors_done = all(
+                            succ in executed for succ in successors
+                        )
+                        if all_successors_done:
+                            # Feedback received - re-trigger the loop node
+                            waiting_for_feedback.pop(node_id, None)
+                            ready = [node_id]
+                            break
+                    else:
+                        # Still waiting for feedback
+                        if pending:
+                            remaining = list(pending)
+                            raise RuntimeError(
+                                f"Loop deadlock detected. Waiting for feedback but no nodes ready. "
+                                f"Remaining: {remaining}"
+                            )
+                        break
+                else:
+                    if pending:
+                        remaining = list(pending)
+                        raise RuntimeError(
+                            f"Deadlock detected. Remaining nodes: {remaining}"
+                        )
+                    break
 
             # Execute ready nodes
             for node_id in ready:
                 node = self._graph.get_node(node_id)
-                if node:
-                    await self._execute_node(node)
-                    executed.add(node_id)
-                    pending.discard(node_id)
+                if not node:
+                    continue
+
+                # Execute the node
+                outputs = await self._execute_node_with_tracking(node)
+
+                # Check if this is a Loop_Control node that needs feedback
+                if node.type == NodeType.LOOP_CONTROL:
+                    loop_id = node.id
+                    done = outputs.get("done", True) if outputs else True
+
+                    if not done:
+                        # Loop continues - mark as waiting and execute body
+                        waiting_for_feedback[node_id] = loop_id
+                        loop_iterations[loop_id] = loop_iterations.get(loop_id, 0) + 1
+
+                        # Store accumulator for next iteration
+                        accumulator = outputs.get("accumulator") if outputs else None
+                        if accumulator is not None:
+                            self._state.set_global(f"_loop_{loop_id}_accumulator", accumulator)
+
+                        # Mark current node as WAITING (not COMPLETED)
+                        self._node_statuses[node_id] = NodeStatus.WAITING
+
+                        # Find and execute the loop body
+                        await self._execute_loop_body(
+                            node, executed, pending, loop_id, loop_iterations
+                        )
+
+                        # After body executes, loop will be re-triggered via feedback
+                        # Don't mark as COMPLETED yet - it will complete when done=True
+                        continue
+
+                # Normal completion
+                executed.add(node_id)
+                pending.discard(node_id)
+
+    async def _execute_loop_body(
+        self,
+        loop_node: Node,
+        executed: Set[str],
+        pending: Set[str],
+        loop_id: str,
+        loop_iterations: Dict[str, int]
+    ) -> None:
+        """
+        Execute the loop body nodes.
+
+        The loop body consists of all nodes reachable from the loop's output
+        that eventually have a feedback edge back to the loop node.
+
+        Args:
+            loop_node: The Loop_Control node
+            executed: Set of executed node IDs
+            pending: Set of pending node IDs
+            loop_id: Identifier for this loop
+            loop_iterations: Iteration counter dict
+        """
+        # Build loop body nodes (reachable from loop, not including loop itself)
+        body_nodes = set()
+        queue = list(self._adjacency.get(loop_node.id, []))
+
+        while queue:
+            node_id = queue.pop(0)
+            if node_id in body_nodes or node_id == loop_id:
+                continue
+
+            body_nodes.add(node_id)
+
+            # Check if this node has a feedback edge back to loop
+            has_feedback = any(
+                e.source == node_id and e.target == loop_id
+                for e in self._graph.edges
+            )
+
+            if not has_feedback:
+                # Continue exploring successors
+                for succ in self._adjacency.get(node_id, []):
+                    if succ not in body_nodes and succ != loop_id:
+                        queue.append(succ)
+
+        # Execute body nodes in order
+        body_order = self._topological_sort_subset(body_nodes, executed)
+
+        for node_id in body_order:
+            if not self._running:
+                break
+
+            node = self._graph.get_node(node_id)
+            if not node or node_id in executed:
+                continue
+
+            outputs = await self._execute_node_with_tracking(node)
+
+            # Check for early termination from Router or condition
+            if node.type == NodeType.ROUTER and outputs:
+                # Router might signal to exit loop
+                # This is handled by checking if feedback edge is followed
+                pass
+
+            executed.add(node_id)
+            pending.discard(node_id)
+
+    def _topological_sort_subset(
+        self,
+        node_ids: Set[str],
+        exclude: Set[str]
+    ) -> List[str]:
+        """
+        Topological sort of a subset of nodes.
+
+        Args:
+            node_ids: Set of node IDs to sort
+            exclude: Node IDs to exclude from ordering
+
+        Returns:
+            List of node IDs in topological order
+        """
+        # Build subgraph
+        subgraph_adj = {
+            n: [t for t in self._adjacency.get(n, []) if t in node_ids and t not in exclude]
+            for n in node_ids
+        }
+
+        in_degree = {n: 0 for n in node_ids if n not in exclude}
+        for n in node_ids:
+            if n in exclude:
+                continue
+            for succ in subgraph_adj.get(n, []):
+                if succ in in_degree:
+                    in_degree[succ] += 1
+
+        queue = [n for n in node_ids if n not in exclude and in_degree.get(n, 0) == 0]
+        result = []
+
+        while queue:
+            node_id = queue.pop(0)
+            result.append(node_id)
+
+            for succ in subgraph_adj.get(node_id, []):
+                if succ in in_degree:
+                    in_degree[succ] -= 1
+                    if in_degree[succ] == 0:
+                        queue.append(succ)
+
+        return result
 
     async def _execute_parallel(self, entry_node: Node) -> None:
         """
@@ -448,6 +626,20 @@ class ExecutionEngine:
         Args:
             node: Node to execute
         """
+        await self._execute_node_with_tracking(node)
+
+    async def _execute_node_with_tracking(self, node: Node) -> Optional[Dict[str, Any]]:
+        """
+        Execute a single node and return outputs.
+
+        Used by async executor with loop support.
+
+        Args:
+            node: Node to execute
+
+        Returns:
+            Node outputs dict, or None if node has no operator
+        """
         context = ExecutionContext(self._state)
 
         # Check for checkpoint restoration
@@ -466,7 +658,7 @@ class ExecutionEngine:
         if not operator:
             # No operator found, mark as completed with no outputs
             self._node_statuses[node.id] = NodeStatus.COMPLETED
-            return
+            return None
 
         # Resolve inputs
         inputs = self._resolve_inputs(node)
@@ -495,8 +687,11 @@ class ExecutionEngine:
             # Update status
             self._node_statuses[node.id] = NodeStatus.COMPLETED
 
+            return outputs
+
         except Exception as e:
             await self._handle_node_error(node, e, context)
+            return None
 
     async def _safe_execute(
         self,

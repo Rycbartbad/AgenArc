@@ -59,11 +59,15 @@ class Config:
         self._apply_env_overrides()
 
     def _find_config_file(self) -> Optional[Path]:
-        """Find config.yaml in project root."""
-        # Look for config.yaml relative to this file
+        """Find config.yaml in ~/.agenarc/ or project root."""
+        # ~/.agenarc/config.yaml (preferred, user-level)
+        user_config = Path("~/.agenarc/config.yaml").expanduser()
+        if user_config.exists():
+            return user_config
+
+        # config.yaml in project root (legacy)
         current = Path(__file__).parent.parent
         config_path = current / "config.yaml"
-
         if config_path.exists():
             return config_path
 

@@ -14,7 +14,7 @@
 **核心哲学："机制与策略分离"**
 - 内核：极致稳定，仅负责安全调度与资源校验
 - 自修复/逻辑进化：由用户在图流程内自行构建
-- 资产边界：`arc://` 虚拟协议隔离，"数字生命"在边界内自由进化
+- 资产边界：`agrc://` 虚拟协议隔离，"数字生命"在边界内自由进化
 
 ---
 
@@ -105,7 +105,21 @@ Router:
 
 #### ④ Loop_Control
 
-控制循环的进入、退出和迭代。
+基于反馈循环的迭代控制。支持 `done=False` 继续循环，`done=True` 退出。
+
+**反馈循环工作流程**：
+
+```
+Loop_Control (done=False)
+    ↓
+Body 节点 (处理 current_item)
+    ↓
+Body 输出回传给 Loop_Control (accumulator_input)
+    ↓
+Loop_Control 读取 accumulator，进入下一次迭代
+    ↓
+直到 done=True，退出循环
+```
 
 ```yaml
 Loop_Control:
@@ -115,6 +129,8 @@ Loop_Control:
     - name: "max_iterations"
       type: "integer"
       default: 100
+    - name: "accumulator_input"        # 新增：接收 body 回传值
+      type: "any"
   outputs:
     - name: "iteration_count"
       type: "integer"
@@ -122,6 +138,8 @@ Loop_Control:
       type: "any"
     - name: "accumulator"
       type: "any"
+    - name: "done"
+      type: "boolean"                 # false=继续循环，true=退出
   config:
     - name: "checkpoint"
       type: "boolean"
@@ -129,6 +147,19 @@ Loop_Control:
     - name: "termination_conditions"
       type: "array[Condition]"
 ```
+
+**两种典型场景**：
+
+| 场景 | 用法 |
+|------|------|
+| 列表遍历 | iterate_on 传入数组，accumulator 自动收集结果 |
+| 自我修正 | max_iterations 控制重试次数，accumulator 保存错误信息 |
+
+**避坑指南**：
+
+1. 必须设置 max_iterations 限制，防止无限循环
+2. 必须有闭环边从 body 连回 Loop_Control 的 accumulator_input
+3. done=true 时，通过 sourceValue 条件边跳过后续节点
 
 #### ⑤ Memory_I/O
 
@@ -192,6 +223,11 @@ Subgraph:
 #### [扩展] Plugin
 
 调用自定义插件算子。
+
+**插件来源：**
+- 全局插件目录：`~/.agenarc/plugins/`（需单独安装，所有类型）
+- 嵌入插件目录：`<bundle>/plugins/`（**Python**，自动发现）
+- 资产包插件目录：`<bundle>/assets/plugins/`（**C++/External**，自动安装到全局）
 
 ```yaml
 Plugin:
@@ -282,12 +318,12 @@ Condition:
 
 ---
 
-## 第二层：自包含资产包（.arc Bundle）
+## 第二层：自包含资产包（.agrc Bundle）
 
 ### Bundle 目录结构
 
 ```
-my_agent.arc/
+my_agent.agrc/
 ├── manifest.json           # 资产包元数据
 ├── flow.json              # 图协议（等价于旧 protocol.json）
 ├── prompts/                # Prompt 模板目录
@@ -296,8 +332,16 @@ my_agent.arc/
 ├── scripts/                # 可执行脚本目录
 │   ├── validator.py        # 自定义校验脚本
 │   └── tool.py            # Agent 动态创建的脚本
-└── assets/                 # 静态资源（可选）
-    └── config.yaml
+├── plugins/                 # 嵌入式 Python 插件（自动发现）
+│   └── my_python_plugin/
+│       ├── agenarc.json
+│       └── plugin.py
+└── assets/                 # 静态资源 + C++/External 插件
+    ├── config.yaml
+    └── plugins/             # C++/External 插件（自动安装到全局）
+        └── my_cpp_plugin/
+            ├── agenarc.json
+            └── libmy_plugin.so
 ```
 
 ### manifest.json 结构
@@ -342,25 +386,25 @@ my_agent.arc/
 
 ### VFS（虚拟文件系统）
 
-所有节点对 `prompts/` 和 `scripts/` 的访问必须通过 `arc://` 虚拟协议：
+所有节点对 `prompts/` 和 `scripts/` 的访问必须通过 `agrc://` 虚拟协议：
 
 ```yaml
 # 在节点配置中使用 VFS 路径
 LLM_Task:
   config:
-    system_prompt: "arc://prompts/system.pt"
+    system_prompt: "agrc://prompts/system.pt"
     params:
-      script_path: "arc://scripts/tool.py"
+      script_path: "agrc://scripts/tool.py"
 ```
 
 **VFS 映射规则：**
 
 | VFS 路径 | 实际路径 |
 |----------|----------|
-| `arc://prompts/` | `<bundle>/prompts/` |
-| `arc://scripts/` | `<bundle>/scripts/` |
-| `arc://assets/` | `<bundle>/assets/` |
-| `arc://flow.json` | `<bundle>/flow.json` |
+| `agrc://prompts/` | `<bundle>/prompts/` |
+| `agrc://scripts/` | `<bundle>/scripts/` |
+| `agrc://assets/` | `<bundle>/assets/` |
+| `agrc://flow.json` | `<bundle>/flow.json` |
 
 **禁止事项：**
 - 严禁直接使用宿主机绝对路径（如 `/home/user/...` 或 `C:\...`）
@@ -379,7 +423,7 @@ LLM_Task:
 Asset_Reader:
   inputs:
     - name: "path"
-      type: "string"          # arc:// 相对路径
+      type: "string"          # agrc:// 相对路径
   outputs:
     - name: "content"
       type: "string"          # 文件原文
@@ -400,7 +444,7 @@ Asset_Reader:
 - id: "load_prompt"
   type: "Asset_Reader"
   config:
-    path: "arc://prompts/system.pt"
+    path: "agrc://prompts/system.pt"
 ```
 
 ### ⑦ Asset_Writer
@@ -522,7 +566,7 @@ DANGEROUS_ATTRIBUTES = {
 
 | 特性 | level_0 (Zero Knowledge) | level_1 (Supervised) | level_2 (Autonomous) | level_3 (Self-Evolving) |
 |------|----------------------|---------------------|---------------------|------------------------|
-| arc:// 访问 | 禁用 | 启用 | 启用 | 启用 |
+| agrc:// 访问 | 禁用 | 启用 | 启用 | 启用 |
 | Script_Node trust_level | locked | locked | trusted | developer |
 | 属性访问 | 仅安全方法 | 仅安全方法 | 全部允许 | 全部允许 |
 | 推导式 | 禁用 | 禁用 | 启用 | 启用 |
@@ -532,29 +576,33 @@ DANGEROUS_ATTRIBUTES = {
 | Gas 计费 | 500 ops | 1000 ops | 1000 ops | 无限制 |
 | SafeContext 内存 | 64MB | 128MB | 128MB | 256MB |
 
-**Script_Node 与 manifest autonomy_level 联动：**
+**Script_Node 信任级别：**
 
-```
-manifest.json:
-  permissions:
-    autonomy_level: "level_3"  →  Script_Node 自动获得 developer trust_level
+Script_Node 由开发者编写，默认使用 `developer` 模式（完全信任），不受 autonomy_level 限制。
 
-Node config 可覆盖：
-  node.config.script_trust_level: "locked"  →  即使 level_3 也强制 locked
+可通过 node config 显式设置：
+```json
+{
+  "id": "my_script",
+  "type": "Script_Node",
+  "config": {
+    "script_trust_level": "locked"  // 可选：locked | trusted | developer
+  }
+}
 ```
 
 | trust_level | 表达式 | 语句 | 适用场景 |
 |-------------|--------|------|----------|
-| `locked` | ASTEvaluator | 拒绝 | level_0/1 默认，最安全 |
-| `trusted` | ASTEvaluator | safe exec | level_2 默认，平衡 |
-| `developer` | ASTEvaluator | full exec | level_3 默认，最强 |
+| `locked` | ASTEvaluator | 拒绝 | 最安全，仅表达式 |
+| `trusted` | ASTEvaluator | safe exec | 平衡模式 |
+| `developer` | ASTEvaluator | full exec | **默认**，完全信任 |
 
 **level_0 (Zero Knowledge) 设计意义：**
 
 ```
 level_0: Agent 是"纯函数"——输入 → 推理 → 输出
          Agent 不知道自己在 Agent 框架中运行
-         不知道 arc://、prompts/、scripts/ 的存在
+         不知道 agrc://、prompts/、scripts/ 的存在
          只能通过 prompt/input 接收信息，通过 output 返回结果
 
 适用场景：
@@ -697,7 +745,7 @@ class Runtime_Reload_Operator:
 ```
 ExecutionEngine
 ├── Loader (Graph + Bundle 解析)
-├── VFS (arc:// 协议映射)
+├── VFS (agrc:// 协议映射)
 ├── Scheduler (控制流调度)
 ├── Executor (节点执行)
 ├── PluginManager (Hot_Plugin_Loader)
@@ -860,7 +908,7 @@ agenarc/
 ├── vfs/                       # 虚拟文件系统
 │   ├── __init__.py
 │   ├── filesystem.py         # VFS 核心
-│   └── bundle.py             # .arc Bundle 加载器
+│   └── bundle.py             # .agrc Bundle 加载器
 │
 ├── plugins/                   # 插件系统
 │   ├── manager.py            # 插件管理器
@@ -906,11 +954,11 @@ agenarc/
 - Script_Node（自定义脚本 + AST安全求值）
 - CheckpointManager + 文件持久化
 - AST 安全表达式求值器
-- CLI 支持 `.arc` 代理包
+- CLI 支持 `.agrc` 代理包
 
 ### 阶段 3: 自进化资产系统 (4-6 周) ✅ 完成
 
-- .arc Bundle 格式定义
+- .agrc Bundle 格式定义
 - VFS（arc:// 协议映射）
 - Asset_Reader / Asset_Writer 算子
 - Runtime_Reload 热重载机制
@@ -946,7 +994,7 @@ agenarc/
 | P0 | `agenarc/operators/loop.py` | Loop_Control算子 | ✅ |
 | P0 | `agenarc/engine/state.py` | CheckpointManager | ✅ |
 | P1 | `agenarc/engine/guardrail.py` | 校验链（Schema + AST） | 📋 |
-| P1 | `agenarc/vfs/filesystem.py` | VFS arc:// 协议实现 | ✅ |
+| P1 | `agenarc/vfs/filesystem.py` | VFS agrc:// 协议实现 | ✅ |
 | P1 | `agenarc/operators/evolution.py` | 自进化算子 | ✅ |
 | P1 | `agenarc/plugins/hot_loader.py` | 热重载加载器 | ✅ |
 | P1 | `agenarc/plugins/loaders/*.py` | 多语言插件加载器 | ✅ |
@@ -983,7 +1031,7 @@ agenarc/
 |------|------|------|
 | v0.1 | 2026-04-05 | 初始草案 |
 | v0.2 | 2026-04-05 | DSL 修订：移除 Edge guard，onFailure 移至 Node + Error Port |
-| v0.3 | 2026-04-05 | 新增自进化架构：.arc Bundle、VFS、自进化算子、双重校验链 |
+| v0.3 | 2026-04-05 | 新增自进化架构：.agrc Bundle、VFS、自进化算子、双重校验链 |
 | v0.4 | 2026-04-06 | 阶段2完成：Router、Loop_Control、CheckpointManager、AST Evaluator |
 | v0.5 | 2026-04-06 | 新增：Quiescence 热重载机制、白名单脚本模式、自愈 Error Port、environment_requirements 预检 |
 | v0.6 | 2026-04-06 | 测试覆盖：411 passed, 85% |

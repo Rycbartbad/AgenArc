@@ -269,16 +269,16 @@ class Script_Node_Operator(IOperator):
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}
 
-        # Get trust level from node config or derive from manifest autonomy_level
+        # Get trust level from node config
+        # Script_Node is developer-written code, default to developer (fully trusted)
         node_config = context.get("_node_config", {})
         explicit_trust = node_config.get("script_trust_level", None)
         if explicit_trust is not None:
-            # Node config explicitly overrides manifest
+            # Node config explicitly sets trust level
             trust_level = explicit_trust
         else:
-            # Derive from manifest's autonomy level
-            manifest_autonomy = context.get("_manifest_autonomy_level", 1)
-            trust_level = _autonomy_to_trust_level(manifest_autonomy)
+            # Default to developer - Script_Node is written by developers, fully trusted
+            trust_level = "developer"
 
         # Get resource limits from manifest permissions
         gas_budget = context.get("_gas_budget", 1000)
@@ -292,6 +292,8 @@ class Script_Node_Operator(IOperator):
             script_stripped = script.strip()
 
             # Create evaluator with autonomy level and resource limits
+            # Use manifest autonomy level for gas/memory limits, but trust_level controls script access
+            manifest_autonomy = context.get("_manifest_autonomy_level", 1)
             evaluator = ASTEvaluator(
                 autonomy_level=manifest_autonomy,
                 gas_budget=gas_budget,

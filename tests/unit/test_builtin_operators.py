@@ -355,11 +355,11 @@ class TestScript_Node_Operator:
 
     @pytest.mark.asyncio
     async def test_execute_simple_script(self):
-        """Test executing simple script with default trust level."""
+        """Test executing simple script with default developer trust level."""
         op = Script_Node_Operator()
         ctx = create_context()
-        # Set manifest to level_2 (trusted) to allow statements
-        ctx.set_global("_manifest_autonomy_level", 2)
+        # Script_Node defaults to developer mode
+        ctx.set_global("_manifest_autonomy_level", 1)
         ctx.set_global("_node_config", {})
 
         result = await op.execute({"script": "x = 42"}, ctx)
@@ -391,60 +391,43 @@ class TestAutonomyToTrustLevel:
         assert _autonomy_to_trust_level(99) == "developer"
 
 
-class TestScript_Node_TrustLevelFromManifest:
-    """Tests for Script_Node trust level derivation from manifest."""
+class TestScript_Node_TrustLevel:
+    """Tests for Script_Node trust level (defaults to developer, ignores manifest)."""
 
     @pytest.mark.asyncio
-    async def test_level_1_manifest_uses_locked(self):
-        """level_1 manifest should use locked trust level by default."""
+    async def test_default_is_developer(self):
+        """Script_Node defaults to developer mode regardless of manifest."""
         op = Script_Node_Operator()
         ctx = create_context()
-        ctx.set_global("_manifest_autonomy_level", 1)
+        ctx.set_global("_manifest_autonomy_level", 1)  # level_1 should be locked
         ctx.set_global("_node_config", {})
 
-        # "x = 1" is a statement, not an expression
-        # locked mode should reject statements
+        # But Script_Node defaults to developer, so statement should work
         result = await op.execute({"script": "x = 1"}, ctx)
 
-        # locked mode doesn't allow statements, only expressions
-        assert result["success"] is False
-        assert "expressions" in result.get("error", "").lower()
-
-    @pytest.mark.asyncio
-    async def test_level_2_manifest_uses_trusted(self):
-        """level_2 manifest should use trusted trust level by default."""
-        op = Script_Node_Operator()
-        ctx = create_context()
-        ctx.set_global("_manifest_autonomy_level", 2)
-        ctx.set_global("_node_config", {})
-
-        result = await op.execute({"script": "x = 1"}, ctx)
-
-        # trusted mode allows statements via safe exec
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_level_3_manifest_uses_developer(self):
-        """level_3 manifest should use developer trust level by default."""
+    async def test_any_manifest_level_uses_developer(self):
+        """Any manifest level should still result in developer mode."""
+        op = Script_Node_Operator()
+        ctx = create_context()
+        ctx.set_global("_manifest_autonomy_level", 0)  # level_0
+        ctx.set_global("_node_config", {})
+
+        result = await op.execute({"script": "x = 42"}, ctx)
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_node_config_overrides_default(self):
+        """Node config script_trust_level should override default developer."""
         op = Script_Node_Operator()
         ctx = create_context()
         ctx.set_global("_manifest_autonomy_level", 3)
-        ctx.set_global("_node_config", {})
+        ctx.set_global("_node_config", {"script_trust_level": "locked"})
 
         result = await op.execute({"script": "x = 1"}, ctx)
 
-        # developer mode allows full Python
-        assert result["success"] is True
-
-    @pytest.mark.asyncio
-    async def test_node_config_overrides_manifest(self):
-        """Node config script_trust_level should override manifest."""
-        op = Script_Node_Operator()
-        ctx = create_context()
-        ctx.set_global("_manifest_autonomy_level", 3)  # level_3 would be developer
-        ctx.set_global("_node_config", {"script_trust_level": "locked"})  # but explicit locked
-
-        result = await op.execute({"script": "x = 1"}, ctx)
-
-        # locked should override, so statement should fail
+        # locked should override developer, so statement should fail
         assert result["success"] is False
+        assert "expressions" in result.get("error", "").lower()

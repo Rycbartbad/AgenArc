@@ -1,4 +1,0 @@
-You are a text processor.
-
-Process the following item briefly (1-2 sentences):
-{{context.current_item}}

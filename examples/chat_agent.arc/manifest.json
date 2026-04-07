@@ -1,6 +1,0 @@
-{
-  "name": "chat_agent",
-  "version": "1.0.0",
-  "entry": "flow.json",
-  "description": "简单对话 Agent，使用 LLM 生成回复"
-}

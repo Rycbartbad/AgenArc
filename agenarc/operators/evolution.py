@@ -1,8 +1,8 @@
 """
 Asset Operators
 
-Asset_Reader - Read files from .arc bundle
-Asset_Writer - Write files to .arc bundle
+Asset_Reader - Read files from .agrc bundle
+Asset_Writer - Write files to .agrc bundle
 Runtime_Reload - Hot reload scripts and plugins
 """
 
@@ -18,12 +18,12 @@ from agenarc.vfs.filesystem import VFS, VFSError
 
 class Asset_Reader_Operator(IOperator):
     """
-    Asset Reader operator - read files from .arc bundle.
+    Asset Reader operator - read files from .agrc bundle.
 
-    Reads assets from the bundle using VFS (arc:// protocol).
+    Reads assets from the bundle using VFS (agrc:// protocol).
 
     Inputs:
-        path: VFS path (arc://prompts/system.pt)
+        path: VFS path (agrc://prompts/system.pt)
         encoding: File encoding (default utf-8)
 
     Outputs:
@@ -38,11 +38,11 @@ class Asset_Reader_Operator(IOperator):
 
     @property
     def description(self) -> str:
-        return "Read files from .arc bundle via VFS"
+        return "Read files from .agrc bundle via VFS"
 
     def get_input_ports(self) -> List[Port]:
         return [
-            Port(name="path", type="string", description="VFS path (arc://...)"),
+            Port(name="path", type="string", description="VFS path (agrc://...)"),
             Port(name="encoding", type="string", description="File encoding", default="utf-8"),
         ]
 
@@ -116,13 +116,13 @@ class Asset_Reader_Operator(IOperator):
 
 class Asset_Writer_Operator(IOperator):
     """
-    Asset Writer operator - write files to .arc bundle.
+    Asset Writer operator - write files to .agrc bundle.
 
-    Writes assets to the bundle using VFS (arc:// protocol).
+    Writes assets to the bundle using VFS (agrc:// protocol).
     Supports atomic writes for data integrity.
 
     Inputs:
-        path: VFS path (arc://scripts/tool.py)
+        path: VFS path (agrc://scripts/tool.py)
         content: Content to write
         operation: Operation (create, update, delete)
         encoding: File encoding (default utf-8)
@@ -139,11 +139,11 @@ class Asset_Writer_Operator(IOperator):
 
     @property
     def description(self) -> str:
-        return "Write files to .arc bundle via VFS"
+        return "Write files to .agrc bundle via VFS"
 
     def get_input_ports(self) -> List[Port]:
         return [
-            Port(name="path", type="string", description="VFS path (arc://...)"),
+            Port(name="path", type="string", description="VFS path (agrc://...)"),
             Port(name="content", type="string", description="Content to write"),
             Port(name="operation", type="string", description="Operation: create, update, delete", default="create"),
             Port(name="encoding", type="string", description="File encoding", default="utf-8"),

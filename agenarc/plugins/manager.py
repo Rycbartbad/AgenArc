@@ -36,8 +36,9 @@ class PluginManager:
         operators = manager.list_operators()
     """
 
-    def __init__(self, plugin_dirs: Optional[List[str]] = None):
+    def __init__(self, plugin_dirs: Optional[List[str]] = None, bundle_paths: Optional[List[Path]] = None):
         self._plugin_dirs = plugin_dirs or []
+        self._bundle_paths = bundle_paths or []  # Bundle-embedded plugin directories
         self._operators: Dict[str, "IOperator"] = {}
         self._plugins: Dict[str, PluginInfo] = {}
         self._hot_loader: Optional[HotPluginLoader] = None
@@ -48,7 +49,7 @@ class PluginManager:
         if self._initialized:
             return
 
-        # Configure hot loader
+        # Configure hot loader with global plugin directories
         config = HotReloadConfig(
             watch_paths=[Path(d).expanduser() for d in self._plugin_dirs],
             reload_strategy=ReloadStrategy.ATOMIC,
@@ -57,6 +58,9 @@ class PluginManager:
 
         self._hot_loader = HotPluginLoader(config)
         await self._hot_loader.initialize()
+
+        # Discover embedded plugins from bundle directories
+        await self._discover_bundle_plugins()
 
         # Register discovered plugins/operators locally
         for plugin_info in self._hot_loader.list_plugins():
@@ -70,6 +74,25 @@ class PluginManager:
 
         self._initialized = True
         logger.info(f"PluginManager initialized with {len(self._plugins)} plugins")
+
+    async def _discover_bundle_plugins(self) -> None:
+        """Discover embedded plugins from bundle directories."""
+        for bundle_path in self._bundle_paths:
+            plugins_dir = bundle_path / "plugins"
+            if not plugins_dir.exists() or not plugins_dir.is_dir():
+                continue
+
+            # Scan for plugin directories within the bundle
+            for item in plugins_dir.iterdir():
+                if not item.is_dir():
+                    continue
+                agenarc_json = item / "agenarc.json"
+                if agenarc_json.exists():
+                    # Discover using hot loader's Python loader
+                    if self._hot_loader and self._hot_loader._python_loader:
+                        await self._hot_loader._python_loader.discover(
+                            item, self._hot_loader._on_plugin_discovered
+                        )
 
     def register_operator(
         self,

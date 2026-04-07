@@ -7,21 +7,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 AgenArc is a directed-graph Agent orchestration framework with "mechanism and strategy separation" philosophy:
 - **Kernel**: Secure scheduling and resource validation (stable)
 - **Strategy**: Self-repair/evolution built by users in graph flows
-- **Boundary**: `arc://` virtual protocol isolation for assets
+- **Boundary**: `agrc://` virtual protocol isolation for assets
 
 ## Commands
 
 ### Running Agents
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent.arc|flow.json> --input '{"key": "value"}'
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.arc --input '{}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent.agrc|flow.json> --input '{"key": "value"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
 ```
 
 ### CLI Commands
 ```bash
-agenarc run <file> [--input JSON] [--mode sync|async|parallel]  # Execute
+agenarc run <file> [--input JSON] [--mode sync|async|parallel]  # Execute (requires pip install)
 agenarc validate <file>                                          # Validate protocol
 agenarc info <file>                                              # Show agent info
+# Alternative: python -m agenarc.cli run <file> [--input JSON]  # Without pip install
 ```
 
 ### Running Tests
@@ -45,7 +46,7 @@ ProtocolLoader → Graph → GraphTraversal → ExecutionEngine → Operators �
 | **Protocol** | `schema.py`, `loader.py` | JSON Schema definitions + graph parsing |
 | **Engine** | `executor.py`, `state.py`, `evaluator.py` | Core execution, checkpoints, AST evaluation |
 | **Operators** | `operator.py`, `builtin.py`, `llm.py`, `router.py`, `loop.py`, `evolution.py` | Node type implementations |
-| **VFS** | `filesystem.py` | `arc://` virtual protocol mapping |
+| **VFS** | `filesystem.py` | `agrc://` virtual protocol mapping |
 | **Graph** | `node.py`, `edge.py`, `traversal.py` | Graph data structures |
 | **Plugins** | `manager.py`, `hot_loader.py`, `loaders/*.py` | Plugin discovery, hot reload, multi-language loaders |
 
@@ -68,7 +69,7 @@ class IOperator(ABC):
 
 ### Trust-Based Autonomy
 [`schema.py:50-63`](agenarc/protocol/schema.py#L50-L63) - Four levels control Agent capabilities:
-- `level_0`: Agent unaware of arc://, VFS, bundle system (pure function)
+- `level_0`: Agent unaware of agrc://, VFS, bundle system (pure function)
 - `level_1`: Can read prompts/scripts, evaluate expressions
 - `level_2`: Can modify `flow.json`, trigger `Runtime_Reload`
 - `level_3`: Full power including `manifest.json` and plugin installation
@@ -80,30 +81,42 @@ class IOperator(ABC):
 - Transactional Memory_I/O with rollback
 
 ### VFS (Virtual File System)
-[`filesystem.py`](agenarc/vfs/filesystem.py) - `arc://` protocol mapping:
+[`filesystem.py`](agenarc/vfs/filesystem.py) - `agrc://` protocol mapping:
 | VFS Path | Actual Path |
 |----------|-------------|
-| `arc://prompts/` | `<bundle>/prompts/` |
-| `arc://scripts/` | `<bundle>/scripts/` |
-| `arc://assets/` | `<bundle>/assets/` |
+| `agrc://prompts/` | `<bundle>/prompts/` |
+| `agrc://scripts/` | `<bundle>/scripts/` |
+| `agrc://assets/` | `<bundle>/assets/` |
 
 ### Node Types
 [`schema.py:13-24`](agenarc/protocol/schema.py#L13-L24):
 - `Trigger` - Entry point
 - `LLM_Task` - LLM inference
 - `Router` - Conditional branching
-- `Loop_Control` - Loop iteration
+- `Loop_Control` - Feedback loop iteration (`done=False` continues, `done=True` exits)
 - `Memory_I/O` - Persistent storage
 - `Script_Node` - Custom Python scripts with AST safety
+- `SUBGRAPH`, `Plugin` - Extended operators
 - `Log`, `Context_Set`, `Context_Get` - Utility nodes
 
-### .arc Bundle Structure
+### Loop_Control Feedback Pattern
 ```
-my_agent.arc/
+Loop_Control (done=False) → Body nodes → Loop_Control (accumulator_input)
+                                              ↓
+                              until done=True → exit loop
+```
+
+### .agrc Bundle Structure
+```
+my_agent.agrc/
 ├── manifest.json      # Permissions, autonomy level, immutable anchors
 ├── flow.json         # Graph definition
-├── prompts/          # Prompt templates (arc:// access)
-├── scripts/          # Executable scripts (arc:// access)
+├── prompts/          # Prompt templates (agrc:// access)
+├── scripts/          # Executable scripts (agrc:// access)
+├── plugins/          # Embedded plugins (auto-discovered, Python only)
+│   └── my_plugin/
+│       ├── agenarc.json
+│       └── plugin.py
 └── assets/           # Static resources
 ```
 
@@ -129,6 +142,8 @@ Plugin system with three loader types:
 - **CppPluginLoader** - ctypes loading of compiled `.so`/`.dll`/`.dylib` libraries
 - **ExternalPluginLoader** - IPC via stdio JSON-RPC or HTTP REST
 
+**Embedded plugins**: Python plugins can be placed in `<bundle>/plugins/` for distribution with the agent bundle.
+
 Hot reload via [`hot_loader.py`](agenarc/plugins/hot_loader.py):
 - File watching with watchdog (fallback to polling)
 - Atomic plugin replacement (zero-downtime)
@@ -144,7 +159,19 @@ Plugin manifest format:
 }
 ```
 
+## Configuration
+
+Environment variables (override `config.yaml`):
+```bash
+AGENARC_OPENAI_API_KEY      # OpenAI API key
+AGENARC_OPENAI_BASE_URL     # OpenAI base URL
+AGENARC_OPENAI_MODEL        # Default model
+AGENARC_ANTHROPIC_API_KEY   # Anthropic API key
+AGENARC_CHECKPOINT_DIR      # Checkpoint directory (default: ~/.agenarc/checkpoints/)
+```
+
 ## File Locations
-- Examples: `examples/*.arc`
+- Examples: `examples/*.agrc`
 - Tests: `tests/unit/`, `tests/integration/`
-- Config: `config.example.yaml` (copy to `config.yaml`)
+- Config: `~/.agenarc/config.yaml` (also `config.yaml` in project root for backward compatibility)
+- pytest.ini: `asyncio_mode = auto` for async test support

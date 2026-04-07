@@ -2,7 +2,7 @@
 Protocol Loader
 
 Loads and parses AgenArc protocol JSON files into Graph objects.
-Supports both standalone flow.json and .arc bundle format.
+Supports both standalone flow.json and .agrc bundle format.
 """
 
 import json
@@ -78,10 +78,10 @@ class ProtocolLoader:
 
     def load_file(self, path: Union[str, Path]) -> Graph:
         """
-        Load protocol from a JSON file.
+        Load protocol from a JSON file or bundle directory.
 
         Args:
-            path: Path to flow.json or protocol dict
+            path: Path to flow.json, .agrc bundle, or bundle directory
 
         Returns:
             Graph object
@@ -91,13 +91,29 @@ class ProtocolLoader:
         if not path.exists():
             raise LoaderError(f"File not found: {path}")
 
+        # Directory bundle (extracted .agrc or development mode)
+        if path.is_dir():
+            flow_file = path / "flow.json"
+            if flow_file.exists():
+                with open(flow_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return self.load_dict(data)
+            else:
+                raise LoaderError(f"No flow.json found in directory: {path}")
+
         if path.suffix == ".json":
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        else:
-            raise LoaderError(f"Unsupported file type: {path.suffix}")
+            return self.load_dict(data)
 
-        return self.load_dict(data)
+        # .agrc ZIP file - should be extracted before loading
+        if path.suffix == ".agrc":
+            raise LoaderError(
+                f".agrc files must be extracted first. "
+                f"Use CLI to run: agenarc run {path}"
+            )
+
+        raise LoaderError(f"Unsupported file type: {path.suffix}")
 
     def load_dict(self, data: Dict[str, Any]) -> Graph:
         """

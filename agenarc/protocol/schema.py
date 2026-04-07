@@ -52,7 +52,7 @@ class AutonomyLevel(str, Enum):
     """
     Trust-based autonomy levels for Agent self-evolution.
 
-    level_0 (Zero Knowledge): Agent is unaware of arc:// protocol and bundle system.
+    level_0 (Zero Knowledge): Agent is unaware of agrc:// protocol and bundle system.
                               Cannot access prompts/, scripts/, or any VFS paths.
     level_1 (Supervised): Agent can only modify prompts/ and evaluate expressions.
     level_2 (Autonomous): Agent can modify flow.json and trigger Runtime_Reload.
@@ -95,9 +95,9 @@ class Permissions:
     """
     Asset bundle permissions for VFS access control.
 
-    Controls what the Agent can read/write within its .arc bundle.
+    Controls what the Agent can read/write within its .agrc bundle.
     """
-    allow_arc_access: bool = True  # AI perception only (level_0 = AI unaware of arc://)
+    allow_arc_access: bool = True  # AI perception only (level_0 = AI unaware of agrc://)
     allow_script_read: bool = True
     allow_script_write: bool = False
     allow_prompt_read: bool = True
@@ -124,7 +124,7 @@ class ImmutableAnchor:
 @dataclass
 class Manifest:
     """
-    Manifest for .arc asset bundle.
+    Manifest for .agrc asset bundle.
 
     Contains metadata and permissions for the Agent asset bundle.
     """

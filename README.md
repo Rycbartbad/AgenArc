@@ -8,7 +8,7 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 
 - **Kernel**: Ultra-stable, only responsible for secure scheduling and resource validation
 - **Self-repair/Evolution**: Built by users within the graph flow
-- **Asset Boundary**: `arc://` virtual protocol isolation
+- **Asset Boundary**: `agrc://` virtual protocol isolation
 
 ## Architecture
 
@@ -49,8 +49,8 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 
 ### Stage 3: Self-Evolution System (Complete)
 
-- **.arc Bundle format** - Self-contained agent package
-- **VFS** - `arc://` protocol mapping for secure file access
+- **.agrc Bundle format** - Self-contained agent package
+- **VFS** - `agrc://` protocol mapping for secure file access
 - **Asset_Reader** - Read files from bundle via VFS
 - **Asset_Writer** - Write files with atomic operations
 - **Runtime_Reload** - Hot reload scripts and plugins
@@ -80,8 +80,8 @@ pip install agenarc
 ### Run an Agent
 
 ```bash
-# Run an .arc agent bundle
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello"}'
+# Run an .agrc agent bundle
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"trigger_payload":"Hello"}'
 ```
 
 ## Examples
@@ -90,40 +90,40 @@ Located in `examples/` directory:
 
 | Agent | Description |
 |-------|-------------|
-| `hello_agent.arc` | Minimal example (Trigger + Log) |
-| `chat_agent.arc` | Basic LLM chat (Trigger + LLM_Task + Log) |
-| `router_agent.arc` | Conditional routing (Trigger + LLM_Task + Router + Log) |
-| `full_agent.arc` | Complete features with manifest and scripts |
+| `hello_agent.agrc` | Minimal example (Trigger + Log) |
+| `chat_agent.agrc` | Basic LLM chat (Trigger + LLM_Task + Log) |
+| `router_agent.agrc` | Conditional routing (Trigger + LLM_Task + Router + Log) |
+| `full_agent.agrc` | Complete features with manifest and scripts |
 
 ### Running Examples
 
 ```bash
 # Hello Agent (no LLM needed)
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.arc --input '{}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
 
 # Chat Agent (requires LLM)
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.arc --input '{"trigger_payload":"Hello!"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"trigger_payload":"Hello!"}'
 
 # Router Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.arc --input '{"trigger_payload":"Say hello"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"trigger_payload":"Say hello"}'
 
 # Full Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.arc --input '{"trigger_payload":"What is AI?"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"trigger_payload":"What is AI?"}'
 ```
 
 ## CLI Commands
 
 ```bash
-# Run an agent (.arc) or protocol (.json)
-agenarc run my_agent.arc
+# Run an agent (.agrc) or protocol (.json)
+agenarc run my_agent.agrc
 agenarc run flow.json --input '{"key": "value"}' --mode async
 
 # Validate an agent or protocol
-agenarc validate my_agent.arc
+agenarc validate my_agent.agrc
 agenarc validate flow.json
 
 # Show agent/protocol info
-agenarc info my_agent.arc
+agenarc info my_agent.agrc
 agenarc info flow.json
 ```
 
@@ -141,10 +141,10 @@ agenarc info flow.json
 | `Context_Set` | Set values in global context |
 | `Context_Get` | Get values from global context |
 
-## .arc Bundle Structure
+## .agrc Bundle Structure
 
 ```
-my_agent.arc/
+my_agent.agrc/
 ├── manifest.json      # Agent metadata
 ├── flow.json         # Workflow definition
 ├── prompts/          # Prompt templates
@@ -186,7 +186,7 @@ my_agent.arc/
       "label": "Chat",
       "config": {
         "model": "deepseek-chat",
-        "system_prompt": "arc://prompts/system.pt"
+        "system_prompt": "agrc://prompts/system.pt"
       }
     },
     {"id": "log_1", "type": "Log", "label": "Output"}
@@ -241,7 +241,7 @@ agenarc/
 │   ├── router.py    # Router operator
 │   ├── loop.py      # Loop_Control operator
 │   └── llm.py      # LLM operators
-├── vfs/             # Virtual filesystem (arc://)
+├── vfs/             # Virtual filesystem (agrc://)
 ├── plugins/         # Plugin system
 ├── graph/           # Graph data structures
 └── cli/             # Command-line interface

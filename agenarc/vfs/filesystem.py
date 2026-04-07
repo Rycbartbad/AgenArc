@@ -1,14 +1,14 @@
 """
 VFS (Virtual File System)
 
-Provides arc:// protocol mapping for .arc bundle assets.
+Provides agrc:// protocol mapping for .agrc bundle assets.
 Enables secure access to bundle resources without exposing filesystem.
 
 VFS Mapping:
-- arc://prompts/  -> <bundle>/prompts/
-- arc://scripts/  -> <bundle>/scripts/
-- arc://assets/   -> <bundle>/assets/
-- arc://flow.json -> <bundle>/flow.json
+- agrc://prompts/  -> <bundle>/prompts/
+- agrc://scripts/  -> <bundle>/scripts/
+- agrc://assets/   -> <bundle>/assets/
+- agrc://flow.json -> <bundle>/flow.json
 """
 
 import os
@@ -24,18 +24,18 @@ class VFSError(Exception):
 
 class VFS:
     """
-    Virtual File System for .arc bundles.
+    Virtual File System for .agrc bundles.
 
-    Provides secure access to bundle assets via arc:// protocol.
+    Provides secure access to bundle assets via agrc:// protocol.
 
     Usage:
-        vfs = VFS(bundle_path="/path/to/my_agent.arc")
+        vfs = VFS(bundle_path="/path/to/my_agent.agrc")
         content = vfs.read("prompts/system.pt")
         vfs.write("scripts/tool.py", "print('hello')")
     """
 
     # Allowed VFS paths and their real equivalents
-    VFS_SCHEME = "arc://"
+    VFS_SCHEME = "agrc://"
 
     # Allowed directories within bundle
     ALLOWED_DIRS = {"prompts", "scripts", "assets"}
@@ -45,7 +45,7 @@ class VFS:
         Initialize VFS with bundle path.
 
         Args:
-            bundle_path: Path to .arc bundle directory
+            bundle_path: Path to .agrc bundle directory
             permissions: Optional permissions dict from manifest.json
                          e.g., {"allow_script_read": True, "allow_prompt_write": False}
                          If None, no permission checks are performed (backward compatible).
@@ -72,7 +72,7 @@ class VFS:
         Parse VFS path into (dir, filename).
 
         Args:
-            vfs_path: VFS path like "arc://prompts/system.pt"
+            vfs_path: VFS path like "agrc://prompts/system.pt"
 
         Returns:
             Tuple of (directory, filename)
@@ -106,7 +106,7 @@ class VFS:
         Convert VFS path to real filesystem path.
 
         Args:
-            vfs_path: VFS path like "arc://prompts/system.pt"
+            vfs_path: VFS path like "agrc://prompts/system.pt"
 
         Returns:
             Real Path object
@@ -130,7 +130,7 @@ class VFS:
         Read content from VFS path.
 
         Args:
-            vfs_path: VFS path like "arc://prompts/system.pt"
+            vfs_path: VFS path like "agrc://prompts/system.pt"
             encoding: File encoding (default utf-8)
 
         Returns:
@@ -188,7 +188,7 @@ class VFS:
         Write content to VFS path.
 
         Args:
-            vfs_path: VFS path like "arc://scripts/tool.py"
+            vfs_path: VFS path like "agrc://scripts/tool.py"
             content: Content to write
             encoding: File encoding (default utf-8)
 
@@ -241,7 +241,7 @@ class VFS:
         List contents of VFS directory.
 
         Args:
-            vfs_dir: VFS directory like "arc://prompts"
+            vfs_dir: VFS directory like "agrc://prompts"
 
         Returns:
             List of filenames/directories
@@ -287,24 +287,24 @@ class VFS:
         return content
 
 
-def resolve_arc_path(vfs_path: str, bundle_path: Path) -> Optional[Path]:
+def resolve_agrc_path(vfs_path: str, bundle_path: Path) -> Optional[Path]:
     """
-    Resolve arc:// path to real filesystem path.
+    Resolve g:// path to real filesystem path.
 
     Args:
-        vfs_path: VFS path like "arc://prompts/system.pt"
+        vfs_path: VFS path like "agrc://prompts/system.pt"
         bundle_path: Bundle root path
 
     Returns:
         Real Path or None if invalid
     """
-    if not vfs_path.startswith("arc://"):
+    if not vfs_path.startswith("agrc://"):
         return None
 
     # Parse path
-    path = vfs_path[6:]  # Remove "arc://"
+    path = vfs_path[6:]  # Remove "agrc://"
 
-    # Special case for flow.json (arc://flow.json)
+    # Special case for flow.json (agrc://flow.json)
     if path == "flow.json":
         return bundle_path / "flow.json"
 

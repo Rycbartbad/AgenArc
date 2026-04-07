@@ -194,9 +194,81 @@ class GraphTraversal:
         )
         return new_graph
 
+    def find_cycles(self) -> List[List[str]]:
+        """
+        Find all cycles in the graph using DFS.
+
+        Returns:
+            List of cycles, where each cycle is a list of node IDs forming the cycle
+        """
+        cycles = []
+        visited = set()
+        rec_stack = set()
+        path = []
+
+        def dfs(node_id: str) -> None:
+            if node_id not in self.graph.nodes:
+                return
+            if node_id in rec_stack:
+                # Found a cycle - extract it
+                cycle_start = path.index(node_id)
+                cycle = path[cycle_start:] + [node_id]
+                cycles.append(cycle)
+                return
+
+            if node_id in visited:
+                return
+
+            visited.add(node_id)
+            rec_stack.add(node_id)
+            path.append(node_id)
+
+            for neighbor in self._adjacency.get(node_id, []):
+                dfs(neighbor)
+
+            path.pop()
+            rec_stack.remove(node_id)
+
+        for node_id in self._adjacency:
+            if node_id not in visited:
+                dfs(node_id)
+
+        return cycles
+
+    def find_loop_regions(self) -> Dict[str, Set[str]]:
+        """
+        Find all loop regions in the graph.
+
+        A loop region is a set of nodes that form a cycle with a designated "loop head".
+
+        Returns:
+            Dict mapping loop head node ID to set of node IDs in that loop
+        """
+        cycles = self.find_cycles()
+        loop_regions = {}
+
+        for cycle in cycles:
+            # Find the loop head (first node in cycle that has an edge from outside)
+            for node_id in cycle:
+                # Check if any node outside the cycle has an edge into this node
+                has_entry_from_outside = False
+                for edge in self.graph.edges:
+                    if edge.target == node_id and edge.source not in cycle:
+                        has_entry_from_outside = True
+                        break
+
+                if has_entry_from_outside:
+                    loop_regions[node_id] = set(cycle)
+                    break
+
+        return loop_regions
+
     def validate(self) -> List[str]:
         """
         Validate the graph structure.
+
+        Allows cycles that are part of loop regions (feedback loops).
+        Rejects orphan cycles with no entry point.
 
         Returns:
             List of validation error messages (empty if valid)
@@ -226,17 +298,17 @@ class GraphTraversal:
             if edge.target not in node_ids:
                 errors.append(f"Edge references non-existent target node '{edge.target}'")
 
-        # Check for cycles
-        try:
-            self.topological_sort()
-        except CycleError:
-            errors.append("Graph contains a cycle")
+        # Check for cycles - but allow "loop cycles"
+        loop_regions = self.find_loop_regions()
 
         # Check for disconnected nodes (warning, not error)
         if self.graph.entryPoint:
             reachable = set(self.get_execution_order(self.graph.entryPoint))
             for node in self.graph.nodes:
                 if node.id not in reachable and node.id != self.graph.entryPoint:
-                    errors.append(f"Node '{node.id}' is not reachable from entry point")
+                    # Check if node is part of a loop region
+                    is_in_loop = any(node.id in loop_set for loop_set in loop_regions.values())
+                    if not is_in_loop:
+                        errors.append(f"Node '{node.id}' is not reachable from entry point")
 
         return errors
