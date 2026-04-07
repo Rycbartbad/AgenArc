@@ -248,3 +248,50 @@ class TestGraphTraversal:
         subgraph = traversal.get_subgraph({"a", "b"})
         assert len(subgraph.nodes) == 2
         assert len(subgraph.edges) == 1
+
+
+class TestFindCycles:
+    """Tests for find_cycles method."""
+
+    def create_simple_graph(self):
+        """Create a simple graph for testing."""
+        nodes = [
+            Node(id="a", type=NodeType.TRIGGER, label="A"),
+        ]
+        edges = [
+            Edge(source="a", target="a"),
+        ]
+        return Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+
+    def test_find_cycles_returns_list(self):
+        """Test find_cycles returns a list."""
+        graph = self.create_simple_graph()
+        traversal = GraphTraversal(graph)
+
+        cycles = traversal.find_cycles()
+
+        assert isinstance(cycles, list)
+
+
+class TestFindLoopRegions:
+    """Tests for find_loop_regions method."""
+
+    def create_simple_graph(self):
+        """Create a simple graph for testing."""
+        nodes = [
+            Node(id="a", type=NodeType.TRIGGER, label="A"),
+            Node(id="b", type=NodeType.LLM_TASK, label="B"),
+        ]
+        edges = [
+            Edge(source="a", target="b"),
+        ]
+        return Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+
+    def test_find_loop_regions_returns_dict(self):
+        """Test find_loop_regions returns a dict."""
+        graph = self.create_simple_graph()
+        traversal = GraphTraversal(graph)
+
+        regions = traversal.find_loop_regions()
+
+        assert isinstance(regions, dict)

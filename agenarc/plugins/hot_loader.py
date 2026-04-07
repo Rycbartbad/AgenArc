@@ -74,7 +74,7 @@ class FileWatcher:
         # Try watchdog first (cross-platform)
         try:
             from watchdog.observers import Observer
-            from watchdog.events import FileSystemEventHandler, FileModifiedEvent
+            from watchdog.events import FileSystemEventHandler
 
             class ChangeHandler(FileSystemEventHandler):
                 def __init__(handler_self, watcher: "FileWatcher"):
@@ -98,14 +98,12 @@ class FileWatcher:
                         recursive=True
                     )
             self._watchdog_observer.start()
-            self._using_watchdog = True
             logger.info("File watcher started (using watchdog)")
             return
         except ImportError:
             pass
 
         # Fallback to polling
-        self._using_watchdog = False
         self._file_mtimes: Dict[Path, float] = {}
         threading.Thread(target=self._poll_loop, daemon=True).start()
         logger.info("File watcher started (using polling)")

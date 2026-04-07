@@ -418,12 +418,6 @@ class ASTEvaluator:
         # Literals
         if isinstance(node, ast.Constant):
             return node.value
-        if isinstance(node, ast.Num):
-            return node.n
-        if isinstance(node, ast.Str):
-            return node.s
-        if isinstance(node, ast.Bytes):
-            return node.s
         if isinstance(node, ast.List):
             return [self._eval_node(e, context) for e in node.elts]
         if isinstance(node, ast.Tuple):
@@ -550,10 +544,6 @@ class ASTEvaluator:
             index = self._eval_node(node.slice, context)
             return value[index]
 
-        # Index (Python 3.8 compatibility)
-        if isinstance(node, ast.Index):
-            return self._eval_node(node.value, context)
-
         raise ASTEvaluatorError(f"Unsupported AST node type: {type(node)}")
 
     def _eval_comprehension(
@@ -670,36 +660,6 @@ class ASTEvaluator:
                 kwargs[kwarg.arg] = self._eval_node(kwarg.value, context)
 
         return callable_func(*args, **kwargs)
-
-
-# Global evaluator instance
-_default_evaluator: Optional[ASTEvaluator] = None
-
-
-def get_evaluator(
-    autonomy_level: int = 1,
-    gas_budget: int = 1000,
-    max_memory_mb: int = 128,
-) -> ASTEvaluator:
-    """
-    Get the default evaluator instance with trust-based settings.
-
-    Args:
-        autonomy_level: Trust level (1=Supervised, 2=Autonomous, 3=Self-Evolving)
-        gas_budget: Operations allowed before GasExceededError
-        max_memory_mb: Memory limit for SafeContext
-
-    Returns:
-        Configured ASTEvaluator instance
-    """
-    global _default_evaluator
-    if _default_evaluator is None:
-        _default_evaluator = ASTEvaluator(
-            autonomy_level=autonomy_level,
-            gas_budget=gas_budget,
-            max_memory_mb=max_memory_mb,
-        )
-    return _default_evaluator
 
 
 def evaluate_expression(

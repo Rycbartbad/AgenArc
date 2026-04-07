@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from agenarc.vfs.filesystem import VFS, VFSError, resolve_arc_path
+from agenarc.vfs.filesystem import VFS, VFSError, resolve_agrc_path
 
 
 class TestVFS:
@@ -11,7 +11,7 @@ class TestVFS:
     def test_vfs_creation(self, tmp_path):
         """Test VFS can be created with bundle path."""
         # Create bundle structure
-        bundle = tmp_path / "test_agent.arc"
+        bundle = tmp_path / "test_agent.agrc"
         bundle.mkdir()
         (bundle / "prompts").mkdir()
 
@@ -21,7 +21,7 @@ class TestVFS:
     def test_vfs_nonexistent_bundle(self, tmp_path):
         """Test VFS raises error for nonexistent bundle."""
         with pytest.raises(VFSError, match="Bundle not found"):
-            VFS(tmp_path / "nonexistent.arc")
+            VFS(tmp_path / "nonexistent.agrc")
 
     def test_vfs_file_not_directory(self, tmp_path):
         """Test VFS raises error if path is not a directory."""
@@ -33,17 +33,17 @@ class TestVFS:
 
     def test_parse_vfs_path(self, tmp_path):
         """Test parsing VFS paths."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         vfs = VFS(bundle)
 
-        directory, filename = vfs._parse_vfs_path("arc://prompts/system.pt")
+        directory, filename = vfs._parse_vfs_path("agrc://prompts/system.pt")
         assert directory == "prompts"
         assert filename == "system.pt"
 
     def test_parse_vfs_path_invalid_scheme(self, tmp_path):
         """Test parsing invalid VFS scheme."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         vfs = VFS(bundle)
 
@@ -52,16 +52,16 @@ class TestVFS:
 
     def test_parse_vfs_path_invalid_directory(self, tmp_path):
         """Test parsing with invalid directory."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         vfs = VFS(bundle)
 
         with pytest.raises(VFSError, match="Directory not allowed"):
-            vfs._parse_vfs_path("arc://invalid/system.pt")
+            vfs._parse_vfs_path("agrc://invalid/system.pt")
 
     def test_read_file(self, tmp_path):
         """Test reading file via VFS."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -70,29 +70,29 @@ class TestVFS:
         test_file.write_text("Hello {{name}}", encoding="utf-8")
 
         vfs = VFS(bundle)
-        content = vfs.read("arc://prompts/test.pt")
+        content = vfs.read("agrc://prompts/test.pt")
         assert content == "Hello {{name}}"
 
     def test_read_nonexistent_file(self, tmp_path):
         """Test reading nonexistent file raises error."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
 
         vfs = VFS(bundle)
         with pytest.raises(VFSError, match="File not found"):
-            vfs.read("arc://prompts/nonexistent.pt")
+            vfs.read("agrc://prompts/nonexistent.pt")
 
     def test_write_file(self, tmp_path):
         """Test writing file via VFS."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
 
         vfs = VFS(bundle)
-        vfs.write("arc://scripts/test.py", "print('hello')")
+        vfs.write("agrc://scripts/test.py", "print('hello')")
 
         test_file = scripts_dir / "test.py"
         assert test_file.exists()
@@ -100,18 +100,18 @@ class TestVFS:
 
     def test_write_creates_parent_dirs(self, tmp_path):
         """Test writing creates parent directories."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
         vfs = VFS(bundle)
-        vfs.write("arc://prompts/new_file.pt", "content")
+        vfs.write("agrc://prompts/new_file.pt", "content")
 
         new_file = bundle / "prompts" / "new_file.pt"
         assert new_file.exists()
 
     def test_exists(self, tmp_path):
         """Test exists check."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -120,12 +120,12 @@ class TestVFS:
         test_file.write_text("exists")
 
         vfs = VFS(bundle)
-        assert vfs.exists("arc://prompts/exists.pt") is True
-        assert vfs.exists("arc://prompts/nonexistent.pt") is False
+        assert vfs.exists("agrc://prompts/exists.pt") is True
+        assert vfs.exists("agrc://prompts/nonexistent.pt") is False
 
     def test_list_dir(self, tmp_path):
         """Test listing directory contents."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -134,12 +134,12 @@ class TestVFS:
         (prompts_dir / "b.pt").write_text("b")
 
         vfs = VFS(bundle)
-        contents = vfs.list_dir("arc://prompts")
+        contents = vfs.list_dir("agrc://prompts")
         assert set(contents) == {"a.pt", "b.pt"}
 
     def test_render_template(self, tmp_path):
         """Test template rendering."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -149,68 +149,68 @@ class TestVFS:
 
         vfs = VFS(bundle)
         result = vfs.render_template(
-            "arc://prompts/template.pt",
+            "agrc://prompts/template.pt",
             {"name": "Alice", "count": 5}
         )
         assert result == "Hello Alice, you have 5 messages"
 
 
-class TestResolveArcPath:
-    """Tests for resolve_arc_path function."""
+class TestResolveAgrcPath:
+    """Tests for resolve_agrc_path function."""
 
     def test_resolve_valid_path(self, tmp_path):
         """Test resolving valid VFS path."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
         (prompts_dir / "test.pt").write_text("content")
 
-        result = resolve_arc_path("arc://prompts/test.pt", bundle)
+        result = resolve_agrc_path("agrc://prompts/test.pt", bundle)
         assert result is not None
         assert result.name == "test.pt"
 
     def test_resolve_invalid_scheme(self, tmp_path):
-        """Test resolving path without arc:// scheme."""
-        bundle = tmp_path / "test.arc"
+        """Test resolving path without agrc:// scheme."""
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
-        result = resolve_arc_path("/prompts/test.pt", bundle)
+        result = resolve_agrc_path("/prompts/test.pt", bundle)
         assert result is None
 
     def test_resolve_invalid_directory(self, tmp_path):
         """Test resolving path with invalid directory."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
-        result = resolve_arc_path("arc://invalid/test.pt", bundle)
+        result = resolve_agrc_path("agrc://invalid/test.pt", bundle)
         assert result is None
 
     def test_resolve_flow_json(self, tmp_path):
         """Test resolving flow.json."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         flow_file = bundle / "flow.json"
         flow_file.write_text("{}")
 
-        result = resolve_arc_path("arc://flow.json", bundle)
+        result = resolve_agrc_path("agrc://flow.json", bundle)
         assert result is not None
         assert result == flow_file
 
     def test_resolve_path_traversal(self, tmp_path):
         """Test path traversal is blocked."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
-        result = resolve_arc_path("arc://prompts/../../../etc/passwd", bundle)
+        result = resolve_agrc_path("agrc://prompts/../../../etc/passwd", bundle)
         assert result is None
 
     def test_resolve_path_single_part(self, tmp_path):
         """Test resolving path with only directory (no file)."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
-        result = resolve_arc_path("arc://prompts", bundle)
+        result = resolve_agrc_path("agrc://prompts", bundle)
         assert result is None
 
 
@@ -219,24 +219,24 @@ class TestVFSPathTraversal:
 
     def test_read_path_traversal_blocked(self, tmp_path):
         """Test path traversal is blocked on read."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
 
         vfs = VFS(bundle)
         with pytest.raises(VFSError, match="Path traversal detected"):
-            vfs._get_real_path("arc://prompts/../../../etc/passwd")
+            vfs._get_real_path("agrc://prompts/../../../etc/passwd")
 
     def test_write_path_traversal_blocked(self, tmp_path):
         """Test path traversal is blocked on write."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
         vfs = VFS(bundle)
         # The path traversal would be blocked in _get_real_path
         with pytest.raises(VFSError, match="Path traversal detected"):
-            vfs._get_real_path("arc://scripts/../../../etc/passwd")
+            vfs._get_real_path("agrc://scripts/../../../etc/passwd")
 
 
 class TestVFSReadWrite:
@@ -244,7 +244,7 @@ class TestVFSReadWrite:
 
     def test_read_file_with_encoding(self, tmp_path):
         """Test reading file with specific encoding."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -253,43 +253,43 @@ class TestVFSReadWrite:
         test_file.write_text("Hello", encoding="utf-8")
 
         vfs = VFS(bundle)
-        content = vfs.read("arc://prompts/test.txt", encoding="utf-8")
+        content = vfs.read("agrc://prompts/test.txt", encoding="utf-8")
         assert content == "Hello"
 
     def test_write_file_with_encoding(self, tmp_path):
         """Test writing file with specific encoding."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
 
         vfs = VFS(bundle)
-        vfs.write("arc://scripts/test.txt", "Hello", encoding="utf-8")
+        vfs.write("agrc://scripts/test.txt", "Hello", encoding="utf-8")
 
         test_file = scripts_dir / "test.txt"
         assert test_file.exists()
 
     def test_read_not_a_file(self, tmp_path):
         """Test reading a directory as file raises error."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
 
         vfs = VFS(bundle)
-        # Trying to read arc://prompts (directory as file) fails at parsing
+        # Trying to read agrc://prompts (directory as file) fails at parsing
         with pytest.raises(VFSError, match="Invalid VFS path"):
-            vfs.read("arc://prompts")
+            vfs.read("agrc://prompts")
 
     def test_exists_on_path_traversal(self, tmp_path):
         """Test exists returns False for path traversal."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
 
         vfs = VFS(bundle)
-        assert vfs.exists("arc://prompts/../../../etc/passwd") is False
+        assert vfs.exists("agrc://prompts/../../../etc/passwd") is False
 
 
 class TestVFSListDir:
@@ -297,16 +297,16 @@ class TestVFSListDir:
 
     def test_list_dir_nonexistent(self, tmp_path):
         """Test listing nonexistent directory."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
         vfs = VFS(bundle)
-        contents = vfs.list_dir("arc://prompts")
+        contents = vfs.list_dir("agrc://prompts")
         assert contents == []
 
     def test_list_dir_without_scheme(self, tmp_path):
         """Test listing directory without scheme prefix."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()

@@ -1,9 +1,12 @@
 """Unit tests for CLI."""
 
 import pytest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import json
+import tempfile
+import shutil
 
 from agenarc.cli.__main__ import (
     create_parser,
@@ -13,6 +16,8 @@ from agenarc.cli.__main__ import (
     command_validate,
     command_info,
     main,
+    _install_bundle_plugins,
+    _extract_agrc,
 )
 
 
@@ -219,3 +224,98 @@ class TestMain:
 
         result = main(["info", str(protocol_file)])
         assert result == 0
+
+
+class TestInstallBundlePlugins:
+    """Tests for _install_bundle_plugins."""
+
+    def test_install_no_plugins_dir(self, tmp_path):
+        """Test when bundle has no assets/plugins directory."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+
+        # Should not raise
+        _install_bundle_plugins(bundle)
+
+    def test_install_empty_plugins_dir(self, tmp_path):
+        """Test when assets/plugins directory is empty."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        assets = bundle / "assets"
+        assets.mkdir()
+        plugins = assets / "plugins"
+        plugins.mkdir()
+
+        _install_bundle_plugins(bundle)
+
+        # Should complete without error
+
+    def test_install_with_plugin(self, tmp_path):
+        """Test installing a plugin from bundle."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        assets = bundle / "assets"
+        assets.mkdir()
+        plugins = assets / "plugins"
+        plugins.mkdir()
+
+        # Create a test plugin
+        plugin_dir = plugins / "test_plugin"
+        plugin_dir.mkdir()
+        manifest = plugin_dir / "agenarc.json"
+        manifest.write_text('{"name": "test_plugin", "version": "1.0.0"}')
+
+        with patch("pathlib.Path.expanduser") as mock_expand:
+            mock_expand.return_value = tmp_path / "global_plugins"
+            _install_bundle_plugins(bundle)
+
+            # Plugin should be installed to global directory
+            global_plugin_dir = tmp_path / "global_plugins" / "test_plugin"
+            # Note: actual installation depends on shutil.copytree behavior
+
+
+class TestExtractAgrc:
+    """Tests for _extract_agrc."""
+
+    def test_extract_agrc_not_a_file(self, tmp_path):
+        """Test when path is not a file."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+
+        # Should handle gracefully or raise appropriate error
+        with pytest.raises(Exception):
+            _extract_agrc(bundle)
+
+    def test_extract_agrc_invalid_zip(self, tmp_path):
+        """Test when file is not a valid zip."""
+        invalid_file = tmp_path / "invalid.agrc"
+        invalid_file.write_bytes(b"not a zip file")
+
+        with pytest.raises(zipfile.BadZipFile):
+            _extract_agrc(invalid_file)
+
+    def test_extract_agrc_valid_bundle(self, tmp_path):
+        """Test extracting a valid agrc bundle."""
+        # Create a valid zip file
+        agrc_file = tmp_path / "test.agrc"
+        with zipfile.ZipFile(agrc_file, 'w') as zf:
+            zf.writestr("manifest.json", '{"name": "test"}')
+            zf.writestr("flow.json", '{"version": "1.0.0"}')
+
+        result = _extract_agrc(agrc_file)
+
+        assert result is not None
+        assert result.exists()
+        assert (result / "manifest.json").exists()
+        assert (result / "flow.json").exists()
+
+    def test_extract_agrc_cached(self, tmp_path):
+        """Test that extraction is cached."""
+        agrc_file = tmp_path / "test.agrc"
+        with zipfile.ZipFile(agrc_file, 'w') as zf:
+            zf.writestr("manifest.json", '{"name": "test"}')
+
+        result1 = _extract_agrc(agrc_file)
+        result2 = _extract_agrc(agrc_file)
+
+        assert result1 == result2

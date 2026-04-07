@@ -66,14 +66,14 @@ class TestAssetReaderOperator:
     @pytest.mark.asyncio
     async def test_read_nonexistent_file(self, tmp_path):
         """Test reading nonexistent file."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         (bundle / "prompts").mkdir()
 
         op = Asset_Reader_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({"path": "arc://prompts/nonexistent.pt"}, ctx)
+        result = await op.execute({"path": "agrc://prompts/nonexistent.pt"}, ctx)
 
         assert result["success"] is False
 
@@ -123,7 +123,7 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_write_to_valid_path(self, tmp_path):
         """Test writing to valid path."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
@@ -132,12 +132,12 @@ class TestAssetWriterOperator:
         ctx = create_context(bundle)
 
         result = await op.execute({
-            "path": "arc://scripts/new_file.py",
+            "path": "agrc://scripts/new_file.py",
             "content": "print('hello')"
         }, ctx)
 
         assert result["success"] is True
-        assert result["path"] == "arc://scripts/new_file.py"
+        assert result["path"] == "agrc://scripts/new_file.py"
 
         # Verify file was written
         new_file = scripts_dir / "new_file.py"
@@ -147,7 +147,7 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_write_update_existing_file(self, tmp_path):
         """Test updating existing file via VFS."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
@@ -160,7 +160,7 @@ class TestAssetWriterOperator:
         ctx = create_context(bundle)
 
         result = await op.execute({
-            "path": "arc://scripts/existing.py",
+            "path": "agrc://scripts/existing.py",
             "content": "updated",
             "operation": "update"
         }, ctx)
@@ -171,7 +171,7 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_write_delete_operation(self, tmp_path):
         """Test delete operation returns not implemented."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
@@ -180,7 +180,7 @@ class TestAssetWriterOperator:
         ctx = create_context(bundle)
 
         result = await op.execute({
-            "path": "arc://scripts/file.py",
+            "path": "agrc://scripts/file.py",
             "operation": "delete"
         }, ctx)
 
@@ -190,7 +190,7 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_write_file_already_exists(self, tmp_path):
         """Test writing file that already exists."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
@@ -202,7 +202,7 @@ class TestAssetWriterOperator:
         ctx = create_context(bundle)
 
         result = await op.execute({
-            "path": "arc://scripts/existing.py",
+            "path": "agrc://scripts/existing.py",
             "content": "new content"
         }, ctx)
 
@@ -212,17 +212,17 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_write_immutable_path(self, tmp_path):
         """Test writing to immutable path is blocked."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         scripts_dir = bundle / "scripts"
         scripts_dir.mkdir()
 
         op = Asset_Writer_Operator()
         ctx = create_context(bundle)
-        ctx.set("_immutable_nodes", ["arc://scripts/immutable.py"])
+        ctx.set("_immutable_nodes", ["agrc://scripts/immutable.py"])
 
         result = await op.execute({
-            "path": "arc://scripts/immutable.py",
+            "path": "agrc://scripts/immutable.py",
             "content": "cannot write"
         }, ctx)
 
@@ -232,7 +232,7 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_read_file_with_encoding(self, tmp_path):
         """Test reading file with specific encoding."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -244,7 +244,7 @@ class TestAssetWriterOperator:
         ctx = create_context(bundle)
 
         result = await op.execute({
-            "path": "arc://prompts/test.txt",
+            "path": "agrc://prompts/test.txt",
             "encoding": "utf-8"
         }, ctx)
 
@@ -255,7 +255,7 @@ class TestAssetWriterOperator:
     @pytest.mark.asyncio
     async def test_read_returns_metadata(self, tmp_path):
         """Test read returns file metadata."""
-        bundle = tmp_path / "test.arc"
+        bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
         prompts_dir.mkdir()
@@ -266,7 +266,7 @@ class TestAssetWriterOperator:
         op = Asset_Reader_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({"path": "arc://prompts/test.pt"}, ctx)
+        result = await op.execute({"path": "agrc://prompts/test.pt"}, ctx)
 
         assert result["success"] is True
         assert "metadata" in result

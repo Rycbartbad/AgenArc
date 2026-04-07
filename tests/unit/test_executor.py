@@ -2,6 +2,7 @@
 
 import pytest
 import asyncio
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -396,6 +397,59 @@ class TestExecuteNode:
         assert llm_node.id in engine._node_errors
 
 
+class TestTopologicalSortSubset:
+    """Tests for _topological_sort_subset method."""
+
+    def test_topological_sort_empty(self):
+        """Test topological sort with empty set."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+
+        result = engine._topological_sort_subset(set(), set())
+
+        assert result == []
+
+    def test_topological_sort_single_node(self):
+        """Test topological sort with single node."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+
+        result = engine._topological_sort_subset({"trigger_1"}, set())
+
+        assert "trigger_1" in result
+
+    def test_topological_sort_excludes_executed(self):
+        """Test topological sort excludes already executed nodes."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+
+        result = engine._topological_sort_subset({"trigger_1", "llm_1"}, {"trigger_1"})
+
+        # trigger_1 should be excluded
+        assert len(result) == 1
+        assert "llm_1" in result
+
+
+class TestExecuteNodeWithTracking:
+    """Tests for _execute_node_with_tracking method."""
+
+    @pytest.mark.asyncio
+    async def test_execute_node_with_tracking(self):
+        """Test _execute_node_with_tracking returns outputs."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+        engine._state = StateManager()
+
+        mock_op = MagicMock()
+        mock_op.execute = AsyncMock(return_value={"result": "ok"})
+        engine._builtin_operators["Trigger"] = MagicMock(return_value=mock_op)
+
+        trigger = engine._graph.get_node("trigger_1")
+        result = await engine._execute_node_with_tracking(trigger)
+
+        assert result == {"result": "ok"}
+
+
 class TestSafeExecute:
     """Tests for _safe_execute method."""
 
@@ -438,6 +492,152 @@ class TestSafeExecute:
         result = await engine._safe_execute(mock_op, {}, context)
 
         assert result == {}
+
+
+class TestExecuteDeadlockDetection:
+    """Tests for deadlock detection in execute."""
+
+    @pytest.mark.asyncio
+    async def test_no_deadlock_single_node(self):
+        """Test no deadlock for single node graph (completes normally)."""
+        engine = ExecutionEngine()
+
+        data = {
+            "version": "1.0.0",
+            "entryPoint": "a",
+            "nodes": [
+                {"id": "a", "type": "Trigger", "label": "A"},
+            ],
+            "edges": []
+        }
+        engine.load_protocol(data)
+
+        mock_op = MagicMock()
+        mock_op.execute = AsyncMock(return_value={})
+        engine._builtin_operators["Trigger"] = MagicMock(return_value=mock_op)
+
+        # Should complete normally, not raise deadlock
+        result = await engine.execute()
+        assert result.status == "success"
+
+    @pytest.mark.asyncio
+    async def test_no_deadlock_linear_graph(self):
+        """Test no deadlock for linear graph (a -> b -> c)."""
+        engine = ExecutionEngine()
+
+        data = {
+            "version": "1.0.0",
+            "entryPoint": "a",
+            "nodes": [
+                {"id": "a", "type": "Trigger", "label": "A"},
+                {"id": "b", "type": "LLM_Task", "label": "B"},
+                {"id": "c", "type": "LLM_Task", "label": "C"},
+            ],
+            "edges": [
+                {"source": "a", "target": "b"},
+                {"source": "b", "target": "c"},
+            ]
+        }
+        engine.load_protocol(data)
+
+        mock_op = MagicMock()
+        mock_op.execute = AsyncMock(return_value={})
+        engine._builtin_operators["Trigger"] = MagicMock(return_value=mock_op)
+        engine._builtin_operators["LLM_Task"] = MagicMock(return_value=mock_op)
+
+        # Should complete without deadlock
+        result = await engine.execute()
+        assert result.status == "success"
+
+    @pytest.mark.asyncio
+    async def test_no_deadlock_branching_graph(self):
+        """Test no deadlock for branching graph (a -> b, a -> c)."""
+        engine = ExecutionEngine()
+
+        data = {
+            "version": "1.0.0",
+            "entryPoint": "a",
+            "nodes": [
+                {"id": "a", "type": "Trigger", "label": "A"},
+                {"id": "b", "type": "LLM_Task", "label": "B"},
+                {"id": "c", "type": "LLM_Task", "label": "C"},
+            ],
+            "edges": [
+                {"source": "a", "target": "b"},
+                {"source": "a", "target": "c"},
+            ]
+        }
+        engine.load_protocol(data)
+
+        mock_op = MagicMock()
+        mock_op.execute = AsyncMock(return_value={})
+        engine._builtin_operators["Trigger"] = MagicMock(return_value=mock_op)
+        engine._builtin_operators["LLM_Task"] = MagicMock(return_value=mock_op)
+
+        result = await engine.execute()
+        assert result.status == "success"
+
+
+class TestExecuteNodeErrorHandling:
+    """Tests for node error handling in execute."""
+
+    @pytest.mark.asyncio
+    async def test_execute_node_stores_error(self):
+        """Test that node errors are stored in _node_errors."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+        engine._state = StateManager()
+
+        mock_op = MagicMock()
+        mock_op.execute = AsyncMock(side_effect=ValueError("test error"))
+        engine._builtin_operators["LLM_Task"] = MagicMock(return_value=mock_op)
+
+        llm_node = engine._graph.get_node("llm_1")
+
+        try:
+            await engine._execute_node(llm_node)
+        except ValueError:
+            pass
+
+        assert llm_node.id in engine._node_errors
+        assert isinstance(engine._node_errors[llm_node.id], ValueError)
+
+
+class TestGetOperator:
+    """Tests for get_operator method."""
+
+    def test_get_operator_plugin_type(self):
+        """Test get_operator for plugin node type."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+
+        mock_pm = MagicMock()
+        mock_pm.get_operator.return_value = MagicMock()
+        engine.plugin_manager = mock_pm
+
+        plugin_node = Node(
+            id="plugin_node",
+            type=NodeType.PLUGIN,
+            label="Plugin",
+            metadata={"config": {"plugin": "test", "function": "op"}}
+        )
+
+        result = engine.get_operator(plugin_node)
+
+        mock_pm.get_operator.assert_called_with("test", "op")
+
+    def test_get_operator_builtin_type(self):
+        """Test get_operator for built-in node type."""
+        engine = ExecutionEngine()
+        engine.load_protocol(create_test_graph_dict())
+
+        mock_op = MagicMock()
+        engine._builtin_operators["Trigger"] = MagicMock(return_value=mock_op)
+
+        trigger = engine._graph.get_node("trigger_1")
+        result = engine.get_operator(trigger)
+
+        assert result is not None
 
 
 class TestResolveInputs:

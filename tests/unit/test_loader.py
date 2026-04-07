@@ -299,3 +299,174 @@ class TestParsePort:
         assert port.type == "number"
         assert port.description == "Test port"
         assert port.default == 42
+
+
+class TestLoadFile:
+    """Tests for load_file method."""
+
+    def test_load_from_directory_with_flow_json(self, tmp_path):
+        """Test loading from directory that contains flow.json."""
+        flow_data = {
+            "version": "1.0.0",
+            "entryPoint": "trigger_1",
+            "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+            "edges": []
+        }
+        (tmp_path / "flow.json").write_text(json.dumps(flow_data))
+
+        loader = ProtocolLoader()
+        graph = loader.load_file(tmp_path)
+
+        assert graph.version == "1.0.0"
+        assert graph.entryPoint == "trigger_1"
+
+    def test_load_from_directory_without_flow_json(self, tmp_path):
+        """Test loading from directory without flow.json raises error."""
+        loader = ProtocolLoader()
+        with pytest.raises(LoaderError, match="No flow.json found"):
+            loader.load_file(tmp_path)
+
+    def test_load_agrc_file_raises_error(self, tmp_path):
+        """Test loading .agrc file raises error."""
+        agrc_file = tmp_path / "test.agrc"
+        agrc_file.write_bytes(b"fake zip content")
+
+        loader = ProtocolLoader()
+        with pytest.raises(LoaderError, match=".agrc files must be extracted"):
+            loader.load_file(agrc_file)
+
+
+class TestExpandOutputToContext:
+    """Tests for _expand_output_to_context method."""
+
+    def test_expand_output_to_context_simple(self):
+        """Test expanding output_to_context shorthand."""
+        nodes = [
+            Node(id="a", type=NodeType.LLM_TASK, label="A"),
+        ]
+        edges = [
+            Edge(source="a", target="b"),
+        ]
+
+        loader = ProtocolLoader()
+        # Set up the node with output_to_context in metadata
+        nodes[0].metadata = {
+            "config": {
+                "output_to_context": {
+                    "result": {"ref": "outputs.response"}
+                }
+            }
+        }
+
+        expanded_nodes, expanded_edges = loader._expand_output_to_context(nodes, edges)
+
+        # Should have original node plus context node
+        assert len(expanded_nodes) == 2
+        assert len(expanded_edges) == 2  # original + context edge
+
+    def test_expand_output_to_context_no_output(self):
+        """Test no expansion when no output_to_context."""
+        nodes = [
+            Node(id="a", type=NodeType.LLM_TASK, label="A"),
+        ]
+        edges = [
+            Edge(source="a", target="b"),
+        ]
+
+        loader = ProtocolLoader()
+        expanded_nodes, expanded_edges = loader._expand_output_to_context(nodes, edges)
+
+        # Should be unchanged
+        assert len(expanded_nodes) == 1
+        assert len(expanded_edges) == 1
+
+    def test_expand_output_to_context_invalid_ref(self):
+        """Test no expansion for invalid ref format."""
+        nodes = [
+            Node(id="a", type=NodeType.LLM_TASK, label="A"),
+        ]
+        edges = [
+            Edge(source="a", target="b"),
+        ]
+
+        loader = ProtocolLoader()
+        # Set up with invalid ref
+        nodes[0].metadata = {
+            "config": {
+                "output_to_context": {
+                    "result": {"ref": "invalid.ref.format"}
+                }
+            }
+        }
+
+        expanded_nodes, expanded_edges = loader._expand_output_to_context(nodes, edges)
+
+        # Should be unchanged (invalid ref not expanded)
+        assert len(expanded_nodes) == 1
+
+
+class TestParseCondition:
+    """Tests for _parse_condition method."""
+
+    def test_parse_condition_simple(self):
+        """Test parsing simple condition."""
+        data = {
+            "ref": "inputs.x",
+            "operator": "eq",
+            "value": 10
+        }
+        loader = ProtocolLoader()
+        condition = loader._parse_condition(data)
+
+        assert condition.ref == "inputs.x"
+        assert condition.operator.value == "eq"
+        assert condition.value == 10
+
+    def test_parse_condition_with_and(self):
+        """Test parsing condition with and."""
+        data = {
+            "ref": "inputs.x",
+            "operator": "gt",
+            "value": 0,
+            "and": [
+                {"ref": "inputs.y", "operator": "lt", "value": 100}
+            ]
+        }
+        loader = ProtocolLoader()
+        condition = loader._parse_condition(data)
+
+        assert condition.and_conditions is not None
+        assert len(condition.and_conditions) == 1
+
+    def test_parse_condition_with_or(self):
+        """Test parsing condition with or."""
+        data = {
+            "ref": "inputs.x",
+            "operator": "eq",
+            "value": 0,
+            "or": [
+                {"ref": "inputs.y", "operator": "eq", "value": 0}
+            ]
+        }
+        loader = ProtocolLoader()
+        condition = loader._parse_condition(data)
+
+        assert condition.or_conditions is not None
+        assert len(condition.or_conditions) == 1
+
+    def test_parse_condition_with_not(self):
+        """Test parsing condition with not."""
+        data = {
+            "ref": "inputs.x",
+            "operator": "eq",
+            "value": 0,
+            "not": {
+                "ref": "inputs.y",
+                "operator": "eq",
+                "value": 0
+            }
+        }
+        loader = ProtocolLoader()
+        condition = loader._parse_condition(data)
+
+        assert condition.not_condition is not None

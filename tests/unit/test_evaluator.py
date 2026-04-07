@@ -1,7 +1,14 @@
 """Unit tests for engine/evaluator.py."""
 
 import pytest
-from agenarc.engine.evaluator import ASTEvaluator, ASTEvaluatorError, evaluate_expression
+from agenarc.engine.evaluator import (
+    ASTEvaluator,
+    ASTEvaluatorError,
+    GasExceededError,
+    MemoryLimitError,
+    SafeContext,
+    evaluate_expression,
+)
 
 
 class TestASTEvaluator:
@@ -325,3 +332,103 @@ class TestEvaluateExpression:
         """Test evaluate_expression with context."""
         result = evaluate_expression("x * 2", {"x": 5})
         assert result == 10
+
+
+class TestASTEvaluatorGasBudget:
+    """Tests for gas budget functionality."""
+
+    def test_gas_budget_exceeded(self):
+        """Test that gas budget is enforced."""
+        evaluator = ASTEvaluator(gas_budget=5)  # Very low budget
+
+        # Complex expression should exceed gas budget
+        with pytest.raises(GasExceededError, match="gas budget"):
+            evaluator.evaluate("[x for x in range(100)]")
+
+    def test_gas_budget_not_exceeded(self):
+        """Test simple expression doesn't exceed budget."""
+        evaluator = ASTEvaluator(gas_budget=100)
+        result = evaluator.evaluate("1 + 2")
+        assert result == 3
+
+
+class TestASTEvaluatorMemoryLimit:
+    """Tests for memory limit functionality."""
+
+    def test_memory_limit_not_exceeded(self):
+        """Test small data doesn't exceed limit."""
+        evaluator = ASTEvaluator(max_memory_mb=128)
+        result = evaluator.evaluate("'hello'")
+        assert result == "hello"
+
+
+class TestASTEvaluatorFeatures:
+    """Tests for optional features."""
+
+    def test_enable_feature(self):
+        """Test enabling a feature."""
+        evaluator = ASTEvaluator(autonomy_level=0)
+        evaluator.enable_feature("comprehensions")
+        assert "comprehensions" in evaluator._enabled_features
+
+    def test_disable_feature(self):
+        """Test disabling a feature."""
+        evaluator = ASTEvaluator()
+        evaluator.disable_feature("comprehensions")
+        assert "comprehensions" not in evaluator._enabled_features
+
+    def test_comprehensions_enabled_by_default(self):
+        """Test comprehensions are enabled by default."""
+        evaluator = ASTEvaluator(autonomy_level=0)
+        result = evaluator.evaluate("[x for x in range(5)]")
+        assert result == [0, 1, 2, 3, 4]
+
+    def test_comprehensions_enabled_for_high_autonomy(self):
+        """Test comprehensions work at higher autonomy levels."""
+        evaluator = ASTEvaluator(autonomy_level=2)
+        result = evaluator.evaluate("[x for x in range(5)]")
+        assert result == [0, 1, 2, 3, 4]
+
+
+class TestASTEvaluatorSecurity:
+    """Tests for security checks."""
+
+    def test_dangerous_attribute_blocked(self):
+        """Test dangerous attributes are blocked."""
+        evaluator = ASTEvaluator()
+
+        with pytest.raises(ASTEvaluatorError, match="not allowed"):
+            evaluator.evaluate("().__class__")
+
+    def test_os_module_blocked(self):
+        """Test os module access is blocked."""
+        evaluator = ASTEvaluator()
+
+        with pytest.raises(ASTEvaluatorError):
+            evaluator.evaluate("os.system('ls')", {"os": __import__('os')})
+
+
+class TestSafeContext:
+    """Tests for SafeContext."""
+
+    def test_safe_context_get(self):
+        """Test SafeContext get method."""
+        context = SafeContext({"key": "value"})
+        assert context.get("key") == "value"
+
+    def test_safe_context_get_default(self):
+        """Test SafeContext get with default."""
+        context = SafeContext({})
+        assert context.get("missing", "default") == "default"
+
+    def test_safe_context_contains(self):
+        """Test SafeContext contains."""
+        context = SafeContext({"key": "value"})
+        assert "key" in context
+        assert "missing" not in context
+
+    def test_safe_context_keys(self):
+        """Test SafeContext keys."""
+        context = SafeContext({"a": 1, "b": 2})
+        keys = list(context.keys())
+        assert set(keys) == {"a", "b"}

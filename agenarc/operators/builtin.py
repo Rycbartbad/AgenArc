@@ -177,21 +177,6 @@ class Memory_IO_Operator(IOperator):
         except Exception:
             pass  # Fail silently for now
 
-    def load_from_disk(self, key: str) -> Optional[Any]:
-        """Load value from disk."""
-        try:
-            storage_dir = Path.home() / ".agenarc" / "storage"
-            safe_key = key.replace("/", "_").replace("\\", "_")
-            file_path = storage_dir / f"{safe_key}.json"
-
-            if file_path.exists():
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    return data.get("value")
-        except Exception:
-            pass
-        return None
-
 
 
 def _autonomy_to_trust_level(autonomy_level: int) -> str:

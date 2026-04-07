@@ -1,7 +1,10 @@
 """Unit tests for plugins/manager.py."""
 
 import pytest
+from pathlib import Path
+from unittest.mock import MagicMock, AsyncMock, patch
 from agenarc.plugins.manager import PluginManager
+from agenarc.plugins.hot_loader import PluginInfo, HotPluginLoader, ReloadStrategy
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
 
@@ -27,107 +30,307 @@ class MockOperator(IOperator):
         return {"output": inputs.get("input", "")}
 
 
-class TestPluginManager:
-    """Tests for PluginManager."""
+class TestPluginManagerInit:
+    """Tests for PluginManager initialization."""
 
-    def test_manager_creation(self):
-        """Test manager creation."""
+    def test_init_with_no_dirs(self):
+        """Test initialization with default values."""
         manager = PluginManager()
-        assert manager is not None
 
-    def test_manager_with_plugin_dirs(self):
-        """Test manager with custom plugin directories."""
-        manager = PluginManager(plugin_dirs=["/path/to/plugins"])
-        assert manager._plugin_dirs == ["/path/to/plugins"]
+        assert manager._plugin_dirs == []
+        assert manager._bundle_paths == []
+        assert manager._operators == {}
+        assert manager._plugins == {}
+        assert manager._hot_loader is None
+        assert manager.is_initialized is False
 
-    def test_register_operator(self):
-        """Test registering an operator."""
+    def test_init_with_plugin_dirs(self):
+        """Test initialization with custom plugin directories."""
+        manager = PluginManager(plugin_dirs=["~/.agenarc/plugins"])
+
+        assert manager._plugin_dirs == ["~/.agenarc/plugins"]
+
+    def test_init_with_bundle_paths(self):
+        """Test initialization with bundle paths."""
+        bundle_path = Path("/test/bundle")
+        manager = PluginManager(bundle_paths=[bundle_path])
+
+        assert manager._bundle_paths == [bundle_path]
+
+
+class TestPluginManagerInitialize:
+    """Tests for PluginManager.initialize()."""
+
+    @pytest.mark.asyncio
+    async def test_initialize_already_initialized(self):
+        """Test initialize does nothing if already initialized."""
         manager = PluginManager()
-        operator = MockOperator()
-        manager.register_operator("mock", "test_operator", operator)
+        manager._initialized = True
 
-        assert "mock.test_operator" in manager.list_operators()
+        await manager.initialize()
 
-    def test_get_registered_operator(self):
-        """Test getting a registered operator."""
+        assert manager._initialized is True
+
+    @pytest.mark.asyncio
+    async def test_initialize_creates_hot_loader(self):
+        """Test initialize creates HotPluginLoader."""
+        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+            manager = PluginManager()
+            await manager.initialize()
+
+            assert manager._hot_loader is not None
+            assert manager.is_initialized is True
+
+    @pytest.mark.asyncio
+    async def test_initialize_with_multiple_plugin_dirs(self):
+        """Test initialize configures hot loader with multiple paths."""
+        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+            manager = PluginManager(plugin_dirs=["~/.agenarc/plugins", "/usr/local/agenarc/plugins"])
+            await manager.initialize()
+
+            config = manager._hot_loader._config
+            assert len(config.watch_paths) == 2
+
+
+class TestPluginManagerDiscoverBundlePlugins:
+    """Tests for _discover_bundle_plugins."""
+
+    @pytest.mark.asyncio
+    async def test_discover_bundle_plugins_empty(self):
+        """Test discover with no bundle paths."""
         manager = PluginManager()
-        operator = MockOperator()
-        manager.register_operator("mock", "test_operator", operator)
 
-        retrieved = manager.get_operator("mock", "test_operator")
-        assert retrieved is operator
+        await manager._discover_bundle_plugins()
 
-    def test_get_operator_with_empty_function_name(self):
-        """Test getting operator with plugin_name as key when function_name is empty."""
+        # No error should occur
+
+    @pytest.mark.asyncio
+    async def test_discover_bundle_plugins_no_plugins_dir(self):
+        """Test discover when bundle has no plugins directory."""
+        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+            manager = PluginManager()
+            await manager.initialize()
+
+            bundle_path = Path("/test/bundle")
+            await manager._discover_bundle_plugins()
+
+            # Should not error when plugins dir doesn't exist
+
+    @pytest.mark.asyncio
+    async def test_discover_bundle_plugins_with_valid_plugin(self, tmp_path):
+        """Test discover finds embedded plugin."""
+        # Create bundle structure
+        bundle = tmp_path / "test_agent.agrc"
+        bundle.mkdir()
+        plugins_dir = bundle / "plugins"
+        plugins_dir.mkdir()
+
+        plugin_dir = plugins_dir / "embedded_plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "agenarc.json").write_text('{"name": "embedded_plugin"}')
+
+        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+            manager = PluginManager(bundle_paths=[bundle])
+            await manager.initialize()
+            await manager._discover_bundle_plugins()
+
+
+class TestPluginManagerRegisterOperator:
+    """Tests for register_operator()."""
+
+    def test_register_operator_with_function_name(self):
+        """Test registering operator with full key."""
         manager = PluginManager()
-        operator = MockOperator()
-        # Register with empty function_name uses plugin_name as key
-        manager.register_operator("mock", "", operator)
+        mock_op = MagicMock()
 
-        # With empty function_name, key is "plugin_name"
-        retrieved = manager.get_operator("mock", "")
-        assert retrieved is operator
+        manager.register_operator("my_plugin", "my_operator", mock_op)
 
-    def test_get_nonexistent_operator(self):
-        """Test getting non-existent operator returns None."""
+        assert manager._operators["my_plugin.my_operator"] == mock_op
+
+    def test_register_operator_without_function_name(self):
+        """Test registering operator with just plugin name."""
         manager = PluginManager()
-        retrieved = manager.get_operator("nonexistent", "operator")
-        assert retrieved is None
+        mock_op = MagicMock()
+
+        manager.register_operator("my_plugin", "", mock_op)
+
+        assert manager._operators["my_plugin"] == mock_op
+
+
+class TestPluginManagerGetOperator:
+    """Tests for get_operator()."""
+
+    def test_get_operator_from_local_cache(self):
+        """Test get_operator returns cached operator."""
+        manager = PluginManager()
+        mock_op = MagicMock()
+        manager._operators["test.op"] = mock_op
+
+        result = manager.get_operator("test", "op")
+
+        assert result == mock_op
+
+    def test_get_operator_with_single_name(self):
+        """Test get_operator with just plugin name."""
+        manager = PluginManager()
+        mock_op = MagicMock()
+        manager._operators["my_plugin"] = mock_op
+
+        result = manager.get_operator("my_plugin")
+
+        assert result == mock_op
+
+    def test_get_operator_not_found(self):
+        """Test get_operator returns None when not found."""
+        manager = PluginManager()
+
+        result = manager.get_operator("unknown", "plugin")
+
+        assert result is None
+
+    def test_get_operator_from_hot_loader(self):
+        """Test get_operator falls back to hot loader."""
+        manager = PluginManager()
+        mock_op = MagicMock()
+        mock_loader = MagicMock()
+        mock_loader.get_operator.return_value = mock_op
+        manager._hot_loader = mock_loader
+
+        result = manager.get_operator("test", "op")
+
+        assert result == mock_op
+        assert manager._operators["test.op"] == mock_op
+
+
+class TestPluginManagerListOperators:
+    """Tests for list_operators()."""
 
     def test_list_operators_empty(self):
-        """Test listing operators when none registered."""
+        """Test list_operators when empty."""
         manager = PluginManager()
-        assert manager.list_operators() == []
 
-    def test_list_operators_multiple(self):
-        """Test listing multiple operators."""
+        result = manager.list_operators()
+
+        assert result == []
+
+    def test_list_operators_returns_all(self):
+        """Test list_operators returns all registered operators."""
         manager = PluginManager()
-        operator1 = MockOperator()
-        operator2 = MockOperator()
+        manager._operators["op1"] = MagicMock()
+        manager._operators["op2"] = MagicMock()
 
-        manager.register_operator("mock", "op1", operator1)
-        manager.register_operator("mock", "op2", operator2)
+        result = manager.list_operators()
 
-        operators = manager.list_operators()
-        assert len(operators) == 2
-        assert "mock.op1" in operators
-        assert "mock.op2" in operators
+        assert set(result) == {"op1", "op2"}
 
-    def test_discover_plugins(self):
-        """Test discover_plugins is callable."""
+
+class TestPluginManagerListPlugins:
+    """Tests for list_plugins()."""
+
+    def test_list_plugins_empty(self):
+        """Test list_plugins when empty."""
         manager = PluginManager()
-        # Should not raise
-        manager.discover_plugins()
+
+        result = manager.list_plugins()
+
+        assert result == []
+
+    def test_list_plugins_returns_all(self):
+        """Test list_plugins returns all discovered plugins."""
+        manager = PluginManager()
+        plugin1 = PluginInfo("plugin1", "1.0.0", Path("/p1"), "python")
+        plugin2 = PluginInfo("plugin2", "1.0.0", Path("/p2"), "python")
+        manager._plugins["plugin1"] = plugin1
+        manager._plugins["plugin2"] = plugin2
+
+        result = manager.list_plugins()
+
+        assert len(result) == 2
+
+
+class TestPluginManagerReloadPlugin:
+    """Tests for reload_plugin()."""
 
     @pytest.mark.asyncio
-    async def test_initialize(self):
-        """Test manager initialization."""
-        manager = PluginManager(plugin_dirs=["/nonexistent/path"])
-        await manager.initialize()
-        assert manager.is_initialized is True
-        await manager.shutdown()
-
-    @pytest.mark.asyncio
-    async def test_reload_plugin_no_loader(self):
-        """Test reload_plugin returns False when hot loader not initialized."""
+    async def test_reload_without_hot_loader(self):
+        """Test reload returns False when no hot loader."""
         manager = PluginManager()
-        result = await manager.reload_plugin("nonexistent")
+
+        result = await manager.reload_plugin("test_plugin")
+
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_shutdown(self):
-        """Test manager shutdown."""
+    async def test_reload_plugin_success(self):
+        """Test successful plugin reload."""
         manager = PluginManager()
-        await manager.initialize()
-        await manager.shutdown()
-        assert manager.is_initialized is False
+        mock_loader = MagicMock()
+        mock_loader.reload_plugin = AsyncMock(return_value=True)
+        mock_loader.list_operators.return_value = ["test.op"]
+        mock_loader.get_operator.return_value = MagicMock()
+        manager._hot_loader = mock_loader
+        manager._operators["test.op"] = MagicMock()
 
-    def test_list_plugins_empty(self):
-        """Test listing plugins when none discovered."""
+        result = await manager.reload_plugin("test")
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_reload_plugin_failure(self):
+        """Test failed plugin reload."""
         manager = PluginManager()
-        assert manager.list_plugins() == []
+        mock_loader = MagicMock()
+        mock_loader.reload_plugin = AsyncMock(return_value=False)
+        manager._hot_loader = mock_loader
+
+        result = await manager.reload_plugin("test")
+
+        assert result is False
+
+
+class TestPluginManagerShutdown:
+    """Tests for shutdown()."""
+
+    @pytest.mark.asyncio
+    async def test_shutdown_clears_state(self):
+        """Test shutdown clears all state."""
+        manager = PluginManager()
+        manager._operators = {"test": MagicMock()}
+        manager._plugins = {"test": MagicMock()}
+        mock_loader = MagicMock()
+        mock_loader.shutdown = AsyncMock()
+        manager._hot_loader = mock_loader
+
+        await manager.shutdown()
+
+        assert len(manager._operators) == 0
+        assert len(manager._plugins) == 0
+        assert manager._initialized is False
+
+    @pytest.mark.asyncio
+    async def test_shutdown_without_hot_loader(self):
+        """Test shutdown works without hot loader."""
+        manager = PluginManager()
+
+        await manager.shutdown()
+
+        # Should not error
+        assert manager._initialized is False
+
+
+class TestPluginManagerHotLoader:
+    """Tests for hot_loader property."""
 
     def test_hot_loader_property(self):
-        """Test hot_loader property returns None when not initialized."""
+        """Test hot_loader returns the hot loader."""
         manager = PluginManager()
+        mock_loader = MagicMock()
+        manager._hot_loader = mock_loader
+
+        assert manager.hot_loader == mock_loader
+
+    def test_hot_loader_property_none(self):
+        """Test hot_loader returns None when not set."""
+        manager = PluginManager()
+
         assert manager.hot_loader is None

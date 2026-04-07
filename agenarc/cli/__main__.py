@@ -5,6 +5,7 @@ Command-line interface for AgenArc execution engine.
 
 Usage:
     agenarc run <agent.agrc|flow.json>
+    agenarc shell <agent.agrc|flow.json>
     agenarc validate <agent.agrc|flow.json>
     agenarc info <agent.agrc|flow.json>
     agenarc pack <directory> [output.agrc]
@@ -12,6 +13,7 @@ Usage:
 
 import argparse
 import asyncio
+import code
 import json
 import sys
 from pathlib import Path
@@ -281,6 +283,36 @@ def create_parser() -> argparse.ArgumentParser:
         help="Verbose output"
     )
 
+    # shell command
+    shell_parser = subparsers.add_parser(
+        "shell",
+        help="Interactive shell for agent execution"
+    )
+    shell_parser.add_argument(
+        "file",
+        type=Path,
+        help="Path to agent bundle (.agrc) or protocol (.json)"
+    )
+    shell_parser.add_argument(
+        "--mode",
+        "-m",
+        choices=["sync", "async", "parallel"],
+        default="async",
+        help="Execution mode"
+    )
+    shell_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Verbose output"
+    )
+    shell_parser.add_argument(
+        "--log",
+        "-l",
+        action="store_true",
+        help="Show execution logs"
+    )
+
     return parser
 
 
@@ -292,6 +324,237 @@ def print_error(message: str) -> None:
 def print_success(message: str) -> None:
     """Print success message."""
     print(f"SUCCESS: {message}")
+
+
+class InteractiveREPL:
+    """Interactive REPL for AgenArc agent execution."""
+
+    def __init__(
+        self,
+        engine: ExecutionEngine,
+        protocol_path: Path,
+        verbose: bool = False,
+        show_logs: bool = False
+    ):
+        self.engine = engine
+        self.protocol_path = protocol_path
+        self.verbose = verbose
+        self.show_logs = show_logs
+        self._history: List[str] = []
+
+    def _print_banner(self) -> None:
+        """Print REPL banner."""
+        print("=" * 50)
+        print("AgenArc Interactive Shell")
+        print("=" * 50)
+        print(f"Agent: {self.protocol_path}")
+        print("Type input and press Enter to execute")
+        print("  - Plain text: treated as payload.input")
+        print("  - JSON object: used as full payload")
+        print("Commands: :quit/:exit to exit, :reset to reset state")
+        print("          :info to show agent info, :logs to toggle logs")
+        print("=" * 50)
+        print()
+
+    def _print_result(self, result: Any, is_error: bool = False) -> None:
+        """Print execution result."""
+        if is_error:
+            print(f"ERROR: {result}")
+        else:
+            if isinstance(result, dict):
+                print(json.dumps(result, indent=2, default=str))
+            else:
+                print(result)
+
+    def _handle_command(self, line: str) -> Optional[bool]:
+        """
+        Handle special REPL commands.
+
+        Returns:
+            True if should continue, False if should exit, None if not a command
+        """
+        cmd = line.strip().lower()
+
+        if cmd in (":quit", ":exit", "exit", "quit", "q"):
+            print("Goodbye!")
+            return False
+
+        if cmd == ":reset":
+            # Reset engine state
+            self.engine._state = StateManager()
+            self.engine._state.initialize(
+                self.engine._execution_id or "reset",
+                self.engine._graph.metadata.name if self.engine._graph else "agent"
+            )
+            print("State reset.")
+            return True
+
+        if cmd == ":info":
+            if self.engine._graph:
+                print(f"Entry Point: {self.engine._graph.entryPoint}")
+                print(f"Nodes: {len(self.engine._graph.nodes)}")
+                print(f"Edges: {len(self.engine._graph.edges)}")
+                print(f"Status: {self.engine._graph.metadata.name}")
+            else:
+                print("No agent loaded.")
+            return True
+
+        if cmd == ":logs":
+            self.show_logs = not self.show_logs
+            print(f"Logs {'enabled' if self.show_logs else 'disabled'}.")
+            return True
+
+        if cmd.startswith(":load "):
+            # Load new agent
+            new_path = Path(cmd[6:].strip())
+            try:
+                self.engine.load_protocol(new_path)
+                self.protocol_path = new_path
+                print(f"Loaded: {new_path}")
+            except Exception as e:
+                print(f"ERROR: Failed to load: {e}")
+            return True
+
+        if cmd.startswith(":mode "):
+            mode = cmd[6:].strip()
+            self.engine.max_parallel = 4  # default
+            print(f"Mode set to: {mode}")
+            return True
+
+        # Not a special command
+        return None
+
+    def _execute_payload(self, payload: Dict[str, Any]) -> tuple:
+        """Execute payload and return (result, error, logs)."""
+        exec_mode = ExecutionMode.ASYNC
+
+        try:
+            result = asyncio.run(self.engine.execute(payload, exec_mode))
+            return result.final_outputs, None, result.node_results
+        except Exception as e:
+            return None, str(e), None
+
+    def run(self) -> None:
+        """Run the interactive REPL."""
+        self._print_banner()
+
+        while True:
+            try:
+                line = input("agenarc> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nGoodbye!")
+                break
+
+            if not line:
+                continue
+
+            # Add to history
+            self._history.append(line)
+
+            # Check for special commands
+            cmd_result = self._handle_command(line)
+            if cmd_result is False:
+                break  # Exit
+            if cmd_result is True:
+                continue  # Command handled, continue
+
+            # Parse input: plain text or JSON
+            stripped = line.strip()
+            if stripped.startswith("{"):
+                # Try to parse as JSON
+                try:
+                    payload = json.loads(stripped)
+                except json.JSONDecodeError as e:
+                    print(f"ERROR: Invalid JSON: {e}")
+                    continue
+            else:
+                # Plain text - wrap as payload.input
+                payload = {"input": stripped}
+
+            # Execute
+            if self.verbose:
+                print(f"Executing with payload: {json.dumps(payload)[:100]}...")
+
+            outputs, error, node_results = self._execute_payload(payload)
+
+            if self.show_logs and node_results:
+                print("\n--- Execution Logs ---")
+                for node_id, result in node_results.items():
+                    status_name = result.status.name if hasattr(result.status, 'name') else str(result.status)
+                    print(f"[{node_id}] {status_name}")
+                    if result.outputs:
+                        for key, value in result.outputs.items():
+                            print(f"  {key}: {value}")
+                    if result.error:
+                        print(f"  ERROR: {result.error}")
+                print("---")
+
+            if error:
+                print(f"ERROR: {error}")
+            else:
+                print("\n--- Results ---")
+                self._print_result(outputs)
+                print("---")
+
+        print(f"Executed {len(self._history)} commands.")
+
+
+def command_shell(
+    file: Path,
+    mode: str = "async",
+    verbose: bool = False,
+    show_logs: bool = False
+) -> int:
+    """
+    Start an interactive shell for agent execution.
+
+    Args:
+        file: Path to agent bundle (.agrc) or protocol (.json)
+        mode: Execution mode
+        verbose: Verbose output flag
+        show_logs: Show execution logs
+
+    Returns:
+        Exit code
+    """
+    # Resolve bundle path
+    protocol_path = _resolve_bundle_path(file)
+
+    # Determine bundle path
+    bundle_path = None
+    if protocol_path.is_dir():
+        bundle_path = protocol_path
+        _install_bundle_plugins(bundle_path, verbose)
+
+    # Create engine
+    plugin_manager = PluginManager(bundle_paths=[bundle_path] if bundle_path else [])
+    engine = ExecutionEngine(plugin_manager=plugin_manager)
+
+    # Register built-in operators
+    for node_type, operator_class in BUILTIN_OPERATORS.items():
+        engine.register_builtin_operator(node_type, operator_class)
+
+    # Load protocol
+    try:
+        engine.load_protocol(protocol_path)
+    except LoaderError as e:
+        print_error(f"Failed to load protocol: {e}")
+        return 1
+    except ValueError as e:
+        print_error(f"Invalid protocol: {e}")
+        return 1
+
+    # Start interactive shell
+    repl = InteractiveREPL(
+        engine=engine,
+        protocol_path=protocol_path,
+        verbose=verbose,
+        show_logs=show_logs
+    )
+
+    repl.run()
+
+    return 0
 
 
 def command_run(
@@ -515,6 +778,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         output = args.output or Path(str(args.source) + ".agrc")
         pack_bundle(args.source, output, args.verbose)
         return 0
+    elif args.command == "shell":
+        return command_shell(
+            file=args.file,
+            mode=args.mode,
+            verbose=args.verbose,
+            show_logs=args.log
+        )
     else:
         parser.print_help()
         return 0
