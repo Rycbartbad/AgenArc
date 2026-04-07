@@ -56,11 +56,11 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 - **Runtime_Reload** - Hot reload scripts and plugins
 - Schema + AST sanitizer dual validation chain
 
-### Stage 4: Plugin System (In Progress)
+### Stage 4: Plugin System (Complete)
 
-- Hot_Plugin_Loader
-- Python/C++/External loaders
-- Plugin development docs
+- **Hot_Plugin_Loader** - File watching + atomic reload + zero-downtime
+- **Python/C++/External loaders** - Multi-language plugin support
+- **Plugin development docs**
 
 ### Stage 5: Visualization Platform (Planned)
 
@@ -117,6 +117,9 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --inpu
 # Run an agent (.agrc) or protocol (.json)
 agenarc run my_agent.agrc
 agenarc run flow.json --input '{"key": "value"}' --mode async
+
+# Interactive shell (REPL mode)
+agenarc shell my_agent.agrc
 
 # Validate an agent or protocol
 agenarc validate my_agent.agrc
@@ -263,8 +266,8 @@ pytest tests/unit/test_builtin_operators.py -v
 ### Current Test Status
 
 ```
-======================== 411 passed ========================
-Coverage: 85%
+======================== 619 passed ========================
+Coverage: 79%
 ```
 
 ## Roadmap
@@ -274,7 +277,7 @@ Coverage: 85%
 | v0.1 | MVP Engine | Complete |
 | v0.2 | Complete Execution Engine | Complete |
 | v0.3 | Self-Evolution System | Complete |
-| v0.4 | Plugin System | In Progress |
+| v0.4 | Plugin System | Complete |
 | v0.5 | Visualization Platform | Planned |
 
 ## License

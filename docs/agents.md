@@ -1062,7 +1062,44 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent-path> --input '<json>'
 | `--mode <mode>` | 执行模式：sync, async, parallel（默认 async） |
 | `-v, --verbose` | 显示详细输出 |
 
-### 9.5 调试技巧
+### 9.5 交互式 Shell
+
+交互式 Shell 允许你以 REPL 模式运行 Agent，无需每次输入完整的 JSON：
+
+```bash
+PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/hello_agent.agrc
+```
+
+**输入格式**：
+
+| 输入类型 | 示例 | 处理方式 |
+|----------|------|----------|
+| 纯文本 | `Hello` | 自动转换为 `{"input": "Hello"}` |
+| JSON 对象 | `{"trigger_payload":"Hi"}` | 直接作为完整 payload |
+
+**示例会话**：
+
+```
+==================================================
+AgenArc Interactive Shell
+==================================================
+Agent: examples/hello_agent.agrc
+Type input and press Enter to execute
+  - Plain text: treated as payload.input
+  - JSON object: used as full payload
+  - Type 'quit' or 'exit' to exit
+
+> Hello
+[AGENARC] Hello from AgenArc!
+
+> {"trigger_payload":"Test"}
+[AGENARC] Test from AgenArc!
+
+> quit
+Goodbye!
+```
+
+### 9.6 调试技巧
 
 1. **使用 Log 节点**：在关键节点后添加 Log 节点查看输出
 2. **简化流程**：先用一个 LLM_Task 测试，再逐步添加其他节点
