@@ -207,5 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # Local configuration (contains API keys)
+ARCHITECTURE.md
+CLAUDE.md
 config.yaml
 .env
