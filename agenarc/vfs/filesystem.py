@@ -302,7 +302,7 @@ def resolve_agrc_path(vfs_path: str, bundle_path: Path) -> Optional[Path]:
         return None
 
     # Parse path
-    path = vfs_path[6:]  # Remove "agrc://"
+    path = vfs_path[len("agrc://"):]  # Remove "agrc://"
 
     # Special case for flow.json (agrc://flow.json)
     if path == "flow.json":
