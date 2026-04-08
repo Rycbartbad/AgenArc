@@ -1110,7 +1110,14 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/hello_agent.agrc
 
 **会话持久化**：
 
-Shell 支持多轮对话，会话期间 context 持久化存储：
+Shell 根据 flow.json 的结构决定会话行为：
+
+| Trigger 连接状态 | 行为 |
+|-----------------|------|
+| 无边连接到 trigger | 每次执行都是全新状态 |
+| 有边连接到 trigger | 维护会话状态（多轮对话） |
+
+**说明**：边可以连接到 trigger，但 trigger 忽略边的数据，只使用外部输入。
 
 | 命令 | 说明 |
 |------|------|

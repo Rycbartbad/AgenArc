@@ -434,9 +434,13 @@ class InteractiveREPL:
         exec_mode = ExecutionMode.ASYNC
 
         try:
-            # Session-persistent StateManager: reuse across multiple executions
-            if self._session_state is None:
-                # First execution in session: create new StateManager
+            # Check if trigger has incoming edges (determines multi-turn session)
+            trigger_node = self.engine._graph.get_node(self.engine._graph.entryPoint)
+            incoming_edges = self.engine._graph.get_incoming_edges(trigger_node.id)
+            has_incoming = len(incoming_edges) > 0
+
+            if not has_incoming:
+                # No incoming edges: fresh state for each execution
                 self._session_state = StateManager(
                     auto_checkpoint=self.engine.enable_checkpoint
                 )
@@ -446,8 +450,18 @@ class InteractiveREPL:
                 )
                 self._session_initialized = False
             else:
-                # Subsequent executions: reuse existing StateManager
-                self._session_initialized = True
+                # Has incoming edges: maintain session state (multi-turn conversation)
+                if self._session_state is None:
+                    self._session_state = StateManager(
+                        auto_checkpoint=self.engine.enable_checkpoint
+                    )
+                    self._session_state.initialize(
+                        self.engine._execution_id or "session",
+                        self.engine._graph.entryPoint if self.engine._graph else "agent"
+                    )
+                    self._session_initialized = False
+                else:
+                    self._session_initialized = True
 
             # Attach session StateManager to engine
             self.engine._state = self._session_state
