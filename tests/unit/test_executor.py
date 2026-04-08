@@ -168,14 +168,12 @@ class TestExecutionEngine:
         """Test load_protocol resets execution state."""
         engine = ExecutionEngine()
         engine._node_statuses = {"old": NodeStatus.COMPLETED}
-        engine._node_outputs = {"old": {}}
         engine._node_errors = {"old": ValueError()}
 
         engine.load_protocol(create_test_graph_dict())
 
         assert "trigger_1" in engine._node_statuses
         assert "llm_1" in engine._node_statuses
-        assert engine._node_outputs == {}
         assert engine._node_errors == {}
 
     def test_get_operator_builtin(self):
@@ -374,7 +372,7 @@ class TestExecuteNode:
         await engine._execute_node(llm_node)
 
         assert engine._node_statuses[llm_node.id] == NodeStatus.COMPLETED
-        assert "response" in engine._node_outputs[llm_node.id]
+        assert "response" in engine._state.get_node_outputs(llm_node.id)
 
     @pytest.mark.asyncio
     async def test_execute_node_error(self):
@@ -647,8 +645,10 @@ class TestResolveInputs:
         """Test resolving inputs from incoming edges."""
         engine = ExecutionEngine()
         engine.load_protocol(create_test_graph_dict())
+        engine._state = StateManager()
+        engine._state.initialize("test_execution", "test_graph")
 
-        engine._node_outputs["trigger_1"] = {"payload": {"data": "test"}}
+        engine._state.store_output("trigger_1", {"payload": {"data": "test"}})
 
         llm_node = engine._graph.get_node("llm_1")
         inputs = engine._resolve_inputs(llm_node)
@@ -692,8 +692,10 @@ class TestBuildNodeResults:
         """Test building node results."""
         engine = ExecutionEngine()
         engine.load_protocol(create_test_graph_dict())
+        engine._state = StateManager()
+        engine._state.initialize("test_execution", "test_graph")
 
-        engine._node_outputs["trigger_1"] = {"payload": "test"}
+        engine._state.store_output("trigger_1", {"payload": "test"})
         engine._node_statuses["trigger_1"] = NodeStatus.COMPLETED
 
         results = engine._build_node_results()
@@ -710,8 +712,10 @@ class TestCollectFinalOutputs:
         """Test collecting final outputs from terminal nodes."""
         engine = ExecutionEngine()
         engine.load_protocol(create_test_graph_dict())
+        engine._state = StateManager()
+        engine._state.initialize("test_execution", "test_graph")
 
-        engine._node_outputs["llm_1"] = {"response": "final"}
+        engine._state.store_output("llm_1", {"response": "final"})
 
         final = engine._collect_final_outputs()
 

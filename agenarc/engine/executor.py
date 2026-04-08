@@ -31,6 +31,7 @@ from agenarc.protocol.schema import (
 )
 from agenarc.graph.traversal import GraphTraversal
 from agenarc.engine.state import StateManager, ExecutionContext
+from agenarc.engine.evaluator import resolve_vfs_and_template
 
 if TYPE_CHECKING:
     from agenarc.plugins.manager import PluginManager
@@ -112,9 +113,11 @@ class ExecutionEngine:
         # Manifest permissions (for Trust-based Autonomy)
         self._permissions: Permissions = Permissions()
 
+        # Bundle path for VFS resolution
+        self._bundle_path: Optional[Any] = None
+
         # Execution tracking
         self._node_statuses: Dict[str, NodeStatus] = {}
-        self._node_outputs: Dict[str, Dict[str, Any]] = {}
         self._node_errors: Dict[str, Exception] = {}
         self._execution_id: str = ""
 
@@ -181,6 +184,15 @@ class ExecutionEngine:
         """
         self._builtin_operators[node_type] = operator_class
 
+    def set_bundle_path(self, bundle_path: Any) -> None:
+        """
+        Set the bundle path for VFS resolution.
+
+        Args:
+            bundle_path: Path to the .agrc bundle directory
+        """
+        self._bundle_path = bundle_path
+
     def load_protocol(
         self,
         source: Any,
@@ -216,7 +228,6 @@ class ExecutionEngine:
         self._node_statuses = {
             node.id: NodeStatus.PENDING for node in self._graph.nodes
         }
-        self._node_outputs = {}
         self._node_errors = {}
 
     def get_operator(self, node: Node) -> Optional["IOperator"]:
@@ -293,6 +304,20 @@ class ExecutionEngine:
         self._state.set_global("_manifest_autonomy_level", autonomy_value)
         self._state.set_global("_gas_budget", self._permissions.gas_budget)
         self._state.set_global("_max_memory_mb", self._permissions.max_memory_mb)
+
+        # Set bundle path for VFS resolution
+        if self._bundle_path:
+            self._state.set_global("_bundle_path", self._bundle_path)
+            # Convert permissions to dict if it's a Permissions object
+            perms = self._permissions
+            if hasattr(perms, 'allow_script_read'):
+                perms = {
+                    "allow_script_read": perms.allow_script_read,
+                    "allow_script_write": perms.allow_script_write,
+                    "allow_prompt_read": perms.allow_prompt_read,
+                    "allow_prompt_write": perms.allow_prompt_write,
+                }
+            self._state.set_global("_vfs_permissions", perms)
 
         # Get entry point
         entry_node = self._graph.get_node(self._graph.entryPoint)
@@ -660,11 +685,30 @@ class ExecutionEngine:
             self._node_statuses[node.id] = NodeStatus.COMPLETED
             return None
 
-        # Resolve inputs
+        # Create context getter for template resolution
+        def context_getter(key: str) -> Any:
+            return self._state.get_global(key)
+
+        # Create bundle path getter for VFS resolution
+        def bundle_path_getter() -> Any:
+            return self._state.get_global("_bundle_path")
+
+        # Create permissions getter
+        def permissions_getter() -> Any:
+            return self._state.get_global("_vfs_permissions")
+
+        # Resolve inputs (templates resolved at execution time for freshness)
         inputs = self._resolve_inputs(node)
+        inputs = resolve_vfs_and_template(
+            inputs, context_getter, bundle_path_getter, permissions_getter(), allow_missing=True
+        )
 
         # Set node config in context for operators to access
+        # Templates in config are resolved at execution time
         node_config = node.metadata.get("config", {})
+        node_config = resolve_vfs_and_template(
+            node_config, context_getter, bundle_path_getter, permissions_getter(), allow_missing=True
+        )
         context.set("_node_type", node.type.value)
         context.set("_node_config", node_config)
 
@@ -678,7 +722,6 @@ class ExecutionEngine:
             outputs = await self._safe_execute(operator, inputs, context)
 
             # Store outputs
-            self._node_outputs[node.id] = outputs
             self._state.store_output(node.id, outputs)
 
             # Check for in-place mutations in strict mode
@@ -798,13 +841,15 @@ class ExecutionEngine:
         if error_handling.fallbackNode:
             fallback = self._graph.get_node(error_handling.fallbackNode)
             if fallback:
-                # Execute fallback node
-                self._node_outputs[node.id] = {"_error": str(self._node_errors[node.id])}
+                # Store error info in context before fallback execution
+                self._state.store_output(node.id, {"_error": str(self._node_errors[node.id])})
                 await self._execute_node(fallback)
 
     def _resolve_inputs(self, node: Node) -> Dict[str, Any]:
         """
         Resolve node inputs from upstream outputs and context.
+
+        Reads from context using the key format: nodes.{source_node_id}.{sourcePort}
 
         Args:
             node: Node to resolve inputs for
@@ -818,8 +863,9 @@ class ExecutionEngine:
         incoming = self._graph.get_incoming_edges(node.id)
 
         for edge in incoming:
-            source_outputs = self._node_outputs.get(edge.source, {})
-            value = source_outputs.get(edge.sourcePort)
+            # Read from context using namespaced key
+            key = f"nodes.{edge.source}.{edge.sourcePort}"
+            value = self._state.get_global(key)
 
             if edge.targetPort:
                 inputs[edge.targetPort] = value
@@ -839,10 +885,11 @@ class ExecutionEngine:
         """Build node results dictionary."""
         results = {}
         for node_id, status in self._node_statuses.items():
+            outputs = self._state.get_node_outputs(node_id) if self._state else {}
             results[node_id] = ExecutionResult(
                 node_id=node_id,
                 status=status,
-                outputs=self._node_outputs.get(node_id, {}),
+                outputs=outputs,
                 error=self._node_errors.get(node_id)
             )
         return results
@@ -859,7 +906,7 @@ class ExecutionEngine:
         # Collect outputs from terminal nodes
         final = {}
         for node_id in terminal_node_ids:
-            outputs = self._node_outputs.get(node_id, {})
+            outputs = self._state.get_node_outputs(node_id) if self._state else {}
             final[node_id] = outputs
 
         return final

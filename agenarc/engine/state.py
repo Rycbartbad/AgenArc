@@ -519,6 +519,11 @@ class StateManager:
         """
         Store node outputs for downstream consumption.
 
+        Each output port value is stored directly in context with key:
+        nodes.{node_id}.{port_name} = value
+
+        This allows downstream nodes to read outputs via edge sourcePort.
+
         Args:
             node_id: Node ID
             outputs: Output dictionary from node execution
@@ -526,10 +531,13 @@ class StateManager:
         if node_id not in self._local:
             self._local[node_id] = {}
 
+        # Store full outputs dict for backward compatibility
         self._local[node_id]["_outputs"] = outputs
-
-        # Also store at global level for easy access
         self._global[f"nodes.{node_id}.outputs"] = outputs
+
+        # Store each output port directly with key = nodes.{node_id}.{port_name}
+        for port_name, value in outputs.items():
+            self._global[f"nodes.{node_id}.{port_name}"] = value
 
     def get_output(self, node_id: str, port_name: str) -> Any:
         """

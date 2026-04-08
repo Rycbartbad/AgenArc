@@ -294,7 +294,7 @@ class TestNodeExecutionTracking:
 
     @pytest.mark.asyncio
     async def test_node_outputs_stored(self):
-        """Test node outputs are stored."""
+        """Test node outputs are stored in context."""
         data = {
             "version": "1.0.0",
             "entryPoint": "trigger_1",
@@ -313,5 +313,5 @@ class TestNodeExecutionTracking:
 
         await engine.execute({"trigger_payload": "test"})
 
-        assert "trigger_1" in engine._node_outputs
-        assert engine._node_outputs["trigger_1"]["payload"] == "test"
+        # Node outputs are stored in context with key: nodes.{node_id}.{port_name}
+        assert engine._state.get_global("nodes.trigger_1.payload") == "test"

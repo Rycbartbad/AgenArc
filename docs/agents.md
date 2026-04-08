@@ -844,15 +844,13 @@ result = {
 
 ## 7. 模板语法
 
-在 prompts/*.pt 文件和某些配置项中，可以使用模板变量。
+在 prompts/*.pt 文件和节点配置中，可以使用 `{{key}}` 模板变量。模板在**节点执行时解析**（保证实时性）。
 
-### 7.1 基础变量
+### 7.1 模板特性
 
-| 语法 | 说明 |
-|------|------|
-| `{{agent_name}}` | Agent 名称 |
-| `{{user_context}}` | 用户上下文 |
-| `{{current_time}}` | 当前时间 |
+- **递归解析**：`{{a}}` → `{{b}}` → value（最大深度10）
+- **点号访问**：`{{user.name}}` 支持 dict 和 object 属性访问
+- **VFS 集成**：`agrc://prompts/system.pt` 先读取文件内容再解析模板
 
 ### 7.2 上下文变量
 
@@ -860,20 +858,19 @@ result = {
 |------|------|
 | `{{context}}` | 整个上下文对象 |
 | `{{context.xxx}}` | 上下文中的特定字段 |
-| `{{context.user_input}}` | 用户输入 |
-| `{{context.history}}` | 对话历史 |
+| `{{user.name}}` | 点号访问嵌套字段 |
 
 ### 7.3 节点输出变量
 
 | 语法 | 说明 |
 |------|------|
-| `{{nodes.xxx.outputs.yyy}}` | 获取节点 xxx 的 yyy 输出 |
+| `{{nodes.xxx.yyy}}` | 获取节点 xxx 的 yyy 输出 |
 
 **示例**：
 
 ```jinja2
-The LLM said: {{nodes.llm_1.outputs.response}}
-Token usage: {{nodes.llm_1.outputs.usage.total_tokens}}
+The LLM said: {{nodes.llm_1.response}}
+Token usage: {{nodes.llm_1.usage.total_tokens}}
 ```
 
 ### 7.4 循环变量
@@ -934,6 +931,23 @@ Current conversation:
 Attachments: {{context.attachments}}
 {% endif %}
 ```
+
+### 7.9 VFS + 模板组合
+
+VFS 路径中的文件内容会先被读取，然后进行模板解析：
+
+```json
+{
+  "config": {
+    "system_prompt": "agrc://prompts/system.pt",
+    "model": "{{default_model}}"
+  }
+}
+```
+
+这允许：
+1. `agrc://prompts/system.pt` → 读取文件内容
+2. `{{default_model}}` → 从 context 获取当前模型名称
 
 ---
 
