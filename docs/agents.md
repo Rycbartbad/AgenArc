@@ -1075,6 +1075,22 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/hello_agent.agrc
 | 纯文本 | `Hello` | 自动转换为 `{"input": "Hello"}` |
 | JSON 对象 | `{"trigger_payload":"Hi"}` | 直接作为完整 payload |
 
+**会话持久化**：
+
+Shell 支持多轮对话，会话期间 context 持久化存储：
+
+| 命令 | 说明 |
+|------|------|
+| `:reset` | 重置会话，开启新对话（清空 context） |
+| `:quit` / `:exit` | 退出 Shell |
+
+**`_session_first_run` 标志**：
+
+| 标志值 | 含义 | 用途 |
+|--------|------|------|
+| `{{context._session_first_run}} == true` | 会话首次执行 | 初始化、欢迎语、加载历史 |
+| `{{context._session_first_run}} == false` | 会话后续执行 | 直接对话、读取 Memory_I/O |
+
 **示例会话**：
 
 ```
@@ -1082,18 +1098,27 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/hello_agent.agrc
 AgenArc Interactive Shell
 ==================================================
 Agent: examples/hello_agent.agrc
+Context persists during session, resets on new session
 Type input and press Enter to execute
   - Plain text: treated as payload.input
   - JSON object: used as full payload
-  - Type 'quit' or 'exit' to exit
+Commands: :quit/:exit to exit, :reset to start new session
+          :info to show agent info, :logs to toggle logs
+==================================================
 
 > Hello
 [AGENARC] Hello from AgenArc!
 
-> {"trigger_payload":"Test"}
-[AGENARC] Test from AgenArc!
+> World
+[AGENARC] World from AgenArc!
 
-> quit
+> :reset
+Session reset (new conversation started).
+
+> Hello again
+[AGENARC] Hello again from AgenArc!
+
+> :quit
 Goodbye!
 ```
 
@@ -1102,6 +1127,47 @@ Goodbye!
 1. **使用 Log 节点**：在关键节点后添加 Log 节点查看输出
 2. **简化流程**：先用一个 LLM_Task 测试，再逐步添加其他节点
 3. **检查输出**：使用 `-v` 查看完整的节点输出
+
+### 9.7 Python 模块接入与会话持久化
+
+除了 CLI 和 Shell，还可以通过 Python 模块直接调用 Engine：
+
+```python
+from agenarc.engine.executor import ExecutionEngine
+from agenarc.engine.state import StateManager
+
+# 创建 Engine
+engine = ExecutionEngine()
+engine.load_protocol("my_agent.agrc")
+
+# 创建会话 StateManager（只创建一次）
+session_state = StateManager(auto_checkpoint=False)
+session_state.initialize("session_id", engine._graph.entryPoint)
+
+# 多轮对话：每次执行前绑定 session StateManager
+while True:
+    user_input = input("> ")
+    if user_input == "quit":
+        break
+
+    # 绑定 session StateManager
+    engine._state = session_state
+
+    # 执行（StateManager 不会被重新创建）
+    result = engine.execute({"input": user_input})
+    print(result.final_outputs)
+
+    # session_state 中已保存所有 context，可继续累积
+```
+
+**核心原理**：每次 `execute()` 会创建新的 `StateManager`，通过手动绑定 `engine._state`，实现跨执行的 context 持久化。
+
+**`_session_first_run` 标志**：
+
+```python
+session_state.set_global("_session_first_run", True)  # 首次执行
+session_state.set_global("_session_first_run", False) # 后续执行
+```
 
 ---
 

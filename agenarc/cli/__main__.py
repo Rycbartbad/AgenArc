@@ -327,7 +327,7 @@ def print_success(message: str) -> None:
 
 
 class InteractiveREPL:
-    """Interactive REPL for AgenArc agent execution."""
+    """Interactive REPL for AgenArc agent execution with session persistence."""
 
     def __init__(
         self,
@@ -341,6 +341,8 @@ class InteractiveREPL:
         self.verbose = verbose
         self.show_logs = show_logs
         self._history: List[str] = []
+        self._session_state: Optional[StateManager] = None  # Session-persistent StateManager
+        self._session_initialized = False  # Flag: has Trigger run this session
 
     def _print_banner(self) -> None:
         """Print REPL banner."""
@@ -348,10 +350,11 @@ class InteractiveREPL:
         print("AgenArc Interactive Shell")
         print("=" * 50)
         print(f"Agent: {self.protocol_path}")
+        print("Context persists during session, resets on new session")
         print("Type input and press Enter to execute")
         print("  - Plain text: treated as payload.input")
         print("  - JSON object: used as full payload")
-        print("Commands: :quit/:exit to exit, :reset to reset state")
+        print("Commands: :quit/:exit to exit, :reset to start new session")
         print("          :info to show agent info, :logs to toggle logs")
         print("=" * 50)
         print()
@@ -380,13 +383,15 @@ class InteractiveREPL:
             return False
 
         if cmd == ":reset":
-            # Reset engine state
+            # Reset session state (new session starts)
+            self._session_state = None
+            self._session_initialized = False
             self.engine._state = StateManager()
             self.engine._state.initialize(
                 self.engine._execution_id or "reset",
                 self.engine._graph.entryPoint if self.engine._graph else "agent"
             )
-            print("State reset.")
+            print("Session reset (new conversation started).")
             return True
 
         if cmd == ":info":
@@ -429,6 +434,27 @@ class InteractiveREPL:
         exec_mode = ExecutionMode.ASYNC
 
         try:
+            # Session-persistent StateManager: reuse across multiple executions
+            if self._session_state is None:
+                # First execution in session: create new StateManager
+                self._session_state = StateManager(
+                    auto_checkpoint=self.engine.enable_checkpoint
+                )
+                self._session_state.initialize(
+                    self.engine._execution_id or "session",
+                    self.engine._graph.entryPoint if self.engine._graph else "agent"
+                )
+                self._session_initialized = False
+            else:
+                # Subsequent executions: reuse existing StateManager
+                self._session_initialized = True
+
+            # Attach session StateManager to engine
+            self.engine._state = self._session_state
+
+            # Mark if this is the first execution (Trigger will run)
+            self.engine._state.set_global("_session_first_run", not self._session_initialized)
+
             result = asyncio.run(self.engine.execute(payload, exec_mode))
             return result.final_outputs, None, result.node_results
         except Exception as e:
