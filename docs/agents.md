@@ -338,18 +338,10 @@ agent_name.agrc/
   "id": "llm_1",
   "type": "LLM_Task",
   "label": "对话",
-  "inputs": [
-    {"name": "prompt", "type": "string"},
-    {"name": "context", "type": "object"}
-  ],
-  "outputs": [
-    {"name": "response", "type": "string"},
-    {"name": "usage", "type": "object"}
-  ],
   "config": {
     "model": "deepseek-chat",
     "temperature": 0.7,
-    "system_prompt": "agrc://prompts/system.pt"
+    "system_prompt": "你是智能助手"
   }
 }
 ```
@@ -358,8 +350,7 @@ agent_name.agrc/
 
 | 端口名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `prompt` | string | - | 用户输入的提示词 |
-| `context` | object | null | 上下文对象 |
+| `messages` | array | [] | 对话消息列表 |
 
 **输出端口**：
 
@@ -374,12 +365,54 @@ agent_name.agrc/
 |--------|------|--------|------|
 | `model` | string | - | 模型名称（如 deepseek-chat、gpt-4） |
 | `temperature` | number | 0.7 | 温度参数，控制随机性（0-1） |
-| `system_prompt` | string | - | 系统提示词，可用 VFS 路径 |
+| `system_prompt` | string | - | 系统提示词（与 messages 列表区分） |
 | `max_tokens` | integer | - | 最大生成 token 数 |
 
 ---
 
-### 6.3 Router（路由）
+### 6.3 Prompt_Builder（消息构建器）
+
+**作用**：管理和追加对话消息历史，支持 user/assistant 交替检查。
+
+**示例**：
+
+```json
+{
+  "id": "pb_1",
+  "type": "Prompt_Builder",
+  "config": {
+    "max_history": 100
+  }
+}
+```
+
+**输入端口**：
+
+| 端口名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `user` | string | null | 用户消息（二选一） |
+| `assistant` | string | null | 助手消息（二选一） |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `messages` | array | 完整的对话消息列表 |
+
+**行为**：
+- 追加 user 或 assistant 消息到 `nodes.{node_id}.messages`
+- 安全检查：确保 user 和 assistant 交替出现
+- 超出 `max_history` 限制时，保留最新的消息
+
+**示例流程**：
+
+```
+trigger.payload  ──→  pb_user ──→ llm ──→ pb_assistant ──→ llm ──→ ...
+```
+
+---
+
+### 6.4 Router（路由）
 
 **作用**：根据条件将数据路由到不同的分支。
 

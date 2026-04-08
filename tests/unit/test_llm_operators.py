@@ -39,10 +39,9 @@ class TestLLMTaskOperator:
         """Test operator input ports."""
         op = LLM_Task_Operator()
         ports = op.get_input_ports()
-        assert len(ports) == 2
+        assert len(ports) == 1
         port_names = {p.name for p in ports}
-        assert "prompt" in port_names
-        assert "context" in port_names
+        assert "messages" in port_names
 
     def test_output_ports(self):
         """Test operator output ports."""
@@ -54,8 +53,8 @@ class TestLLMTaskOperator:
         assert "usage" in port_names
 
     @pytest.mark.asyncio
-    async def test_execute_empty_prompt(self):
-        """Test execute with empty prompt returns error."""
+    async def test_execute_empty_messages(self):
+        """Test execute with empty messages returns error."""
         op = LLM_Task_Operator()
         ctx = create_context()
 
@@ -65,11 +64,11 @@ class TestLLMTaskOperator:
         assert "error" in result["usage"]
 
     @pytest.mark.asyncio
-    async def test_validate_requires_prompt(self):
-        """Test validate requires prompt input."""
+    async def test_validate_requires_messages(self):
+        """Test validate requires messages input."""
         op = LLM_Task_Operator()
 
-        assert await op.validate({"prompt": "test"}) is True
+        assert await op.validate({"messages": [{"role": "user", "content": "test"}]}) is True
         assert await op.validate({}) is False
 
     @pytest.mark.asyncio
@@ -79,8 +78,8 @@ class TestLLMTaskOperator:
         ctx = create_context()
         ctx.set("_llm_model", "gpt-3.5-turbo")
 
-        # Empty prompt to avoid API call
-        result = await op.execute({"prompt": ""}, ctx)
+        # Empty messages to avoid API call
+        result = await op.execute({"messages": []}, ctx)
 
         assert result["response"] == ""
         assert "error" in result["usage"]
@@ -92,19 +91,19 @@ class TestLLMTaskOperator:
         ctx = create_context()
         ctx.set("_llm_temperature", 0.9)
 
-        result = await op.execute({"prompt": ""}, ctx)
+        result = await op.execute({"messages": []}, ctx)
 
         assert result["response"] == ""
         assert "error" in result["usage"]
 
     @pytest.mark.asyncio
-    async def test_execute_with_system_prompt(self):
-        """Test execute with system prompt in context."""
+    async def test_execute_with_system_prompt_config(self):
+        """Test execute with system prompt in node config."""
         op = LLM_Task_Operator()
         ctx = create_context()
-        ctx.set("_llm_system_prompt", "You are a helpful assistant.")
+        ctx.set("_node_config", {"system_prompt": "You are a helpful assistant."})
 
-        result = await op.execute({"prompt": ""}, ctx)
+        result = await op.execute({"messages": []}, ctx)
 
         assert result["response"] == ""
         assert "error" in result["usage"]

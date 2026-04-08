@@ -23,15 +23,20 @@ class LLM_Task_Operator(IOperator):
     """
     LLM Task operator - execute LLM inference.
 
-    Calls a language model API with the provided prompt and parameters.
+    Calls a language model API with the provided messages list and parameters.
 
     Inputs:
-        prompt: The user prompt/message
-        context: Optional context for the conversation
+        messages: List of conversation messages [{"role": "user", "content": "..."}]
+        system_prompt: System prompt (passed via config, not messages)
 
     Outputs:
         response: The LLM's response text
         usage: Token usage information
+
+    Config:
+        model: Model name (e.g., "deepseek-chat")
+        temperature: Temperature parameter
+        system_prompt: System prompt for the conversation
     """
 
     def __init__(self):
@@ -51,8 +56,7 @@ class LLM_Task_Operator(IOperator):
 
     def get_input_ports(self) -> List[Port]:
         return [
-            Port(name="prompt", type="string", description="User prompt"),
-            Port(name="context", type="object", description="Conversation context", default=None),
+            Port(name="messages", type="array", description="Conversation messages list", default=[]),
         ]
 
     def get_output_ports(self) -> List[Port]:
@@ -92,36 +96,41 @@ class LLM_Task_Operator(IOperator):
         Execute LLM inference.
 
         Args:
-            inputs: Dict with 'prompt' and optional 'context'
+            inputs: Dict with 'messages' list
             context: ExecutionContext
 
         Returns:
             Dict with 'response' and 'usage'
         """
         config = _get_llm_config()
-        prompt = inputs.get("prompt", "")
+        messages = inputs.get("messages", [])
         model = context.get("_llm_model") or config.get_openai_model()
         temperature = context.get("_llm_temperature") or config.get_openai_temperature()
-        system_prompt = context.get("_llm_system_prompt", "")
 
-        if not prompt:
+        # Get system_prompt from config
+        node_config = context.get("_node_config", {})
+        system_prompt = node_config.get("system_prompt", "")
+
+        if not messages:
             return {
                 "response": "",
-                "usage": {"error": "Empty prompt"}
+                "usage": {"error": "Empty messages"}
             }
 
         try:
             client = self._get_client()
 
-            messages = []
+            # Build API messages: system prompt + conversation history
+            api_messages = []
             if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
+                api_messages.append({"role": "system", "content": system_prompt})
 
-            messages.append({"role": "user", "content": prompt})
+            # Extend with the conversation messages
+            api_messages.extend(messages)
 
             response = await client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=api_messages,
                 temperature=temperature,
             )
 
@@ -145,7 +154,7 @@ class LLM_Task_Operator(IOperator):
 
     async def validate(self, inputs: Dict[str, Any]) -> bool:
         """Validate inputs before execution."""
-        return "prompt" in inputs
+        return "messages" in inputs
 
 
 class Anthropic_Task_Operator(IOperator):
