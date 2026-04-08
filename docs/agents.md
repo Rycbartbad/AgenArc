@@ -300,6 +300,16 @@ agent_name.agrc/
 {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": ""}
 ```
 
+#### 连接到 Trigger 的边
+
+当边指向 trigger 时，只需 source 和 target：
+
+```json
+{"source": "pb_assistant", "target": "trigger_1"}
+```
+
+这类边只起控制流作用（决定是否维护会话），不传递数据。
+
 ---
 
 ## 6. 节点类型详解

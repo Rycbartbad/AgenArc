@@ -863,6 +863,10 @@ class ExecutionEngine:
         incoming = self._graph.get_incoming_edges(node.id)
 
         for edge in incoming:
+            # Skip edges without sourcePort - they exist for control flow only (e.g., edges to trigger)
+            if not edge.sourcePort:
+                continue
+
             # Read from context using namespaced key
             key = f"nodes.{edge.source}.{edge.sourcePort}"
             value = self._state.get_global(key)
@@ -871,8 +875,7 @@ class ExecutionEngine:
                 inputs[edge.targetPort] = value
             else:
                 # If no target port specified, use source port name as key
-                if edge.sourcePort:
-                    inputs[edge.sourcePort] = value
+                inputs[edge.sourcePort] = value
 
         # Fill in defaults from port definitions
         for port in node.inputs:
