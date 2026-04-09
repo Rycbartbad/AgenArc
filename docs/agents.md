@@ -469,6 +469,7 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 - Router **不声明固定输出端口**，输出端口由边（edge）的 `sourcePort` 决定
 - `condition.output` 是标签，与 `edge.sourcePort` 匹配
 - 可以是任意字符串：`"A"`、`"exit"`、节点 ID 等
+- **多输出**：所有满足条件的分支都会输出，并行执行
 
 **示例**：
 
@@ -618,6 +619,44 @@ Router 的 `condition.output` 可以是节点 ID，形成环状结构：
 3. 如果 target 是已执行过的节点，则形成循环（重新执行）
 4. 通过 Script_Node 自行实现循环退出条件控制
 
+### Router 多输出模式
+
+当多个条件同时满足时，Router 会**同时输出到所有匹配的分支**：
+
+```json
+{
+  "id": "router_1",
+  "type": "Router",
+  "config": {
+    "conditions": [
+      {"ref": "input", "operator": "gte", "value": 10, "output": "high"},
+      {"ref": "input", "operator": "gte", "value": 5, "output": "medium"},
+      {"ref": "input", "operator": "gte", "value": 0, "output": "low"}
+    ],
+    "default": "invalid"
+  }
+}
+```
+
+对应的边配置：
+
+```json
+{
+  "edges": [
+    {"source": "router_1", "sourcePort": "high", "target": "process_high"},
+    {"source": "router_1", "sourcePort": "medium", "target": "process_medium"},
+    {"source": "router_1", "sourcePort": "low", "target": "process_low"},
+    {"source": "router_1", "sourcePort": "invalid", "target": "handle_invalid"}
+  ]
+}
+```
+
+**执行行为**：
+
+- 输入值 `15` → 同时触发 `high`、`medium`、`low` 三个分支（并行执行）
+- Router 将输入值存储到 `nodes.router_1.{output_label}`，供各分支读取
+- 使用 Join 节点合并多分支结果
+
 **示例流程**：
 ```
 trigger → counter_init → router_1
@@ -747,6 +786,11 @@ result = {
 
 **作用**：同步多个并行分支的输入并合并。
 
+**特性**：
+- Join **不声明固定输入端口**，基于 `_incoming_edges` 动态读取
+- 根据边的 source 信息从 context 中读取数据：`nodes.{source}.{sourcePort}`
+- 使用配置指定合并策略
+
 **使用场景**：当多个节点并行执行后需要汇合时使用。
 
 **示例**：
@@ -761,30 +805,31 @@ result = {
 }
 ```
 
-**输入端口**：
+对应的边配置：
 
-| 端口名 | 类型 | 说明 |
-|--------|------|------|
-| `input_A` | any | 第一个输入 |
-| `input_B` | any | 第二个输入 |
-| `strategy` | string | 合并策略 |
+```json
+{
+  "edges": [
+    {"source": "branch_A", "sourcePort": "output", "target": "join_1"},
+    {"source": "branch_B", "sourcePort": "output", "target": "join_1"}
+  ]
+}
+```
 
 **输出端口**：
 
 | 端口名 | 类型 | 说明 |
 |--------|------|------|
 | `output` | any | 合并后的结果 |
-| `inputs` | list | 所有输入的列表 |
 
 **合并策略**：
 
 | 策略 | 行为 |
 |------|------|
-| `first` | 返回第一个到达的输入 |
-| `last` | 返回最后一个到达的输入 |
-| `merge` | 合并为 `{"input_A": ..., "input_B": ...}` |
+| `first` | 返回第一个输入的值 |
+| `last` | 返回最后一个输入的值 |
+| `merge` | 合并为 `{"branch_A.output": ..., "branch_B.output": ...}` |
 | `concat` | 拼接所有输入为列表 |
-| `all` | 原样传递所有输入为列表 |
 
 ---
 

@@ -135,9 +135,10 @@ python -m agenarc.cli info flow.json
 |------|-------------|
 | `Trigger` | Entry point for graph execution |
 | `LLM_Task` | Execute LLM inference |
-| `Router` | Conditional branching |
+| `Router` | Conditional branching (multi-output: all matching conditions execute in parallel) |
 | `Memory_I/O` | Read/write to persistent storage |
 | `Script_Node` | Execute inline Python scripts |
+| `Join` | Synchronize parallel branches (edge-based input collection) |
 | `Log` | Log and pass through values |
 | `Context_Set` | Set values in global context |
 | `Context_Get` | Get values from global context |
@@ -262,7 +263,7 @@ pytest tests/unit/test_builtin_operators.py -v
 ### Current Test Status
 
 ```
-======================== 619 passed ========================
+======================== 642 passed ========================
 Coverage: 79%
 ```
 
