@@ -41,6 +41,7 @@ class PluginManager:
         self._bundle_paths = bundle_paths or []  # Bundle-embedded plugin directories
         self._operators: Dict[str, "IOperator"] = {}
         self._plugins: Dict[str, PluginInfo] = {}
+        self._event_plugins: Dict[str, Any] = {}  # Loaded event plugin instances
         self._hot_loader: Optional[HotPluginLoader] = None
         self._initialized = False
 
@@ -200,11 +201,15 @@ class PluginManager:
 
     async def shutdown(self) -> None:
         """Shutdown the plugin manager and unload all plugins."""
+        # Stop all event plugins first
+        await self.stop_all_event_plugins()
+
         if self._hot_loader:
             await self._hot_loader.shutdown()
 
         self._operators.clear()
         self._plugins.clear()
+        self._event_plugins.clear()
         self._initialized = False
 
         logger.info("PluginManager shutdown complete")
@@ -218,3 +223,96 @@ class PluginManager:
     def is_initialized(self) -> bool:
         """Check if the manager is initialized."""
         return self._initialized
+
+    # Event Plugin Management
+
+    def get_event_plugin(self, plugin_name: str) -> Optional[Any]:
+        """
+        Get an event plugin instance by name.
+
+        Args:
+            plugin_name: Name of the event plugin
+
+        Returns:
+            Event plugin instance or None
+        """
+        return self._event_plugins.get(plugin_name)
+
+    def register_event_plugin(self, plugin_name: str, plugin_instance: Any) -> None:
+        """
+        Register an event plugin instance.
+
+        Args:
+            plugin_name: Name of the event plugin
+            plugin_instance: Event plugin instance
+        """
+        self._event_plugins[plugin_name] = plugin_instance
+
+    async def start_event_plugin(
+        self,
+        plugin_name: str,
+        trigger_callback: Any
+    ) -> bool:
+        """
+        Start an event plugin.
+
+        Args:
+            plugin_name: Name of the event plugin to start
+            trigger_callback: Callback function to call when events arrive
+
+        Returns:
+            True if started successfully
+        """
+        plugin = self._event_plugins.get(plugin_name)
+        if not plugin:
+            logger.warning(f"Event plugin '{plugin_name}' not found")
+            return False
+
+        if not hasattr(plugin, 'start'):
+            logger.warning(f"Plugin '{plugin_name}' is not an event plugin (no start method)")
+            return False
+
+        try:
+            await plugin.start(trigger_callback)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to start event plugin '{plugin_name}': {e}")
+            return False
+
+    async def stop_event_plugin(self, plugin_name: str) -> bool:
+        """
+        Stop an event plugin.
+
+        Args:
+            plugin_name: Name of the event plugin to stop
+
+        Returns:
+            True if stopped successfully
+        """
+        plugin = self._event_plugins.get(plugin_name)
+        if not plugin:
+            return False
+
+        if not hasattr(plugin, 'stop'):
+            return True  # No stop method, assume not running
+
+        try:
+            await plugin.stop()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to stop event plugin '{plugin_name}': {e}")
+            return False
+
+    async def stop_all_event_plugins(self) -> None:
+        """Stop all running event plugins."""
+        for plugin_name in list(self._event_plugins.keys()):
+            await self.stop_event_plugin(plugin_name)
+
+    def list_event_plugins(self) -> List[str]:
+        """
+        List all registered event plugin names.
+
+        Returns:
+            List of event plugin names
+        """
+        return list(self._event_plugins.keys())

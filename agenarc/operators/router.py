@@ -5,6 +5,7 @@ Conditional branching based on condition expressions.
 Supports if-else and switch-case style routing.
 """
 
+import re
 from typing import Any, Dict, List, Optional
 
 from agenarc.operators.operator import IOperator
@@ -170,6 +171,20 @@ class RouterOperator(IOperator):
             return actual is not None
         elif operator == ConditionOperator.NOT_EXISTS:
             return actual is None
+        elif operator == ConditionOperator.MATCH_REGEX:
+            if isinstance(actual, str) and isinstance(expected, str):
+                try:
+                    return bool(re.search(expected, actual))
+                except re.error:
+                    return False
+            return False
+        elif operator == ConditionOperator.NOT_MATCH_REGEX:
+            if isinstance(actual, str) and isinstance(expected, str):
+                try:
+                    return not bool(re.search(expected, actual))
+                except re.error:
+                    return True  # Invalid regex = doesn't match
+            return True
 
         return False
 

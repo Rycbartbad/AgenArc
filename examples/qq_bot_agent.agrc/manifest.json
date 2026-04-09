@@ -1,0 +1,12 @@
+{
+  "name": "qq_bot_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "permissions": {
+    "allow_arc_access": true,
+    "allow_script_read": true,
+    "allow_script_write": false,
+    "allow_prompt_read": true
+  },
+  "autonomy_level": 1
+}

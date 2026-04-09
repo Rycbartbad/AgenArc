@@ -253,6 +253,37 @@ def create_parser() -> argparse.ArgumentParser:
         help="Verbose output"
     )
 
+    # serve command (service mode with event plugins)
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start agent as a background service with event plugins"
+    )
+    serve_parser.add_argument(
+        "file",
+        type=Path,
+        help="Path to agent bundle (.agrc) or protocol (.json)"
+    )
+    serve_parser.add_argument(
+        "--mode",
+        "-m",
+        choices=["sync", "async", "parallel"],
+        default="async",
+        help="Execution mode"
+    )
+    serve_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Verbose output"
+    )
+    serve_parser.add_argument(
+        "--plugins",
+        "-p",
+        type=str,
+        default="",
+        help="Comma-separated list of event plugins to load (default: all)"
+    )
+
     # validate command
     validate_parser = subparsers.add_parser(
         "validate",
@@ -756,6 +787,176 @@ def command_validate(file: Path) -> int:
         return 1
 
 
+async def _start_event_plugins(
+    engine: ExecutionEngine,
+    plugin_manager: PluginManager,
+    selected_plugins: Optional[List[str]] = None
+) -> None:
+    """
+    Start event plugins and register them with the plugin manager.
+
+    Args:
+        engine: Execution engine instance
+        plugin_manager: Plugin manager instance
+        selected_plugins: List of plugin names to start, or None for all
+    """
+    # Import event plugin base
+    from agenarc.plugins.event_plugin import TriggerCallback
+
+    # Create trigger callback
+    trigger_callback = TriggerCallback(engine)
+    trigger_callback.start()
+
+    # Built-in event plugins
+    built_in_plugins = {
+        "qq": "agenarc.plugins.qq_plugin.plugin.QQPlugin",
+    }
+
+    # Load selected plugins
+    plugins_to_load = []
+    if selected_plugins:
+        # Load specified plugins only
+        for name in selected_plugins:
+            if name in built_in_plugins:
+                plugins_to_load.append((name, built_in_plugins[name]))
+    else:
+        # Load all built-in plugins
+        plugins_to_load = list(built_in_plugins.items())
+
+    # Load and start each plugin
+    for plugin_name, plugin_class_path in plugins_to_load:
+        try:
+            # Import and instantiate plugin
+            module_path, class_name = plugin_class_path.rsplit(".", 1)
+            import importlib
+            module = importlib.import_module(module_path)
+            plugin_class = getattr(module, class_name)
+            plugin_instance = plugin_class()
+
+            # Try to configure from manifest if available
+            if hasattr(plugin_instance, 'configure'):
+                plugin_instance.configure({})
+
+            # Register with plugin manager
+            plugin_manager.register_event_plugin(plugin_name, plugin_instance)
+
+            # Start the plugin
+            await plugin_manager.start_event_plugin(plugin_name, trigger_callback)
+            print(f"[CLI] Started event plugin: {plugin_name}")
+
+        except Exception as e:
+            print(f"[CLI] Failed to start plugin '{plugin_name}': {e}")
+
+    # Store callback reference to prevent garbage collection
+    engine._event_trigger_callback = trigger_callback
+
+
+def command_serve(
+    file: Path,
+    mode: str = "async",
+    verbose: bool = False,
+    plugins: str = ""
+) -> int:
+    """
+    Start agent as a background service with event plugins.
+
+    Args:
+        file: Path to agent bundle (.agrc) or protocol (.json)
+        mode: Execution mode
+        verbose: Verbose output flag
+        plugins: Comma-separated list of plugins to load
+
+    Returns:
+        Exit code
+    """
+    import signal
+
+    # Resolve bundle path
+    protocol_path = _resolve_bundle_path(file)
+
+    # Determine bundle path
+    bundle_path = None
+    if protocol_path.is_dir():
+        bundle_path = protocol_path
+        _install_bundle_plugins(bundle_path, verbose)
+
+    # Parse selected plugins
+    selected_plugins = None
+    if plugins:
+        selected_plugins = [p.strip() for p in plugins.split(",") if p.strip()]
+
+    # Create engine
+    plugin_manager = PluginManager(bundle_paths=[bundle_path] if bundle_path else [])
+    engine = ExecutionEngine(plugin_manager=plugin_manager)
+
+    # Register built-in operators
+    for node_type, operator_class in BUILTIN_OPERATORS.items():
+        engine.register_builtin_operator(node_type, operator_class)
+
+    # Load protocol
+    if verbose:
+        print(f"Loading agent from {protocol_path}...")
+
+    try:
+        engine.load_protocol(protocol_path)
+    except LoaderError as e:
+        print_error(f"Failed to load protocol: {e}")
+        return 1
+    except ValueError as e:
+        print_error(f"Invalid protocol: {e}")
+        return 1
+
+    # Choose execution mode
+    exec_mode = {
+        "sync": ExecutionMode.SYNC,
+        "async": ExecutionMode.ASYNC,
+        "parallel": ExecutionMode.PARALLEL
+    }.get(mode, ExecutionMode.ASYNC)
+
+    # Create event loop and start event plugins
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Set up signal handlers for graceful shutdown
+    stop_event = asyncio.Event()
+
+    def signal_handler(sig, frame):
+        print("\n[CLI] Received stop signal, shutting down...")
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    async def run_service():
+        """Run the service with event plugins."""
+        await _start_event_plugins(engine, plugin_manager, selected_plugins)
+
+        print(f"\n[CLI] AgenArc service started")
+        print(f"[CLI] Entry point: {engine._graph.entryPoint}")
+        print(f"[CLI] Mode: {mode}")
+        if selected_plugins:
+            print(f"[CLI] Plugins: {', '.join(selected_plugins)}")
+        print("[CLI] Press Ctrl+C to stop...\n")
+
+        # Wait for stop signal
+        try:
+            await stop_event.wait()
+        finally:
+            # Cleanup
+            await plugin_manager.stop_all_event_plugins()
+            await plugin_manager.shutdown()
+
+    try:
+        loop.run_until_complete(run_service())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.close()
+
+    print("[CLI] Service stopped.")
+    return 0
+
+
 def command_info(file: Path) -> int:
     """
     Show agent/protocol information.
@@ -859,6 +1060,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             mode=args.mode,
             verbose=args.verbose,
             show_logs=args.log
+        )
+    elif args.command == "serve":
+        return command_serve(
+            file=args.file,
+            mode=args.mode,
+            verbose=args.verbose,
+            plugins=args.plugins
         )
     else:
         parser.print_help()

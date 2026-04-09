@@ -79,6 +79,8 @@ class ConditionOperator(str, Enum):
     NOT_IN = "notIn"
     EXISTS = "exists"
     NOT_EXISTS = "notExists"
+    MATCH_REGEX = "matchRegex"
+    NOT_MATCH_REGEX = "notMatchRegex"
 
 
 @dataclass

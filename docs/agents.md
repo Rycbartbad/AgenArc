@@ -12,7 +12,8 @@
 8. [模板语法](#7-模板语法)
 9. [VFS 虚拟文件系统](#8-vfs-虚拟文件系统)
 10. [运行和调试](#9-运行和调试)
-11. [完整示例](#10-完整示例)
+11. [事件插件](#10-事件插件)
+12. [完整示例](#11-完整示例)
 
 ---
 
@@ -27,6 +28,7 @@
 | **my_first_agent** | 多轮对话 | Trigger + Prompt_Builder + LLM_Task + Prompt_Builder + Log |
 | **router_agent** | 带路由 | Trigger + LLM_Task + Router + Log |
 | **full_agent** | 完整功能 | Trigger + LLM_Task + Router + Log + manifest |
+| **qq_bot_agent** | QQ 机器人 | Trigger + Prompt_Builder + LLM_Task + Log（事件插件服务模式） |
 
 ### 运行示例
 
@@ -550,6 +552,8 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 | `notIn` | 不在数组中 | `{"operator": "notIn", "value": ["x", "y"]}` |
 | `exists` | 存在 | `{"operator": "exists"}` |
 | `notExists` | 不存在 | `{"operator": "notExists"}` |
+| `matchRegex` | 正则匹配 | `{"operator": "matchRegex", "value": "^\\d{11}$"}` |
+| `notMatchRegex` | 正则不匹配 | `{"operator": "notMatchRegex", "value": "^admin"}` |
 
 **ref 引用路径**：
 
@@ -1097,6 +1101,79 @@ result = {
 
 ---
 
+### 6.15 Event Plugins（事件插件）
+
+**作用**：事件插件监听外部事件源（QQ、Webhook、Timer 等），并将事件标准化后触发图执行。
+
+**架构**：
+
+```
+Event Source (NapCat/Webhook/Timer)
+         ↓
+    Event Plugin  ← 统一消息格式
+         ↓
+    Trigger Node ← entryPoint
+         ↓
+    后续节点执行
+```
+
+**使用方式**：
+
+事件插件通过 `agenarc serve` 命令启动，而不是作为节点：
+
+```bash
+# 启动事件服务
+PYTHONIOENCODING=utf-8 python -m agenarc.cli serve qq_agent.agrc
+
+# 指定插件
+PYTHONIOENCODING=utf-8 python -m agenarc.cli serve qq_agent.agrc --plugins qq
+
+# 停止服务：Ctrl+C
+```
+
+**Trigger 标准化输出**：
+
+| 输出端口 | 类型 | 说明 |
+|---------|------|------|
+| `payload` | object | 完整的标准化事件数据 |
+| `source` | string | 事件来源：qq, webhook, manual |
+| `user_id` | any | 用户标识（来源特定格式） |
+| `group_id` | any | 群组标识（私聊为 0） |
+| `message` | any | 消息内容 |
+| `raw` | any | 原始事件数据 |
+| `timestamp` | integer | 事件时间戳 |
+
+**标准化事件格式**：
+
+```json
+{
+  "source": "qq",
+  "user_id": 123456,
+  "group_id": 789012,
+  "message": "你好",
+  "raw": { "post_type": "message", ... },
+  "timestamp": 1712654321
+}
+```
+
+**多用户会话管理**：
+
+结合 Prompt_Builder 的 `history` 配置实现多用户独立对话：
+
+```json
+{
+  "id": "prompt_builder",
+  "type": "Prompt_Builder",
+  "config": {
+    "history": "{{nodes.trigger.user_id}}"
+  }
+}
+```
+
+每个用户的对话历史存储在独立的 context 路径中，服务运行期间自动持久化。
+
+---
+
 ## 7. 模板语法
 
 在 prompts/*.pt 文件和节点配置中，可以使用 `{{key}}` 模板变量。模板在**节点执行时解析**（保证实时性）。
@@ -1462,9 +1539,160 @@ session_state.set_global("_session_first_run", False) # 后续执行
 
 ---
 
-## 10. 完整示例
+## 10. 事件插件
 
-### 10.1 hello_agent.agrc - 最简单的 Agent
+事件插件提供了一种扩展 AgenArc 的方式，通过监听外部事件源（QQ 消息、Webhook、Timer 等）来触发图的执行。
+
+### 10.1 内置事件插件
+
+| 插件 | 说明 |
+|------|------|
+| `qq` | QQ 事件监听，通过 NapCat WebSocket 接收消息（OneBot v11） |
+
+### 10.2 服务模式
+
+使用 `agenarc serve` 命令启动后台服务，事件插件会在收到事件时触发图执行：
+
+```bash
+# 启动事件服务
+PYTHONIOENCODING=utf-8 python -m agenarc.cli serve <agent.agrc>
+
+# 指定插件（逗号分隔）
+PYTHONIOENCODING=utf-8 python -m agenarc.cli serve <agent.agrc> --plugins qq
+
+# 停止服务：Ctrl+C
+```
+
+### 10.3 工作原理
+
+```
+Event Plugin (e.g., QQ)
+         ↓
+    标准化事件格式
+         ↓
+    Trigger 节点（entryPoint）
+         ↓
+    后续节点执行
+```
+
+1. Event Plugin 通过 `start(trigger_callback)` 启动监听
+2. 收到事件后，Plugin 将事件转换为标准化格式
+3. 调用 `trigger_callback(standardized_event)` 触发图执行
+4. Trigger 节点接收事件，输出标准化字段供下游节点使用
+
+### 10.4 标准化事件格式
+
+所有事件插件使用统一的事件格式：
+
+```json
+{
+  "source": "qq",
+  "user_id": 123456,
+  "group_id": 789012,
+  "message": "你好",
+  "raw": { "post_type": "message", ... },
+  "timestamp": 1712654321
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `source` | string | 事件来源，如 "qq"、"webhook"、"timer" |
+| `user_id` | any | 用户标识（格式取决于来源） |
+| `group_id` | any | 群组标识（私聊为 0） |
+| `message` | any | 消息内容 |
+| `raw` | any | 原始事件数据 |
+| `timestamp` | integer | 事件时间戳（Unix 秒） |
+
+### 10.5 开发新的事件插件
+
+创建一个新的事件插件需要：
+
+**1. 创建插件目录结构**
+
+```
+agenarc/plugins/my_plugin/
+├── agenarc.json
+└── plugin.py
+```
+
+**2. 编写 agenarc.json**
+
+```json
+{
+  "name": "my_plugin",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "type": "event",
+  "operators": ["MyPlugin"]
+}
+```
+
+**3. 编写 plugin.py**
+
+```python
+from agenarc.plugins.event_plugin import EventPlugin
+
+class MyPlugin(EventPlugin):
+    @property
+    def name(self) -> str:
+        return "my_plugin"
+
+    async def start(self, trigger_callback):
+        # 启动事件监听
+        # 收到事件时调用：
+        # await trigger_callback({
+        #     "source": "my_plugin",
+        #     "user_id": ...,
+        #     "group_id": 0,
+        #     "message": ...,
+        #     "raw": ...,
+        #     "timestamp": ...
+        # })
+        pass
+
+    async def stop(self):
+        # 清理资源
+        pass
+```
+
+### 10.6 QQ 插件配置
+
+QQ 插件支持以下配置（在 `agenarc.json` 中）：
+
+```json
+{
+  "name": "qq",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "type": "event",
+  "config": {
+    "ws_url": "ws://127.0.0.1:3001",
+    "auto_reconnect": true,
+    "reconnect_interval": 5,
+    "filter_groups": [],
+    "filter_users": [],
+    "accept_private": true,
+    "accept_group": true
+  }
+}
+```
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `ws_url` | string | ws://127.0.0.1:3001 | NapCat WebSocket 地址 |
+| `auto_reconnect` | boolean | true | 断线自动重连 |
+| `reconnect_interval` | integer | 5 | 重连间隔（秒） |
+| `filter_groups` | array | [] | 只接收指定群号（空=全部） |
+| `filter_users` | array | [] | 只接收指定用户（空=全部） |
+| `accept_private` | boolean | true | 接收私聊 |
+| `accept_group` | boolean | true | 接收群聊 |
+
+---
+
+## 11. 完整示例
+
+### 11.1 hello_agent.agrc - 最简单的 Agent
 
 **目录结构**：
 
@@ -1639,7 +1867,94 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --in
 
 ---
 
-### 10.4 full_agent.agrc - 完整功能 Agent
+### 11.5 qq_bot_agent.agrc - QQ 机器人
+
+**目录结构**：
+
+```
+qq_bot_agent.agrc/
+├── manifest.json
+├── flow.json
+└── prompts/
+    └── system.pt
+```
+
+**manifest.json**：
+
+```json
+{
+  "name": "qq_bot_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "permissions": {
+    "allow_prompt_read": true
+  },
+  "autonomy_level": 1
+}
+```
+
+**flow.json**：
+
+```json
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "Trigger",
+      "label": "接收事件"
+    },
+    {
+      "id": "prompt_builder",
+      "type": "Prompt_Builder",
+      "config": { "history": "{{nodes.trigger.user_id}}" }
+    },
+    {
+      "id": "llm_task",
+      "type": "LLM_Task",
+      "config": {
+        "model": "deepseek-chat",
+        "system_prompt": "你是一个友好的 QQ 机器人助手。"
+      }
+    },
+    {
+      "id": "log_output",
+      "type": "Log"
+    }
+  ],
+  "edges": [
+    { "source": "trigger", "sourcePort": "message", "target": "prompt_builder", "targetPort": "user" },
+    { "source": "prompt_builder", "sourcePort": "messages", "target": "llm_task", "targetPort": "messages" },
+    { "source": "llm_task", "sourcePort": "response", "target": "log_output", "targetPort": "data" }
+  ]
+}
+```
+
+**运行**：
+
+```bash
+# 1. 安装依赖
+pip install websockets
+
+# 2. 启动 NapCat（确保正向 WebSocket 端口 3001 开启）
+
+# 3. 启动 Agent 服务
+PYTHONIOENCODING=utf-8 python -m agenarc.cli serve examples/qq_bot_agent.agrc
+
+# 4. 停止服务：Ctrl+C
+```
+
+**特性**：
+- 使用 `agenarc serve` 启动后台服务
+- Trigger 作为入口点，接收标准化事件
+- 每个用户有独立的对话历史（通过 user_id 分隔）
+- 支持私聊和群聊，可通过配置过滤
+- 断线自动重连
+
+---
+
+### 11.6 full_agent.agrc - 完整功能 Agent
 
 **目录结构**：
 

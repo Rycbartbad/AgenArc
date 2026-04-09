@@ -1,0 +1,8 @@
+{
+  "name": "qq",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "type": "event",
+  "operators": ["QQPlugin"],
+  "description": "QQ event listener via NapCat WebSocket (OneBot v11)"
+}

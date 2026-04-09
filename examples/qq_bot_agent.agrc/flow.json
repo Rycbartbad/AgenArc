@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "entryPoint": "trigger",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "Trigger",
+      "label": "接收事件"
+    },
+    {
+      "id": "prompt_builder",
+      "type": "Prompt_Builder",
+      "label": "构建对话",
+      "config": {
+        "history": "{{nodes.trigger.user_id}}",
+        "max_history": 100
+      }
+    },
+    {
+      "id": "llm_task",
+      "type": "LLM_Task",
+      "label": "LLM 对话",
+      "config": {
+        "model": "deepseek-chat",
+        "system_prompt": "你是一个友好的 QQ 机器人助手。",
+        "temperature": 0.7
+      }
+    },
+    {
+      "id": "log_output",
+      "type": "Log",
+      "label": "输出日志"
+    }
+  ],
+  "edges": [
+    {
+      "source": "trigger",
+      "sourcePort": "message",
+      "target": "prompt_builder",
+      "targetPort": "user"
+    },
+    {
+      "source": "prompt_builder",
+      "sourcePort": "messages",
+      "target": "llm_task",
+      "targetPort": "messages"
+    },
+    {
+      "source": "llm_task",
+      "sourcePort": "response",
+      "target": "log_output",
+      "targetPort": "data"
+    }
+  ]
+}

@@ -27,9 +27,32 @@ class TriggerOperator(IOperator):
     Trigger operator - entry point for graph execution.
 
     Generates the initial payload that starts the graph execution.
+    Supports both manual triggering and event-driven triggering.
+
+    Event-driven mode (from event plugins):
+        Event data is passed as initial_inputs to engine.execute()
+        and stored in context as payload.
 
     Outputs:
-        payload: The initial data payload
+        payload: The initial data payload (event data or manual input)
+        source: Event source name (e.g., "qq", "webhook", "manual")
+        user_id: User identifier (source-specific)
+        group_id: Group identifier (0 if not applicable)
+        message: Message content
+        raw: Raw event data
+
+    Usage:
+        # Event-driven: event plugin passes standardized event
+        {
+            "source": "qq",
+            "user_id": 123456,
+            "group_id": 789012,
+            "message": "Hello",
+            "raw": {...}
+        }
+
+        # Manual triggering via --input
+        {"payload": "Hello"}
     """
 
     @property
@@ -45,7 +68,13 @@ class TriggerOperator(IOperator):
 
     def get_output_ports(self) -> List[Port]:
         return [
-            Port(name="payload", type="any", description="Initial payload")
+            Port(name="payload", type="any", description="Initial payload (event data or manual input)"),
+            Port(name="source", type="string", description="Event source: qq, webhook, manual, timer"),
+            Port(name="user_id", type="any", description="User identifier"),
+            Port(name="group_id", type="any", description="Group identifier (0 if not applicable)"),
+            Port(name="message", type="any", description="Message content"),
+            Port(name="raw", type="any", description="Raw event data"),
+            Port(name="timestamp", type="integer", description="Event timestamp"),
         ]
 
     async def execute(
@@ -56,8 +85,27 @@ class TriggerOperator(IOperator):
         # Trigger outputs the initial payload from context
         payload = context.get("payload", {})
 
+        # Extract standardized event fields if payload is a dict
+        if isinstance(payload, dict):
+            return {
+                "payload": payload,
+                "source": payload.get("source", "manual"),
+                "user_id": payload.get("user_id"),
+                "group_id": payload.get("group_id", 0),
+                "message": payload.get("message"),
+                "raw": payload.get("raw", payload),
+                "timestamp": payload.get("timestamp", 0),
+            }
+
+        # Simple payload (e.g., string)
         return {
-            "payload": payload
+            "payload": payload,
+            "source": "manual",
+            "user_id": None,
+            "group_id": 0,
+            "message": payload,
+            "raw": None,
+            "timestamp": 0,
         }
 
 
