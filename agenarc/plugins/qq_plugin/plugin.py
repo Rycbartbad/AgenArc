@@ -50,6 +50,8 @@ class QQPlugin:
         self._stop_event: Optional[asyncio.Event] = None
         self._listener_task: Optional[asyncio.Task] = None
         self._ws_connection: Optional[Any] = None
+        self._running: bool = False
+        self._connected_logged: bool = False
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the plugin from agenarc.json config."""
@@ -112,8 +114,14 @@ class QQPlugin:
             trigger_callback: Function to call when message is received.
                               Will be called with standardized event data.
         """
+        # Prevent multiple starts
+        if self._running:
+            return
+
+        self._running = True
         self._trigger_callback = trigger_callback
         self._stop_event = asyncio.Event()
+        self._connected_logged = False
 
         print(f"[QQ Plugin] Starting listener for {self.ws_url}...")
 
@@ -127,6 +135,11 @@ class QQPlugin:
 
     async def stop(self) -> None:
         """Stop listening for QQ messages."""
+        if not self._running:
+            return
+
+        self._running = False
+
         if self._stop_event:
             self._stop_event.set()
 
@@ -145,12 +158,17 @@ class QQPlugin:
 
     async def _listen_websocket(self) -> None:
         """Main WebSocket listening loop."""
+        reconnect_count = 0
         while not self._stop_event.is_set():
             try:
                 import websockets
                 async with websockets.connect(self.ws_url, ping_interval=30) as ws:
                     self._ws_connection = ws
-                    print(f"[QQ Plugin] Connected to {self.ws_url}")
+                    reconnect_count += 1
+                    if reconnect_count == 1:
+                        print(f"[QQ Plugin] Connected to {self.ws_url}")
+                    else:
+                        print(f"[QQ Plugin] Reconnected to {self.ws_url} (attempt #{reconnect_count})")
 
                     async for raw_message in ws:
                         if self._stop_event.is_set():
@@ -167,7 +185,8 @@ class QQPlugin:
                 break
             except Exception as e:
                 if not self._stop_event.is_set():
-                    print(f"[QQ Plugin] Connection error: {e}")
+                    if reconnect_count == 1:
+                        print(f"[QQ Plugin] Connection error: {e}")
                     if self.auto_reconnect:
                         print(f"[QQ Plugin] Reconnecting in {self.reconnect_interval}s...")
                         await asyncio.sleep(self.reconnect_interval)
