@@ -153,7 +153,7 @@ class TestExecutionEngine:
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
-        result = await engine.execute({"trigger_payload": "test message"})
+        result = await engine.execute({"payload": "test message"})
 
         assert result.status == "success"
         assert result.node_results["trigger_1"].status == NodeStatus.COMPLETED
@@ -311,7 +311,7 @@ class TestNodeExecutionTracking:
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
-        await engine.execute({"trigger_payload": "test"})
+        await engine.execute({"payload": "test"})
 
         # Node outputs are stored in context with key: nodes.{node_id}.{port_name}
         assert engine._state.get_global("nodes.trigger_1.payload") == "test"

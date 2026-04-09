@@ -215,7 +215,12 @@ class ExecutionEngine:
 
         # Build adjacency list for loop support
         self._adjacency = {node.id: [] for node in self._graph.nodes}
+        entry_point = self._graph.entryPoint
         for edge in self._graph.edges:
+            # Skip edges pointing to entry point - they create cycles
+            # Entry point is always executed first, ignoring incoming edges
+            if edge.target == entry_point:
+                continue
             if edge.source in self._adjacency:
                 self._adjacency[edge.source].append(edge.target)
 
@@ -287,8 +292,10 @@ class ExecutionEngine:
 
         # Initialize execution
         self._execution_id = str(uuid.uuid4())
-        self._state = StateManager(auto_checkpoint=self.enable_checkpoint)
-        self._state.initialize(self._execution_id, self._graph.entryPoint or "unknown")
+        # Reuse existing state if already set (e.g., from REPL session)
+        if self._state is None:
+            self._state = StateManager(auto_checkpoint=self.enable_checkpoint)
+            self._state.initialize(self._execution_id, self._graph.entryPoint or "unknown")
 
         # Seed initial inputs
         if initial_inputs:

@@ -96,7 +96,7 @@ def _extract_agrc(agrc_path: Path, verbose: bool = False) -> Path:
         verbose: Print verbose output
 
     Returns:
-        Path to extracted bundle directory
+        Path to extracted bundle directory (path containing flow.json)
     """
     import zipfile
     import tempfile
@@ -112,6 +112,21 @@ def _extract_agrc(agrc_path: Path, verbose: bool = False) -> Path:
     with zipfile.ZipFile(agrc_path, "r") as zf:
         zf.extractall(extract_dir)
 
+    # Find the directory containing flow.json
+    # Handle case where zip contains a subdirectory (e.g., my_agent/flow.json)
+    flow_file = extract_dir / "flow.json"
+    if flow_file.exists():
+        _agrc_cache[agrc_path] = extract_dir
+        return extract_dir
+
+    # Look for flow.json in subdirectories
+    for item in extract_dir.iterdir():
+        if item.is_dir():
+            if (item / "flow.json").exists():
+                _agrc_cache[agrc_path] = item
+                return item
+
+    # Fallback: return root
     _agrc_cache[agrc_path] = extract_dir
     return extract_dir
 
@@ -340,6 +355,7 @@ class InteractiveREPL:
         self.protocol_path = protocol_path
         self.verbose = verbose
         self.show_logs = show_logs
+        self.show_results = False
         self._history: List[str] = []
         self._session_state: Optional[StateManager] = None  # Session-persistent StateManager
         self._session_initialized = False  # Flag: has Trigger run this session
@@ -352,10 +368,10 @@ class InteractiveREPL:
         print(f"Agent: {self.protocol_path}")
         print("Context persists during session, resets on new session")
         print("Type input and press Enter to execute")
-        print("  - Plain text: treated as payload.input")
+        print("  - Plain text: treated as payload")
         print("  - JSON object: used as full payload")
         print("Commands: :quit/:exit to exit, :reset to start new session")
-        print("          :info to show agent info, :logs to toggle logs")
+        print("          :info to show agent info, :logs to toggle logs, :results to toggle output")
         print("=" * 50)
         print()
 
@@ -407,6 +423,11 @@ class InteractiveREPL:
         if cmd == ":logs":
             self.show_logs = not self.show_logs
             print(f"Logs {'enabled' if self.show_logs else 'disabled'}.")
+            return True
+
+        if cmd == ":results":
+            self.show_results = not self.show_results
+            print(f"Results {'enabled' if self.show_results else 'disabled'}.")
             return True
 
         if cmd.startswith(":load "):
@@ -508,8 +529,8 @@ class InteractiveREPL:
                     print(f"ERROR: Invalid JSON: {e}")
                     continue
             else:
-                # Plain text - wrap as payload.input
-                payload = {"input": stripped}
+                # Plain text - wrap as payload
+                payload = {"payload": stripped}
 
             # Execute
             if self.verbose:
@@ -531,7 +552,7 @@ class InteractiveREPL:
 
             if error:
                 print(f"ERROR: {error}")
-            else:
+            elif self.show_results:
                 print("\n--- Results ---")
                 self._print_result(outputs)
                 print("---")

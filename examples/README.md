@@ -17,13 +17,13 @@
 PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
 
 # Chat Agent（需要 LLM）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"trigger_payload":"Hello!"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
 
 # Router Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"trigger_payload":"Say hello"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
 
 # Full Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"trigger_payload":"What is AI?"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
 ```
 
 ## 详细文档

@@ -23,6 +23,7 @@ class NodeType(str, Enum):
     CONTEXT_SET = "Context_Set"
     CONTEXT_GET = "Context_Get"
     PLUGIN = "Plugin"  # Custom plugin operator
+    PROMPT_BUILDER = "Prompt_Builder"
 
 
 class ErrorStrategy(str, Enum):

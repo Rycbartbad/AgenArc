@@ -57,7 +57,7 @@ class TestTriggerOperator:
         """Test execute returns payload from context."""
         op = TriggerOperator()
         ctx = create_context()
-        ctx.set("trigger_payload", {"key": "value"})
+        ctx.set("payload", {"key": "value"})
 
         result = await op.execute({}, ctx)
 

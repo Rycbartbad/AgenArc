@@ -119,6 +119,7 @@ class GraphTraversal:
         A node is ready if:
         1. It's pending (not yet executed)
         2. All its predecessors have been executed
+        3. OR it's the entry point (special case - always ready first)
 
         Args:
             executed: Set of executed node IDs
@@ -129,7 +130,16 @@ class GraphTraversal:
         """
         ready = []
 
+        # Find entry point - it should be ready regardless of predecessors
+        entry_point = self._graph.entryPoint if hasattr(self, '_graph') else None
+
         for node_id in pending:
+            # Entry point is always ready first (special case for session loops)
+            entry = self.graph.entryPoint if hasattr(self.graph, 'entryPoint') else None
+            if node_id == entry and node_id not in executed:
+                ready.append(node_id)
+                continue
+
             # Check if all predecessors are executed
             predecessors = self._reverse_adjacency.get(node_id, [])
             if all(pred in executed for pred in predecessors):

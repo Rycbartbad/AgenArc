@@ -24,8 +24,9 @@
 |-------|------|----------|
 | **hello_agent** | 最简单的 Hello World | Trigger + Log |
 | **chat_agent** | 简单对话 | Trigger + LLM_Task + Log |
+| **my_first_agent** | 多轮对话 | Trigger + Prompt_Builder + LLM_Task + Prompt_Builder + Log |
 | **router_agent** | 带路由 | Trigger + LLM_Task + Router + Log |
-| **loop_agent** | 带循环结构 | Trigger + LLM_Task + Log |
+| **loop_agent** | 带循环结构 | Trigger + LLM_Task + Loop_Control + Log |
 | **full_agent** | 完整功能 | Trigger + LLM_Task + Router + Log + manifest |
 
 ### 运行示例
@@ -34,14 +35,18 @@
 # Hello Agent（无需 LLM）
 PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
 
-# Chat Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"trigger_payload":"Hello!"}'
+# Chat Agent（需 LLM）
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
+
+# 多轮对话 Agent（需 LLM）
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/my_first_agent.agrc --input '{"payload":"Hello!"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/my_first_agent.agrc
 
 # Router Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"trigger_payload":"Say hello"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
 
 # Full Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"trigger_payload":"What is AI?"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
 ```
 
 ---
@@ -59,17 +64,16 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --inpu
 
 ## 2. 创建你的第一个 Agent
 
+本节创建一个支持多轮对话的 Agent，使用 Prompt_Builder 管理对话历史。
+
 ### 步骤 1：创建目录结构
 
 ```
 my_agent.agrc/
 ├── manifest.json
 ├── flow.json
-├── prompts/
-│   ├── system.pt
-│   └── user.pt
-└── scripts/
-    └── tool.py
+└── prompts/
+    └── system.pt
 ```
 
 ### 步骤 2：编写 manifest.json
@@ -89,37 +93,62 @@ my_agent.agrc/
   "version": "1.0.0",
   "entryPoint": "trigger_1",
   "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+    {"id": "trigger_1", "type": "Trigger", "label": "启动"},
+    {
+      "id": "pb_user",
+      "type": "Prompt_Builder",
+      "label": "用户输入",
+      "config": {"history": "chat_history"}
+    },
     {
       "id": "llm_1",
       "type": "LLM_Task",
-      "label": "Chat",
-      "inputs": [{"name": "prompt", "type": "string"}],
+      "label": "LLM 调用",
       "config": {
         "model": "deepseek-chat",
-        "system_prompt": "agrc://prompts/system.pt"
+        "temperature": 0.7,
+        "max_tokens": 150,
+        "system_prompt": "你是我的人工智能助手，协助我完成各种任务。"
       }
     },
-    {"id": "log_1", "type": "Log", "label": "Output"}
+    {
+      "id": "pb_assistant",
+      "type": "Prompt_Builder",
+      "label": "助手响应",
+      "config": {"history": "chat_history"}
+    },
+    {"id": "log_1", "type": "Log", "label": "日志"}
   ],
   "edges": [
-    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
-    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"}
+    {"source": "trigger_1", "sourcePort": "payload", "target": "pb_user", "targetPort": "user"},
+    {"source": "pb_user", "sourcePort": "messages", "target": "llm_1", "targetPort": "messages"},
+    {"source": "llm_1", "sourcePort": "response", "target": "pb_assistant", "targetPort": "assistant"},
+    {"source": "llm_1", "sourcePort": "response", "target": "log_1", "targetPort": "message"},
+    {"source": "pb_assistant", "target": "trigger_1"}
   ]
 }
 ```
 
+**关键设计**：
+- `pb_user` 和 `pb_assistant` 配置相同的 `history` 值，共享对话历史
+- `pb_assistant → trigger` 的边标识多轮会话
+- `llm_1 → log_1` 边将响应输出到日志
+
 ### 步骤 4：编写 prompts/system.pt
 
 ```jinja2
-You are a helpful AI assistant.
+你是我的人工智能助手，协助我完成各种任务。
 {{context}}
 ```
 
 ### 步骤 5：运行 Agent
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run my_agent.agrc --input '{"trigger_payload":"Hello"}'
+# 单次执行
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run my_agent.agrc --input '{"payload":"Hello"}'
+
+# 交互式对话（多轮）
+PYTHONIOENCODING=utf-8 python -m agenarc.cli shell my_agent.agrc
 ```
 
 ---
@@ -391,10 +420,18 @@ agent_name.agrc/
   "id": "pb_1",
   "type": "Prompt_Builder",
   "config": {
+    "history": "chat_history",
     "max_history": 100
   }
 }
 ```
+
+**配置选项**：
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `history` | string | node ID | 历史记录键名，多个 PB 节点可通过相同键名共享历史 |
+| `max_history` | int | 100 | 最大消息数量，超出时保留最新的消息 |
 
 **输入端口**：
 
@@ -410,15 +447,18 @@ agent_name.agrc/
 | `messages` | array | 完整的对话消息列表 |
 
 **行为**：
-- 追加 user 或 assistant 消息到 `nodes.{node_id}.messages`
+- 追加 user 或 assistant 消息到 `nodes.{history}.messages`
 - 安全检查：确保 user 和 assistant 交替出现
 - 超出 `max_history` 限制时，保留最新的消息
+- 不同 PB 节点可通过相同的 `history` 值共享对话历史
 
-**示例流程**：
+**多轮对话示例**：
 
 ```
-trigger.payload  ──→  pb_user ──→ llm ──→ pb_assistant ──→ llm ──→ ...
+trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→ trigger
 ```
+
+其中 `pb_user` 和 `pb_assistant` 配置相同的 `history` 键值以共享对话历史。
 
 ---
 
@@ -1080,13 +1120,13 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent-path> --input '<json>'
 **简单字符串**：
 
 ```bash
---input '{"trigger_payload": "Hello"}'
+--input '{"payload": "Hello"}'
 ```
 
 **带上下文的输入**：
 
 ```bash
---input '{"trigger_payload": {"user_input": "Hello", "context": {"name": "Alice"}}}'
+--input '{"payload": {"user_input": "Hello", "context": {"name": "Alice"}}}'
 ```
 
 **多字段输入**：
@@ -1116,7 +1156,7 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/hello_agent.agrc
 | 输入类型 | 示例 | 处理方式 |
 |----------|------|----------|
 | 纯文本 | `Hello` | 自动转换为 `{"input": "Hello"}` |
-| JSON 对象 | `{"trigger_payload":"Hi"}` | 直接作为完整 payload |
+| JSON 对象 | `{"payload":"Hi"}` | 直接作为完整 payload |
 
 **会话持久化**：
 
@@ -1150,7 +1190,7 @@ AgenArc Interactive Shell
 Agent: examples/hello_agent.agrc
 Context persists during session, resets on new session
 Type input and press Enter to execute
-  - Plain text: treated as payload.input
+  - Plain text: treated as payload
   - JSON object: used as full payload
 Commands: :quit/:exit to exit, :reset to start new session
           :info to show agent info, :logs to toggle logs
@@ -1340,7 +1380,7 @@ Context: {{context}}
 **运行**：
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"trigger_payload":"Hello!"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
 ```
 
 ---
@@ -1393,7 +1433,7 @@ router_agent.agrc/
 **运行**：
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"trigger_payload":"Say hello"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
 ```
 
 ---
@@ -1468,7 +1508,7 @@ full_agent.agrc/
 **运行**：
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"trigger_payload":"What is AI?"}'
+PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
 ```
 
 ---
@@ -1492,7 +1532,29 @@ A: 在节点中添加 errorHandling 配置：
 ```
 
 ### Q: 如何实现多轮对话？
-A: 当前版本需要在外部维护对话历史，通过 context 传递历史记录。
+A: 使用 Prompt_Builder 节点的 `history` 配置实现多轮对话：
+
+```json
+{
+  "nodes": [
+    {"id": "trigger_1", "type": "Trigger"},
+    {"id": "pb_user", "type": "Prompt_Builder", "config": {"history": "chat_history"}},
+    {"id": "llm_1", "type": "LLM_Task", "config": {...}},
+    {"id": "pb_assistant", "type": "Prompt_Builder", "config": {"history": "chat_history"}}
+  ],
+  "edges": [
+    {"source": "trigger_1", "sourcePort": "payload", "target": "pb_user", "targetPort": "user"},
+    {"source": "pb_user", "sourcePort": "messages", "target": "llm_1", "targetPort": "messages"},
+    {"source": "llm_1", "sourcePort": "response", "target": "pb_assistant", "targetPort": "assistant"},
+    {"source": "pb_assistant", "target": "trigger_1"}
+  ]
+}
+```
+
+关键点：
+- `pb_user` 和 `pb_assistant` 配置相同的 `history` 值以共享对话历史
+- `pb_assistant → trigger` 的边用于标识多轮对话会话
+- Shell 中输入纯文本会自动作为 `payload` 传递
 
 ### Q: 支持哪些编程语言？
 A: Script_Node 目前只支持 Python。

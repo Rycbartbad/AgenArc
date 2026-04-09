@@ -54,9 +54,8 @@ class TriggerOperator(IOperator):
         inputs: Dict[str, Any],
         context: ExecutionContext
     ) -> Dict[str, Any]:
-        # Trigger generates the initial payload
-        # The payload can come from context or be a default
-        payload = context.get("trigger_payload", {})
+        # Trigger outputs the initial payload from context
+        payload = context.get("payload", {})
 
         return {
             "payload": payload
@@ -350,7 +349,7 @@ class Script_Node_Operator(IOperator):
         # This allows expressions like: {{context.my_var}}
         ctx_data = {
             "input": context.get("input"),
-            "trigger_payload": context.get("trigger_payload"),
+            "payload": context.get("payload"),
         }
 
         # Try to get iteration variables
@@ -610,6 +609,7 @@ class Prompt_Builder_Operator(IOperator):
         messages: The complete messages list
 
     Config:
+        history: Custom history key name (default: node ID, stored as nodes.{history})
         max_history: Maximum number of messages to keep (default: 100)
     """
 
@@ -650,9 +650,10 @@ class Prompt_Builder_Operator(IOperator):
         # Get node ID for context key
         node_id = context.get("_node_id", "prompt_builder")
 
-        # Determine history key
+        # Determine history key from config or default to node ID
         if self._history_key is None:
-            self._history_key = f"nodes.{node_id}.messages"
+            history_name = node_config.get("history", node_id)
+            self._history_key = f"nodes.{history_name}"
 
         # Get existing messages from context
         messages = context.get(self._history_key, [])
