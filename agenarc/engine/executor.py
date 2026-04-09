@@ -407,6 +407,9 @@ class ExecutionEngine:
         """
         Async execution with dependency tracking.
 
+        Supports Router-based loops where Router can route to previously
+        executed nodes, forming a cycle.
+
         Args:
             entry_node: Entry point node
         """
@@ -434,11 +437,45 @@ class ExecutionEngine:
                     continue
 
                 # Execute the node
-                await self._execute_node_with_tracking(node)
+                outputs = await self._execute_node_with_tracking(node)
+
+                # Handle Router routing
+                # Router's _selected output is a sourcePort label to match in edges
+                # (like assembly jump target: "loop", "exit", "A", "B", or node_id)
+                if node.type.value == "Router" and outputs:
+                    selected = outputs.get("_selected")
+                    if selected:
+                        # Find edge with matching sourcePort
+                        routing_target = self._find_routing_target(node_id, selected)
+                        if routing_target:
+                            # If target was already executed, this creates a loop
+                            # Remove from executed to allow re-execution
+                            if routing_target in executed:
+                                executed.discard(routing_target)
+                            pending.add(routing_target)
 
                 # Normal completion
                 executed.add(node_id)
                 pending.discard(node_id)
+
+    def _find_routing_target(self, source_node_id: str, source_port: str) -> Optional[str]:
+        """
+        Find the target node for a Router output.
+
+        Matches edge with sourcePort = source_port to determine
+        which node to execute next (like assembly jump target).
+
+        Args:
+            source_node_id: Source node (Router) ID
+            source_port: The sourcePort label to match
+
+        Returns:
+            Target node ID, or None if not found
+        """
+        for edge in self._graph.edges:
+            if edge.source == source_node_id and edge.sourcePort == source_port:
+                return edge.target
+        return None
 
     def _topological_sort_subset(
         self,

@@ -16,18 +16,20 @@ class RouterOperator(IOperator):
     """
     Router operator - route execution based on conditions.
 
-    Evaluates condition expressions and routes to appropriate output branch.
+    Evaluates condition expressions and selects an output branch.
+    Control flow is determined by edges: condition.output matches edge.sourcePort.
 
     Inputs:
         input: The value to evaluate conditions against
 
-    Outputs:
-        output_A: Branch A output (default)
-        output_B: Branch B output
-
     Config:
         conditions: List[Condition] - conditions to evaluate
-        default: str - default branch ("A" or "B")
+        default: str - default output identifier
+
+    Note:
+        Router does not declare fixed output ports. Instead, output ports
+        are determined by edges with matching sourcePort values.
+        The condition.output value should match an edge's sourcePort.
     """
 
     @property
@@ -44,10 +46,9 @@ class RouterOperator(IOperator):
         ]
 
     def get_output_ports(self) -> List[Port]:
-        return [
-            Port(name="output_A", type="any", description="Branch A output"),
-            Port(name="output_B", type="any", description="Branch B output"),
-        ]
+        # Router does not declare fixed output ports.
+        # Output ports are determined by edges with matching sourcePort values.
+        return []
 
     async def execute(
         self,
@@ -63,17 +64,12 @@ class RouterOperator(IOperator):
         # Evaluate conditions
         for condition in conditions:
             if self._evaluate_condition(condition, input_value, context):
-                # Match found - route to appropriate output
-                if condition.output == "A" or condition.output == "output_A":
-                    return {"output_A": input_value, "output_B": None}
-                else:
-                    return {"output_A": None, "output_B": input_value}
+                # Match found - condition.output is the sourcePort label
+                # to match in the edge (like assembly jump target)
+                return {"_selected": condition.output}
 
         # No match - use default
-        if default_branch == "A":
-            return {"output_A": input_value, "output_B": None}
-        else:
-            return {"output_A": None, "output_B": input_value}
+        return {"_selected": default_branch}
 
     def _evaluate_condition(
         self,

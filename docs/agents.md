@@ -463,7 +463,12 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 
 ### 6.4 Router（路由）
 
-**作用**：根据条件将数据路由到不同的分支。
+**作用**：根据条件将执行路由到不同的分支（汇编风格跳转）。
+
+**特性**：
+- Router **不声明固定输出端口**，输出端口由边（edge）的 `sourcePort` 决定
+- `condition.output` 是标签，与 `edge.sourcePort` 匹配
+- 可以是任意字符串：`"A"`、`"exit"`、节点 ID 等
 
 **示例**：
 
@@ -471,26 +476,25 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 {
   "id": "router_1",
   "type": "Router",
-  "label": "路由",
-  "inputs": [
-    {"name": "input", "type": "any"}
-  ],
-  "outputs": [
-    {"name": "output_A", "type": "any"},
-    {"name": "output_B", "type": "any"}
-  ],
   "config": {
     "conditions": [
       {
         "ref": "input",
         "operator": "contains",
         "value": "quit",
-        "output": "B"
+        "output": "exit"
       }
     ],
-    "default": "A"
+    "default": "continue"
   }
 }
+```
+
+对应的边：
+
+```json
+{"source": "router_1", "sourcePort": "exit", "target": "log_1"}
+{"source": "router_1", "sourcePort": "continue", "target": "process_1"}
 ```
 
 **输入端口**：
@@ -499,30 +503,21 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 |--------|------|------|
 | `input` | any | 要判断的输入值 |
 
-**输出端口**：
-
-| 端口名 | 类型 | 说明 |
-|--------|------|------|
-| `output_A` | any | 条件不满足时的输出 |
-| `output_B` | any | 条件满足时的输出 |
-
 **config 配置项**：
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
 | `conditions` | array | 条件数组，按顺序匹配 |
-| `default` | string | 默认分支，"A" 或 "B" |
+| `default` | string | 默认输出标签 |
 
 **conditions 条件数组**：
-
-每个条件对象：
 
 ```json
 {
   "ref": "input",
   "operator": "contains",
   "value": "quit",
-  "output": "B"
+  "output": "exit"
 }
 ```
 
@@ -531,7 +526,7 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 | `ref` | string | 引用的变量名 |
 | `operator` | string | 操作符 |
 | `value` | any | 比较的值 |
-| `output` | string | 满足条件时输出 "A" 或 "B" |
+| `output` | string | 匹配时输出的标签（与 edge.sourcePort 匹配） |
 | `and` | array | 与条件数组 |
 | `or` | array | 或条件数组 |
 | `not` | object | 否定条件 |
@@ -581,6 +576,57 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
     {"ref": "input", "operator": "contains", "value": "exit"}
   ]
 }
+```
+
+**Router 循环模式（汇编风格跳转）**
+
+Router 的 `condition.output` 可以是节点 ID，形成环状结构：
+
+```json
+{
+  "id": "router_1",
+  "type": "Router",
+  "config": {
+    "conditions": [
+      {
+        "ref": "context._count",
+        "operator": "lt",
+        "value": 3,
+        "output": "counter_inc"
+      }
+    ],
+    "default": "exit"
+  }
+}
+```
+
+对应的边配置：
+
+```json
+{
+  "edges": [
+    {"source": "router_1", "sourcePort": "counter_inc", "target": "counter_inc"},
+    {"source": "counter_inc", "target": "router_1"},
+    {"source": "router_1", "sourcePort": "exit", "target": "log_1"}
+  ]
+}
+```
+
+**工作原理**：
+1. `condition.output` 是标签，与 `edge.sourcePort` 匹配
+2. Router 执行后找到 `sourcePort` 匹配的边，执行其 `target` 节点
+3. 如果 target 是已执行过的节点，则形成循环（重新执行）
+4. 通过 Script_Node 自行实现循环退出条件控制
+
+**示例流程**：
+```
+trigger → counter_init → router_1
+                          ↓ (counter_inc)
+                      counter_inc
+                          ↓
+                       router_1 (再次执行)
+                          ↓ (exit)
+                         log_1
 ```
 
 ---

@@ -37,10 +37,9 @@ class TestRouterOperator:
         """Test operator output ports."""
         op = RouterOperator()
         ports = op.get_output_ports()
-        assert len(ports) == 2
-        port_names = {p.name for p in ports}
-        assert "output_A" in port_names
-        assert "output_B" in port_names
+        # Router does not declare fixed output ports.
+        # Output ports are determined by edges with matching sourcePort values.
+        assert len(ports) == 0
 
     @pytest.mark.asyncio
     async def test_route_to_a_when_condition_matches(self):
@@ -52,15 +51,15 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.EQ,
                 value="yes",
-                output="output_A"
+                output="A"
             )
         ])
         ctx.set("_router_default", "B")
 
         result = await op.execute({"input": "yes"}, ctx)
 
-        assert result["output_A"] == "yes"
-        assert result["output_B"] is None
+        # Router returns _selected indicating which output was chosen
+        assert result["_selected"] == "A"
 
     @pytest.mark.asyncio
     async def test_route_to_b_when_condition_matches(self):
@@ -72,15 +71,14 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.EQ,
                 value="no",
-                output="output_B"
+                output="B"
             )
         ])
         ctx.set("_router_default", "A")
 
         result = await op.execute({"input": "no"}, ctx)
 
-        assert result["output_A"] is None
-        assert result["output_B"] == "no"
+        assert result["_selected"] == "B"
 
     @pytest.mark.asyncio
     async def test_default_route_when_no_match(self):
@@ -92,15 +90,14 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.EQ,
                 value="yes",
-                output="output_A"
+                output="A"
             )
         ])
         ctx.set("_router_default", "B")
 
         result = await op.execute({"input": "maybe"}, ctx)
 
-        assert result["output_A"] is None
-        assert result["output_B"] == "maybe"
+        assert result["_selected"] == "B"
 
     @pytest.mark.asyncio
     async def test_greater_than_condition(self):
@@ -112,14 +109,13 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.GT,
                 value=10,
-                output="output_A"
+                output="yes"
             )
         ])
 
         result = await op.execute({"input": 15}, ctx)
 
-        assert result["output_A"] == 15
-        assert result["output_B"] is None
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_less_than_condition(self):
@@ -131,14 +127,13 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.LT,
                 value=10,
-                output="output_A"
+                output="yes"
             )
         ])
 
         result = await op.execute({"input": 5}, ctx)
 
-        assert result["output_A"] == 5
-        assert result["output_B"] is None
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_contains_condition(self):
@@ -150,14 +145,13 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.CONTAINS,
                 value="test",
-                output="output_A"
+                output="match"
             )
         ])
 
         result = await op.execute({"input": "this is a test string"}, ctx)
 
-        assert result["output_A"] == "this is a test string"
-        assert result["output_B"] is None
+        assert result["_selected"] == "match"
 
     @pytest.mark.asyncio
     async def test_in_condition(self):
@@ -169,14 +163,13 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.IN,
                 value=["a", "b", "c"],
-                output="output_A"
+                output="found"
             )
         ])
 
         result = await op.execute({"input": "b"}, ctx)
 
-        assert result["output_A"] == "b"
-        assert result["output_B"] is None
+        assert result["_selected"] == "found"
 
     @pytest.mark.asyncio
     async def test_exists_condition(self):
@@ -188,14 +181,13 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.EXISTS,
                 value=None,
-                output="output_A"
+                output="exists"
             )
         ])
 
         result = await op.execute({"input": "something"}, ctx)
 
-        assert result["output_A"] == "something"
-        assert result["output_B"] is None
+        assert result["_selected"] == "exists"
 
     @pytest.mark.asyncio
     async def test_not_exists_condition(self):
@@ -207,14 +199,13 @@ class TestRouterOperator:
                 ref="input",
                 operator=ConditionOperator.NOT_EXISTS,
                 value=None,
-                output="output_A"
+                output="not_exists"
             )
         ])
 
         result = await op.execute({"input": None}, ctx)
 
-        assert result["output_A"] is None
-        assert result["output_B"] is None
+        assert result["_selected"] == "not_exists"
 
 
 class TestRouterConditionComparison:
@@ -226,11 +217,11 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.EQ, value=42, output="A")
+            Condition(ref="input", operator=ConditionOperator.EQ, value=42, output="yes")
         ])
 
         result = await op.execute({"input": 42}, ctx)
-        assert result["output_A"] == 42
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_ne_operator(self):
@@ -238,11 +229,11 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.NE, value=42, output="A")
+            Condition(ref="input", operator=ConditionOperator.NE, value=42, output="yes")
         ])
 
         result = await op.execute({"input": 100}, ctx)
-        assert result["output_A"] == 100
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_gte_operator(self):
@@ -250,11 +241,11 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.GTE, value=10, output="A")
+            Condition(ref="input", operator=ConditionOperator.GTE, value=10, output="yes")
         ])
 
         result = await op.execute({"input": 10}, ctx)
-        assert result["output_A"] == 10
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_lte_operator(self):
@@ -262,11 +253,11 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.LTE, value=10, output="A")
+            Condition(ref="input", operator=ConditionOperator.LTE, value=10, output="yes")
         ])
 
         result = await op.execute({"input": 10}, ctx)
-        assert result["output_A"] == 10
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_starts_with_operator(self):
@@ -274,11 +265,11 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.STARTS_WITH, value="hello", output="A")
+            Condition(ref="input", operator=ConditionOperator.STARTS_WITH, value="hello", output="yes")
         ])
 
         result = await op.execute({"input": "hello world"}, ctx)
-        assert result["output_A"] == "hello world"
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_ends_with_operator(self):
@@ -286,11 +277,11 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.ENDS_WITH, value="world", output="A")
+            Condition(ref="input", operator=ConditionOperator.ENDS_WITH, value="world", output="yes")
         ])
 
         result = await op.execute({"input": "hello world"}, ctx)
-        assert result["output_A"] == "hello world"
+        assert result["_selected"] == "yes"
 
     @pytest.mark.asyncio
     async def test_not_in_operator(self):
@@ -298,8 +289,72 @@ class TestRouterConditionComparison:
         op = RouterOperator()
         ctx = create_context()
         ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.NOT_IN, value=["a", "b"], output="A")
+            Condition(ref="input", operator=ConditionOperator.NOT_IN, value=["a", "b"], output="yes")
         ])
 
         result = await op.execute({"input": "c"}, ctx)
-        assert result["output_A"] == "c"
+        assert result["_selected"] == "yes"
+
+
+class TestRouterDynamicOutput:
+    """Tests for Router dynamic output (assembly-style jump)."""
+
+    @pytest.mark.asyncio
+    async def test_node_id_as_output(self):
+        """Test using node ID as output for loops."""
+        op = RouterOperator()
+        ctx = create_context()
+        ctx.set("_router_conditions", [
+            Condition(
+                ref="input",
+                operator=ConditionOperator.GT,
+                value=0,
+                output="counter_inc"  # Node ID as output label
+            )
+        ])
+        ctx.set("_router_default", "exit")
+
+        result = await op.execute({"input": 5}, ctx)
+
+        # Router returns _selected with the output label
+        assert result["_selected"] == "counter_inc"
+
+    @pytest.mark.asyncio
+    async def test_default_with_node_id(self):
+        """Test default routing with node ID output."""
+        op = RouterOperator()
+        ctx = create_context()
+        ctx.set("_router_conditions", [
+            Condition(
+                ref="input",
+                operator=ConditionOperator.EQ,
+                value="yes",
+                output="loop"
+            )
+        ])
+        ctx.set("_router_default", "exit_node")
+
+        result = await op.execute({"input": "no"}, ctx)
+
+        # No match, should use default
+        assert result["_selected"] == "exit_node"
+
+    @pytest.mark.asyncio
+    async def test_context_ref_as_output_label(self):
+        """Test that output can be any string identifier."""
+        op = RouterOperator()
+        ctx = create_context()
+        ctx.set("_router_conditions", [
+            Condition(
+                ref="context.loop_count",
+                operator=ConditionOperator.LT,
+                value=10,
+                output="iterate"
+            )
+        ])
+        ctx.set("_router_default", "done")
+        ctx.set("loop_count", 5)
+
+        result = await op.execute({"input": "anything"}, ctx)
+
+        assert result["_selected"] == "iterate"
