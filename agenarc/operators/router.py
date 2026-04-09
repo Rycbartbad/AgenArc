@@ -56,20 +56,27 @@ class RouterOperator(IOperator):
         context: ExecutionContext
     ) -> Dict[str, Any]:
         input_value = inputs.get("input")
+        node_id = context.get("_node_id", "router")
 
         # Get conditions from config
         conditions = context.get("_router_conditions", [])
-        default_branch = context.get("_router_default", "A")
+        default_branch = context.get("_router_default", "")
 
-        # Evaluate conditions
+        # Evaluate ALL conditions - collect all matching outputs
+        selected = []
         for condition in conditions:
             if self._evaluate_condition(condition, input_value, context):
-                # Match found - condition.output is the sourcePort label
-                # to match in the edge (like assembly jump target)
-                return {"_selected": condition.output}
+                # Match found - store value in context for this output
+                output_label = condition.output
+                context.set(f"nodes.{node_id}.{output_label}", input_value)
+                selected.append(output_label)
 
-        # No match - use default
-        return {"_selected": default_branch}
+        # If no conditions matched, use default
+        if not selected and default_branch:
+            context.set(f"nodes.{node_id}.{default_branch}", input_value)
+            selected.append(default_branch)
+
+        return {"_selected": selected}
 
     def _evaluate_condition(
         self,

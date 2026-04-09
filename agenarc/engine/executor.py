@@ -439,14 +439,16 @@ class ExecutionEngine:
                 # Execute the node
                 outputs = await self._execute_node_with_tracking(node)
 
-                # Handle Router routing
-                # Router's _selected output is a sourcePort label to match in edges
-                # (like assembly jump target: "loop", "exit", "A", "B", or node_id)
+                # Handle Router multi-branch routing
+                # Router can output multiple branches in parallel
                 if node.type.value == "Router" and outputs:
-                    selected = outputs.get("_selected")
-                    if selected:
+                    selected = outputs.get("_selected", [])
+                    if isinstance(selected, str):
+                        selected = [selected]
+
+                    for port in selected:
                         # Find edge with matching sourcePort
-                        routing_target = self._find_routing_target(node_id, selected)
+                        routing_target = self._find_routing_target(node_id, port)
                         if routing_target:
                             # If target was already executed, this creates a loop
                             # Remove from executed to allow re-execution

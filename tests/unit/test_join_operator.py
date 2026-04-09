@@ -26,13 +26,11 @@ class TestJoinOperator:
         assert "join" in op.description.lower()
 
     def test_input_ports(self):
-        """Test operator input ports."""
+        """Test operator input ports - Join has no fixed ports."""
         op = JoinOperator()
         ports = op.get_input_ports()
-        port_names = {p.name for p in ports}
-        assert "input_A" in port_names
-        assert "input_B" in port_names
-        assert "strategy" in port_names
+        # Join does not declare fixed input ports
+        assert len(ports) == 0
 
     def test_output_ports(self):
         """Test operator output ports."""
@@ -40,201 +38,251 @@ class TestJoinOperator:
         ports = op.get_output_ports()
         port_names = {p.name for p in ports}
         assert "output" in port_names
-        assert "inputs" in port_names
-
-    @pytest.mark.asyncio
-    async def test_first_strategy_with_A(self):
-        """Test first strategy returns input_A when present."""
-        op = JoinOperator()
-        ctx = create_context()
-
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": "B",
-            "strategy": "first"
-        }, ctx)
-
-        assert result["output"] == "A"
-        assert "A" in result["inputs"]
-
-    @pytest.mark.asyncio
-    async def test_first_strategy_fallback_to_B(self):
-        """Test first strategy returns input_B when A is None."""
-        op = JoinOperator()
-        ctx = create_context()
-
-        result = await op.execute({
-            "input_A": None,
-            "input_B": "B",
-            "strategy": "first"
-        }, ctx)
-
-        assert result["output"] == "B"
-
-    @pytest.mark.asyncio
-    async def test_last_strategy(self):
-        """Test last strategy returns input_B."""
-        op = JoinOperator()
-        ctx = create_context()
-
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": "B",
-            "strategy": "last"
-        }, ctx)
-
-        assert result["output"] == "B"
 
     @pytest.mark.asyncio
     async def test_merge_strategy(self):
-        """Test merge strategy returns dict with both inputs."""
+        """Test merge strategy returns dict of all inputs."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": "B",
-            "strategy": "merge"
-        }, ctx)
+        # Simulate incoming edges from branch_A and branch_B
+        ctx.set("_incoming_edges", [
+            {"source": "branch_A", "sourcePort": "output"},
+            {"source": "branch_B", "sourcePort": "output"},
+        ])
+        ctx.set("_join_strategy", "merge")
+        ctx.set("_node_id", "join_1")
 
-        assert result["output"] == {"input_A": "A", "input_B": "B"}
+        # Store outputs in context (simulating what branch nodes would do)
+        ctx.set("nodes.branch_A.output", "value_a")
+        ctx.set("nodes.branch_B.output", "value_b")
+
+        result = await op.execute({}, ctx)
+
+        assert result["output"] == {
+            "branch_A.output": "value_a",
+            "branch_B.output": "value_b"
+        }
 
     @pytest.mark.asyncio
-    async def test_concat_strategy_lists(self):
-        """Test concat strategy with lists."""
+    async def test_first_strategy(self):
+        """Test first strategy returns first input."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": [1, 2],
-            "input_B": [3, 4],
-            "strategy": "concat"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "data"},
+            {"source": "B", "sourcePort": "data"},
+        ])
+        ctx.set("_join_strategy", "first")
+        ctx.set("_node_id", "join_1")
+
+        ctx.set("nodes.A.data", "first_value")
+        ctx.set("nodes.B.data", "second_value")
+
+        result = await op.execute({}, ctx)
+
+        assert result["output"] == "first_value"
+
+    @pytest.mark.asyncio
+    async def test_last_strategy(self):
+        """Test last strategy returns last input."""
+        op = JoinOperator()
+        ctx = create_context()
+
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "data"},
+            {"source": "B", "sourcePort": "data"},
+        ])
+        ctx.set("_join_strategy", "last")
+        ctx.set("_node_id", "join_1")
+
+        ctx.set("nodes.A.data", "first")
+        ctx.set("nodes.B.data", "last")
+
+        result = await op.execute({}, ctx)
+
+        assert result["output"] == "last"
+
+    @pytest.mark.asyncio
+    async def test_concat_strategy(self):
+        """Test concat strategy concatenates lists."""
+        op = JoinOperator()
+        ctx = create_context()
+
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "items"},
+            {"source": "B", "sourcePort": "items"},
+        ])
+        ctx.set("_join_strategy", "concat")
+        ctx.set("_node_id", "join_1")
+
+        ctx.set("nodes.A.items", [1, 2])
+        ctx.set("nodes.B.items", [3, 4])
+
+        result = await op.execute({}, ctx)
 
         assert result["output"] == [1, 2, 3, 4]
 
     @pytest.mark.asyncio
     async def test_concat_strategy_mixed(self):
-        """Test concat strategy with mixed types."""
+        """Test concat with mixed scalars and lists."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": "scalar",
-            "input_B": [3, 4],
-            "strategy": "concat"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "data"},
+            {"source": "B", "sourcePort": "data"},
+        ])
+        ctx.set("_join_strategy", "concat")
+        ctx.set("_node_id", "join_1")
+
+        ctx.set("nodes.A.data", "scalar")
+        ctx.set("nodes.B.data", [3, 4])
+
+        result = await op.execute({}, ctx)
 
         assert result["output"] == ["scalar", 3, 4]
 
     @pytest.mark.asyncio
-    async def test_all_strategy(self):
-        """Test all strategy returns all inputs as list."""
+    async def test_default_strategy_is_merge(self):
+        """Test default strategy is 'merge'."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": "B",
-            "strategy": "all"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "out"},
+        ])
+        # Don't set _join_strategy - should default to merge
+        ctx.set("_node_id", "join_1")
 
-        assert result["output"] == ["A", "B"]
+        ctx.set("nodes.A.out", "value_a")
+
+        result = await op.execute({}, ctx)
+
+        # Default is merge, so should return dict
+        assert result["output"] == {"A.out": "value_a"}
 
     @pytest.mark.asyncio
-    async def test_all_strategy_filters_none(self):
-        """Test all strategy filters out None inputs."""
+    async def test_empty_incoming_edges(self):
+        """Test with no incoming edges."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": None,
-            "strategy": "all"
-        }, ctx)
+        ctx.set("_incoming_edges", [])
+        ctx.set("_join_strategy", "first")
+        ctx.set("_node_id", "join_1")
 
-        assert result["output"] == ["A"]
-        assert result["inputs"] == ["A"]
+        result = await op.execute({}, ctx)
+
+        assert result["output"] is None
 
     @pytest.mark.asyncio
-    async def test_default_strategy_is_first(self):
-        """Test default strategy is 'first'."""
+    async def test_missing_source_data(self):
+        """Test when some source nodes have no data yet."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": "B"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "data"},
+            {"source": "B", "sourcePort": "data"},
+        ])
+        ctx.set("_join_strategy", "merge")
+        ctx.set("_node_id", "join_1")
 
-        assert result["output"] == "A"
+        # Only set A's data, B hasn't executed yet
+        ctx.set("nodes.A.data", "value_a")
+
+        result = await op.execute({}, ctx)
+
+        # Only A's data is collected
+        assert result["output"] == {"A.data": "value_a"}
 
     @pytest.mark.asyncio
-    async def test_unknown_strategy_defaults_to_first(self):
-        """Test unknown strategy defaults to first."""
+    async def test_node_id_in_context(self):
+        """Test that node_id is used in context key generation."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": "A",
-            "input_B": "B",
-            "strategy": "unknown"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "src", "sourcePort": "result"},
+        ])
+        ctx.set("_join_strategy", "merge")
+        ctx.set("_node_id", "my_join_node")
 
-        assert result["output"] == "A"
+        ctx.set("nodes.src.result", "test_value")
+
+        result = await op.execute({}, ctx)
+
+        assert result["output"] == {"src.result": "test_value"}
 
     @pytest.mark.asyncio
-    async def test_inputs_output_always_list(self):
-        """Test that inputs output is always a list."""
+    async def test_edge_without_source_port(self):
+        """Test that edges without sourcePort are skipped."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": None,
-            "input_B": None,
-            "strategy": "first"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "A", "sourcePort": "data"},
+            {"source": "B"},  # No sourcePort
+        ])
+        ctx.set("_join_strategy", "merge")
+        ctx.set("_node_id", "join_1")
 
-        assert result["inputs"] == []
+        ctx.set("nodes.A.data", "value_a")
+        # B has no sourcePort, should be skipped
+
+        result = await op.execute({}, ctx)
+
+        assert result["output"] == {"A.data": "value_a"}
+
+
+class TestJoinOperatorContextBased:
+    """Tests for Join with context-based edge information."""
 
     @pytest.mark.asyncio
-    async def test_both_none(self):
-        """Test with both inputs None."""
+    async def test_three_branch_merge(self):
+        """Test merging three parallel branches."""
         op = JoinOperator()
         ctx = create_context()
 
-        result = await op.execute({
-            "input_A": None,
-            "input_B": None,
-            "strategy": "merge"
-        }, ctx)
+        ctx.set("_incoming_edges", [
+            {"source": "branch_1", "sourcePort": "output"},
+            {"source": "branch_2", "sourcePort": "output"},
+            {"source": "branch_3", "sourcePort": "output"},
+        ])
+        ctx.set("_join_strategy", "merge")
+        ctx.set("_node_id", "join_1")
 
-        assert result["output"] == {"input_A": None, "input_B": None}
+        ctx.set("nodes.branch_1.output", {"id": 1})
+        ctx.set("nodes.branch_2.output", {"id": 2})
+        ctx.set("nodes.branch_3.output", {"id": 3})
 
+        result = await op.execute({}, ctx)
 
-class TestJoinOperatorConcat:
-    """Tests for _concat helper method."""
+        assert len(result["output"]) == 3
+        assert result["output"]["branch_1.output"] == {"id": 1}
+        assert result["output"]["branch_2.output"] == {"id": 2}
+        assert result["output"]["branch_3.output"] == {"id": 3}
 
-    def test_concat_empty(self):
-        """Test concat with empty input."""
+    @pytest.mark.asyncio
+    async def test_three_branch_concat(self):
+        """Test concatenating three parallel branches."""
         op = JoinOperator()
-        result = op._concat([])
-        assert result == []
+        ctx = create_context()
 
-    def test_concat_scalars(self):
-        """Test concat with scalar values."""
-        op = JoinOperator()
-        result = op._concat([1, 2, 3])
-        assert result == [1, 2, 3]
+        ctx.set("_incoming_edges", [
+            {"source": "branch_1", "sourcePort": "items"},
+            {"source": "branch_2", "sourcePort": "items"},
+            {"source": "branch_3", "sourcePort": "items"},
+        ])
+        ctx.set("_join_strategy", "concat")
+        ctx.set("_node_id", "join_1")
 
-    def test_concat_mixed(self):
-        """Test concat with mixed lists and scalars."""
-        op = JoinOperator()
-        result = op._concat([[1, 2], 3, [4, 5]])
-        assert result == [1, 2, 3, 4, 5]
+        ctx.set("nodes.branch_1.items", [1])
+        ctx.set("nodes.branch_2.items", [2])
+        ctx.set("nodes.branch_3.items", [3])
 
-    def test_concat_nested_lists(self):
-        """Test concat flattens one level."""
-        op = JoinOperator()
-        result = op._concat([[1, [2]], 3])
-        assert result == [1, [2], 3]
+        result = await op.execute({}, ctx)
+
+        assert result["output"] == [1, 2, 3]

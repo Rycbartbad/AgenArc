@@ -1,7 +1,7 @@
 """
 Join Operator for AgenArc
 
-Provides explicit multi-input synchronization and merging strategies.
+Provides synchronization for multiple parallel branches.
 """
 
 from typing import Any, Dict, List
@@ -12,27 +12,26 @@ from agenarc.protocol.schema import Port
 
 class JoinOperator(IOperator):
     """
-    Join Operator - synchronizes multiple inputs and merges them.
+    Join Operator - synchronizes multiple parallel branches.
 
-    Used when a node has multiple incoming edges and needs to explicitly
-    wait for all predecessors and merge their outputs.
+    Reads inputs from context based on edges pointing to this node.
+    Waits for all incoming edges to complete, then merges their outputs.
 
-    Strategies:
-        - first: Return the first input that arrives
-        - last: Return the last input that arrives
-        - merge: Merge all inputs into a dict keyed by source node ID
-        - concat: Concatenate all inputs into a list
-        - all: Pass through all inputs as a list
+    Config:
+        strategy: merge strategy
+            - first: Return the first input
+            - last: Return the last input
+            - merge: Merge all inputs into a dict
+            - concat: Concatenate all inputs into a list
 
-    Inputs:
-        Multiple inputs from different source nodes
-
-    Outputs:
-        Merged/selected result
+    Note:
+        Join does not declare fixed input ports.
+        It reads from context based on edge sourcePort values:
+        - For edge (source=A, targetPort=input), reads context["nodes.A.<sourcePort>"]
     """
 
     def __init__(self):
-        self._default_strategy = "first"
+        self._default_strategy = "merge"
 
     @property
     def name(self) -> str:
@@ -40,19 +39,15 @@ class JoinOperator(IOperator):
 
     @property
     def description(self) -> str:
-        return "Join multiple inputs with configurable merge strategy"
+        return "Join multiple branches with configurable merge strategy"
 
     def get_input_ports(self) -> List[Port]:
-        return [
-            Port(name="input_A", type="any", description="First input"),
-            Port(name="input_B", type="any", description="Second input"),
-            Port(name="strategy", type="string", description="merge strategy: first|last|merge|concat|all"),
-        ]
+        # Join does not declare fixed input ports
+        return []
 
     def get_output_ports(self) -> List[Port]:
         return [
             Port(name="output", type="any", description="Merged output"),
-            Port(name="inputs", type="list", description="All inputs as list"),
         ]
 
     async def execute(
@@ -60,43 +55,42 @@ class JoinOperator(IOperator):
         inputs: Dict[str, Any],
         context: "ExecutionContext"
     ) -> Dict[str, Any]:
-        strategy = inputs.get("strategy", self._default_strategy)
-        input_A = inputs.get("input_A")
-        input_B = inputs.get("input_B")
+        strategy = context.get("_join_strategy", self._default_strategy)
+        node_id = context.get("_node_id", "join")
 
-        # Collect all non-None inputs
-        all_inputs = [inp for inp in [input_A, input_B] if inp is not None]
+        # Collect all inputs from context based on edges
+        # Edge format: source --sourcePort--> join
+        # Context key: nodes.{source}.{sourcePort}
+        collected_inputs = {}
 
+        # Get edge information from context
+        incoming_edges = context.get("_incoming_edges", [])
+
+        for edge in incoming_edges:
+            source = edge.get("source")
+            source_port = edge.get("sourcePort", "")
+            if source and source_port:
+                key = f"nodes.{source}.{source_port}"
+                value = context.get(key)
+                if value is not None:
+                    collected_inputs[f"{source}.{source_port}"] = value
+
+        # Merge based on strategy
         if strategy == "first":
-            result = input_A if input_A is not None else input_B
+            result = next(iter(collected_inputs.values()), None) if collected_inputs else None
         elif strategy == "last":
-            result = input_B if input_B is not None else input_A
+            result = list(collected_inputs.values())[-1] if collected_inputs else None
         elif strategy == "merge":
-            # Merge into dict with source info
-            result = {
-                "input_A": input_A,
-                "input_B": input_B,
-            }
+            result = collected_inputs
         elif strategy == "concat":
-            # Concatenate into list (works for lists and scalars)
-            result = self._concat(all_inputs)
-        elif strategy == "all":
-            result = all_inputs
+            result = []
+            for v in collected_inputs.values():
+                if isinstance(v, list):
+                    result.extend(v)
+                else:
+                    result.append(v)
         else:
-            # Default to first
-            result = input_A if input_A is not None else input_B
+            # Default to merge
+            result = collected_inputs
 
-        return {
-            "output": result,
-            "inputs": all_inputs,
-        }
-
-    def _concat(self, inputs: List[Any]) -> List[Any]:
-        """Concatenate inputs, flattening lists where appropriate."""
-        result = []
-        for inp in inputs:
-            if isinstance(inp, list):
-                result.extend(inp)
-            else:
-                result.append(inp)
-        return result
+        return {"output": result}
