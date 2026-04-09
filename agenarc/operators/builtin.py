@@ -7,7 +7,6 @@ Core operators that are always available:
 - Script_Node: Execute inline Python scripts
 - Log_Node: Output values for debugging
 - Router: Conditional branching
-- Loop_Control: Loop iteration control
 """
 
 import asyncio
@@ -693,7 +692,6 @@ BUILTIN_OPERATORS: Dict[str, type] = {
     "Context_Get": Context_Get_Operator,
     "Join": None,  # Loaded from join.py
     "Router": None,  # Loaded from router.py
-    "Loop_Control": None,  # Loaded from loop.py
     "LLM_Task": None,  # Loaded from llm.py
 }
 
@@ -714,15 +712,6 @@ def _register_router_operator():
         BUILTIN_OPERATORS["Router"] = RouterOperator
     except ImportError:
         pass  # Router not available
-
-
-def _register_loop_operator():
-    """Register Loop_Control operator from loop.py."""
-    try:
-        from agenarc.operators.loop import Loop_Control_Operator
-        BUILTIN_OPERATORS["Loop_Control"] = Loop_Control_Operator
-    except ImportError:
-        pass  # Loop_Control not available
 
 
 def _register_join_operator():
@@ -748,7 +737,6 @@ def _register_evolution_operators():
 # Auto-register operators on import
 _register_llm_operators()
 _register_router_operator()
-_register_loop_operator()
 _register_join_operator()
 _register_evolution_operators()
 

@@ -274,7 +274,6 @@ class TestEnums:
         assert NodeType.TRIGGER.value == "Trigger"
         assert NodeType.LLM_TASK.value == "LLM_Task"
         assert NodeType.ROUTER.value == "Router"
-        assert NodeType.LOOP_CONTROL.value == "Loop_Control"
         assert NodeType.MEMORY_IO.value == "Memory_I/O"
         assert NodeType.SCRIPT_NODE.value == "Script_Node"
         assert NodeType.SUBGRAPH.value == "Subgraph"

@@ -7,7 +7,6 @@
 | **hello_agent** | Hello World | Trigger + Log |
 | **chat_agent** | 简单对话 | Trigger + LLM_Task + Log |
 | **router_agent** | 条件路由 | Trigger + LLM_Task + Router + Log |
-| **loop_agent** | 循环结构 | Trigger + LLM_Task + Loop_Control + Log |
 | **full_agent** | 完整功能 | manifest + permissions + immutable_anchors |
 
 ## 运行示例

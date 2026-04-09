@@ -26,7 +26,6 @@
 | **chat_agent** | 简单对话 | Trigger + LLM_Task + Log |
 | **my_first_agent** | 多轮对话 | Trigger + Prompt_Builder + LLM_Task + Prompt_Builder + Log |
 | **router_agent** | 带路由 | Trigger + LLM_Task + Router + Log |
-| **loop_agent** | 带循环结构 | Trigger + LLM_Task + Loop_Control + Log |
 | **full_agent** | 完整功能 | Trigger + LLM_Task + Router + Log + manifest |
 
 ### 运行示例
@@ -108,7 +107,7 @@ my_agent.agrc/
         "model": "deepseek-chat",
         "temperature": 0.7,
         "max_tokens": 150,
-        "system_prompt": "你是我的人工智能助手，协助我完成各种任务。"
+        "system_prompt": "agrc://prompts/system.pt"
       }
     },
     {
@@ -138,7 +137,6 @@ my_agent.agrc/
 
 ```jinja2
 你是我的人工智能助手，协助我完成各种任务。
-{{context}}
 ```
 
 ### 步骤 5：运行 Agent
@@ -326,7 +324,7 @@ agent_name.agrc/
 这等同于：
 
 ```json
-{"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": ""}
+{"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "message"}
 ```
 
 #### 连接到 Trigger 的边
@@ -587,97 +585,6 @@ trigger.payload ──→ pb_user ──→ llm ──→ pb_assistant ──→
 
 ---
 
-### 6.4 Loop_Control（循环控制）
-
-**作用**：基于反馈循环的迭代处理。输出 `done=False` 时继续循环，`done=True` 时退出。
-
-**反馈循环工作流程**：
-
-```
-Loop_Control (done=False)
-    ↓
-Body 节点 (处理 current_item)
-    ↓
-Body 输出回传给 Loop_Control (accumulator_input)
-    ↓
-Loop_Control 读取 accumulator，进入下一次迭代
-    ↓
-直到 done=True，退出循环
-```
-
-**示例**：
-
-```json
-{
-  "id": "loop_1",
-  "type": "Loop_Control",
-  "label": "处理列表",
-  "inputs": [
-    {"name": "iterate_on", "type": "array"},
-    {"name": "max_iterations", "type": "integer", "default": 100},
-    {"name": "accumulator_input", "type": "any", "description": "从循环体回传的累积值"}
-  ],
-  "outputs": [
-    {"name": "iteration_count", "type": "integer"},
-    {"name": "current_item", "type": "any"},
-    {"name": "accumulator", "type": "any"},
-    {"name": "done", "type": "boolean"}
-  ]
-}
-```
-
-**输入端口**：
-
-| 端口名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `iterate_on` | array | - | 要迭代的数组 |
-| `max_iterations` | integer | 100 | 最大迭代次数 |
-| `accumulator_input` | any | - | 循环体回传的累积值 |
-
-**输出端口**：
-
-| 端口名 | 类型 | 说明 |
-|--------|------|------|
-| `iteration_count` | integer | 当前迭代计数（0起始） |
-| `current_item` | any | 当前迭代项 |
-| `accumulator` | any | 累积值（自动合并 body 回传值） |
-| `done` | boolean | false=继续循环，true=退出 |
-
-**闭环连接示例**：
-
-```json
-{
-  "nodes": [
-    {"id": "trigger_1", "type": "Trigger"},
-    {"id": "loop_1", "type": "Loop_Control", "label": "循环"},
-    {"id": "process_item", "type": "Script_Node", "label": "处理"},
-    {"id": "log_result", "type": "Log", "label": "输出"}
-  ],
-  "edges": [
-    {"source": "trigger_1", "target": "loop_1"},
-    {"source": "loop_1", "sourcePort": "current_item", "target": "process_item", "targetPort": "input"},
-    {"source": "process_item", "sourcePort": "result", "target": "loop_1", "targetPort": "accumulator_input"},
-    {"source": "loop_1", "sourcePort": "done", "sourceValue": "true", "target": "log_result"},
-    {"source": "process_item", "sourcePort": "result", "target": "log_result"}
-  ]
-}
-```
-
-**两种典型场景**：
-
-| 场景 | 用法 |
-|------|------|
-| 列表遍历 | iterate_on 传入数组，accumulator 自动收集结果 |
-| 自我修正 | max_iterations 控制重试次数，accumulator 保存错误信息 |
-
-**避坑指南**：
-
-1. **必须设置 max_iterations**：防止无限循环耗尽资源
-2. **闭环边**：必须有一条边从 body 节点连回 Loop_Control 的 `accumulator_input`
-3. **done 判定**：当 `done=true` 时，通过 `sourceValue` 条件边跳过后续节点
-
----
-
 ### 6.5 Memory_I/O（记忆 I/O）
 
 **作用**：读写持久化存储。
@@ -790,7 +697,52 @@ result = {
 
 ---
 
-### 6.7 Log（日志节点）
+### 6.7 Join（并行同步）
+
+**作用**：同步多个并行分支的输入并合并。
+
+**使用场景**：当多个节点并行执行后需要汇合时使用。
+
+**示例**：
+
+```json
+{
+  "id": "join_1",
+  "type": "Join",
+  "config": {
+    "strategy": "merge"
+  }
+}
+```
+
+**输入端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `input_A` | any | 第一个输入 |
+| `input_B` | any | 第二个输入 |
+| `strategy` | string | 合并策略 |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `output` | any | 合并后的结果 |
+| `inputs` | list | 所有输入的列表 |
+
+**合并策略**：
+
+| 策略 | 行为 |
+|------|------|
+| `first` | 返回第一个到达的输入 |
+| `last` | 返回最后一个到达的输入 |
+| `merge` | 合并为 `{"input_A": ..., "input_B": ...}` |
+| `concat` | 拼接所有输入为列表 |
+| `all` | 原样传递所有输入为列表 |
+
+---
+
+### 6.8 Log（日志节点）
 
 **作用**：输出调试信息。
 
@@ -821,7 +773,7 @@ result = {
 
 ---
 
-### 6.8 Context_Set（设置上下文）
+### 6.9 Context_Set（设置上下文）
 
 **作用**：向全局上下文写入变量。
 
@@ -851,7 +803,7 @@ result = {
 
 ---
 
-### 6.9 Context_Get（获取上下文）
+### 6.10 Context_Get（获取上下文）
 
 **作用**：从全局上下文读取变量。
 
@@ -883,7 +835,7 @@ result = {
 
 
 
-### 6.10 Plugin（自定义插件算子）
+### 6.11 Plugin（自定义插件算子）
 
 **作用**：调用自定义插件实现的算子。
 
@@ -925,6 +877,134 @@ result = {
 4. 在 flow.json 中使用 `type: "Plugin"` 并配置 `config.plugin` 和 `config.function`
 
 详见：[插件开发指南](plugins/README.md)
+
+---
+
+### 6.12 Asset_Reader（资产读取）
+
+**作用**：读取 Bundle 内的资产文件。
+
+**示例**：
+
+```json
+{
+  "id": "reader_1",
+  "type": "Asset_Reader",
+  "config": {
+    "path": "agrc://prompts/system.pt",
+    "encoding": "utf-8"
+  }
+}
+```
+
+**输入端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `path` | string | agrc:// 相对路径 |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `content` | string | 文件原文 |
+| `metadata` | object | 文件元信息 |
+
+**config 配置项**：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `path` | string | - | VFS 路径（必需） |
+| `encoding` | string | utf-8 | 文件编码 |
+| `required` | boolean | true | 文件不存在时是否报错 |
+
+---
+
+### 6.13 Asset_Writer（资产写入）
+
+**作用**：向 Bundle 内写入/创建资产文件。
+
+**示例**：
+
+```json
+{
+  "id": "writer_1",
+  "type": "Asset_Writer",
+  "config": {
+    "path": "agrc://scripts/tool.py",
+    "atomic": true
+  }
+}
+```
+
+**输入端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `path` | string | 目标路径 |
+| `content` | string | 文件内容 |
+| `operation` | string | 操作类型：create/update/delete |
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `success` | boolean | 操作是否成功 |
+| `path` | string | 实际写入的路径 |
+
+**config 配置项**：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `atomic` | boolean | true | 启用原子写入（失败立即回滚） |
+| `allow_create` | boolean | true | 允许创建新文件 |
+
+**原子性保证**：
+- 写入前先创建 `.tmp` 文件
+- 写入成功后 rename
+- 失败则删除 `.tmp`，原文件保持不变
+
+---
+
+### 6.14 Runtime_Reload（运行时重载）
+
+**作用**：触发引擎热重载，刷新插件注册表。
+
+**示例**：
+
+```json
+{
+  "id": "reload_1",
+  "type": "Runtime_Reload",
+  "config": {
+    "target": "both"
+  }
+}
+```
+
+**输出端口**：
+
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `reloaded_scripts` | array | 重载的脚本列表 |
+| `success` | boolean | 重载是否成功 |
+
+**config 配置项**：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `target` | string | both | 重载目标：plugins/scripts/both |
+
+**执行流程**：
+1. **静默期**：暂停接收新任务，等待当前原子节点执行完毕
+2. **Snapshot 保存**：保存当前 Global Context 完整状态
+3. 扫描 `scripts/` 目录
+4. 对新增/修改的 `.py` 文件执行 AST 扫描
+5. 刷新 PluginManager 注册表
+6. 恢复 Context（保持不丢失）
+7. 返回重载结果
+
+---
 
 ## 7. 模板语法
 

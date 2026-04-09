@@ -42,7 +42,6 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 ### Stage 2: Complete Execution Engine (Complete)
 
 - **Router** - Conditional branching (if-else, switch-case)
-- **Loop_Control** - Loop iteration with accumulation
 - **Script_Node** - Custom scripts with AST safety
 - **CheckpointManager** - File-based persistence for interruption recovery
 - **AST Evaluator** - Safe expression evaluation
@@ -137,7 +136,6 @@ python -m agenarc.cli info flow.json
 | `Trigger` | Entry point for graph execution |
 | `LLM_Task` | Execute LLM inference |
 | `Router` | Conditional branching |
-| `Loop_Control` | Loop iteration control |
 | `Memory_I/O` | Read/write to persistent storage |
 | `Script_Node` | Execute inline Python scripts |
 | `Log` | Log and pass through values |
@@ -241,7 +239,6 @@ agenarc/
 ├── operators/        # Built-in operators
 │   ├── builtin.py   # Core operators
 │   ├── router.py    # Router operator
-│   ├── loop.py      # Loop_Control operator
 │   └── llm.py      # LLM operators
 ├── vfs/             # Virtual filesystem (agrc://)
 ├── plugins/         # Plugin system

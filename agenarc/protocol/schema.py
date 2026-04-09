@@ -15,7 +15,6 @@ class NodeType(str, Enum):
     TRIGGER = "Trigger"
     LLM_TASK = "LLM_Task"
     ROUTER = "Router"
-    LOOP_CONTROL = "Loop_Control"
     MEMORY_IO = "Memory_I/O"
     SCRIPT_NODE = "Script_Node"
     SUBGRAPH = "Subgraph"
@@ -152,7 +151,7 @@ class ErrorHandling:
 
 @dataclass
 class Condition:
-    """Condition expression for Router and Loop_Control."""
+    """Condition expression for Router."""
     ref: Optional[str] = None
     operator: Optional[ConditionOperator] = None
     value: Any = None
