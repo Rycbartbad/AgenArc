@@ -65,27 +65,41 @@ class LLM_Task_Operator(IOperator):
             Port(name="usage", type="object", description="Token usage info"),
         ]
 
-    def _get_client(self):
+    def _get_client(self, provider: str = None, base_url: str = None, api_key: str = None):
         """Get or create the LLM client."""
-        if self._client is None:
-            try:
-                from openai import AsyncOpenAI
-                config = _get_llm_config()
+        try:
+            from openai import AsyncOpenAI
+            config = _get_llm_config()
 
-                api_key = config.get_openai_api_key() or ""
-                base_url = config.get_openai_base_url()
+            # Use provided values or fall back to config
+            if not base_url:
+                if provider:
+                    provider_config = config.get_provider_config(provider)
+                    base_url = provider_config.get("base_url")
+                    api_key = api_key or provider_config.get("api_key")
+                else:
+                    base_url = config.get_openai_base_url()
+                    api_key = config.get_openai_api_key()
 
-                self._client = AsyncOpenAI(
+            api_key = api_key or ""
+
+            # Create client with the specified or default configuration
+            client_key = f"{base_url}:{api_key[:8] if api_key else ''}"
+            if not hasattr(self, '_clients'):
+                self._clients = {}
+
+            if client_key not in self._clients:
+                self._clients[client_key] = AsyncOpenAI(
                     api_key=api_key,
                     base_url=base_url,
                 )
-            except ImportError:
-                raise ImportError(
-                    "OpenAI library not installed. "
-                    "Install with: pip install openai"
-                )
 
-        return self._client
+            return self._clients[client_key]
+        except ImportError:
+            raise ImportError(
+                "OpenAI library not installed. "
+                "Install with: pip install openai"
+            )
 
     async def execute(
         self,
@@ -104,11 +118,23 @@ class LLM_Task_Operator(IOperator):
         """
         config = _get_llm_config()
         messages = inputs.get("messages", [])
-        model = context.get("_llm_model") or config.get_openai_model()
-        temperature = context.get("_llm_temperature") or config.get_openai_temperature()
 
-        # Get system_prompt from config
+        # Get node config for provider/model override
         node_config = context.get("_node_config", {})
+
+        # Provider and model from node config
+        provider = node_config.get("provider")
+        model = node_config.get("model")
+
+        # Get provider config
+        if provider:
+            provider_config = config.get_provider_config(provider)
+            if not model:
+                model = provider_config.get("default_model")
+        else:
+            model = model or context.get("_llm_model") or config.get_openai_model()
+
+        temperature = node_config.get("temperature") or context.get("_llm_temperature") or config.get_openai_temperature()
         system_prompt = node_config.get("system_prompt", "")
 
         if not messages:
@@ -118,7 +144,7 @@ class LLM_Task_Operator(IOperator):
             }
 
         try:
-            client = self._get_client()
+            client = self._get_client(provider=provider)
 
             # Build API messages: system prompt + conversation history
             api_messages = []

@@ -141,6 +141,40 @@ class Config:
         """Get default Anthropic model."""
         return self.get("anthropic.default_model", "claude-3-sonnet-20240229")
 
+    def get_provider_config(self, provider: str) -> Dict[str, Any]:
+        """
+        Get configuration for a specific provider.
+
+        Args:
+            provider: Provider name (e.g., "deepseek", "openrouter", "anthropic")
+
+        Returns:
+            Dict with api_key, base_url, and default_model
+        """
+        # First check top-level provider config
+        provider_config = self.get(f"providers.{provider}", {})
+        if provider_config:
+            return {
+                "api_key": provider_config.get("api_key"),
+                "base_url": provider_config.get("base_url"),
+                "default_model": provider_config.get("default_model") or provider_config.get("models", [""])[0] if provider_config.get("models") else "",
+            }
+
+        # Fallback to legacy top-level config
+        legacy_config = self.get(provider, {})
+        if legacy_config:
+            return {
+                "api_key": legacy_config.get("api_key"),
+                "base_url": legacy_config.get("base_url"),
+                "default_model": legacy_config.get("default_model"),
+            }
+
+        return {"api_key": None, "base_url": None, "default_model": None}
+
+    def get_default_provider(self) -> str:
+        """Get default provider name."""
+        return self.get("default_provider", "openai")
+
     def get_checkpoint_dir(self) -> Path:
         """Get checkpoint directory."""
         path = self.get("agent.checkpoint_dir", "~/.agenarc/checkpoints")

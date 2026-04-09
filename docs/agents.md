@@ -402,7 +402,8 @@ agent_name.agrc/
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `model` | string | - | 模型名称（如 deepseek-chat、gpt-4） |
+| `provider` | string | 必需 | 提供商名称（如 deepseek、openrouter），与 config.yaml 中的 providers 一致 |
+| `model` | string | provider.default_model | 模型名称，会覆盖 provider 的 default_model |
 | `temperature` | number | 0.7 | 温度参数，控制随机性（0-1） |
 | `system_prompt` | string | - | 系统提示词（与 messages 列表区分） |
 | `max_tokens` | integer | - | 最大生成 token 数 |
@@ -1089,15 +1090,42 @@ VFS 允许通过 `agrc://` 协议安全地访问 bundle 内部的资源，而不
 
 ### 9.1 配置 API Key
 
-在项目根目录创建或编辑 `config.yaml`：
+配置文件位置（按优先级递减）：
+
+1. `~/.agenarc/config.yaml`（用户全局配置）
+2. `项目根目录/config.yaml`（项目级配置）
+
+**多提供商配置**：
 
 ```yaml
-openai:
-  api_key: your-api-key-here
-  base_url: https://api.deepseek.com
-  default_model: deepseek-chat
-  temperature: 0.7
+providers:
+  openrouter:
+    api_key: your-openrouter-key
+    base_url: https://openrouter.ai/api/v1
+    default_model: openrouter/free
+
+  deepseek:
+    api_key: your-deepseek-key
+    base_url: https://api.deepseek.com
+    default_model: deepseek-chat
+    temperature: 0.7
 ```
+
+然后在 flow.json 中指定使用哪个 provider 和 model：
+
+```json
+{
+  "id": "llm_1",
+  "type": "LLM_Task",
+  "config": {
+    "provider": "openrouter",
+    "model": "openrouter/free"
+  }
+}
+```
+
+- `provider`：必需，指定使用哪个提供商
+- `model`：可选，不指定则使用 config.yaml 中的 default_model
 
 **常用 API 端点**：
 
@@ -1105,6 +1133,8 @@ openai:
 |--------|----------|----------|
 | DeepSeek | `https://api.deepseek.com` | deepseek-chat |
 | OpenAI | `https://api.openai.com/v1` | gpt-4, gpt-3.5-turbo |
+| OpenRouter | `https://openrouter.ai/api/v1` | openrouter/free, openrouter/deepseek(deepseek-chat) |
+| Anthropic | `https://api.anthropic.com` | claude-3-5-sonnet-20240620 |
 | Ollama (本地) | `http://localhost:11434/v1` | llama2, mistral |
 
 ### 9.2 运行命令
@@ -1558,23 +1588,3 @@ A: 使用 Prompt_Builder 节点的 `history` 配置实现多轮对话：
 
 ### Q: 支持哪些编程语言？
 A: Script_Node 目前只支持 Python。
-
----
-
-## 附录：配置文件参考
-
-### config.yaml 完整示例
-
-```yaml
-openai:
-  api_key: your-api-key
-  base_url: https://api.deepseek.com
-  default_model: deepseek-chat
-  temperature: 0.7
-  max_tokens: 2000
-
-agent:
-  checkpoint_dir: ~/.agenarc
-  enable_checkpoint: true
-  max_parallel: 4
-```
