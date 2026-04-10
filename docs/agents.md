@@ -1140,6 +1140,7 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli serve qq_agent.agrc --plugins qq
 | `user_id` | any | 用户标识（来源特定格式） |
 | `group_id` | any | 群组标识（私聊为 0） |
 | `message` | any | 消息内容 |
+| `message_type` | string | 消息类型：'private' 或 'group' |
 | `raw` | any | 原始事件数据 |
 | `timestamp` | integer | 事件时间戳 |
 
@@ -1548,6 +1549,7 @@ session_state.set_global("_session_first_run", False) # 后续执行
 | 插件 | 说明 |
 |------|------|
 | `qq` | QQ 事件监听，通过 NapCat WebSocket 接收消息（OneBot v11） |
+| `qq_reply` | QQ 消息发送，通过 NapCat WebSocket 发送消息（OneBot v11） |
 
 ### 10.2 服务模式
 
@@ -1908,24 +1910,40 @@ qq_bot_agent.agrc/
     {
       "id": "prompt_builder",
       "type": "Prompt_Builder",
-      "config": { "history": "{{nodes.trigger.user_id}}" }
+      "config": { "history": "qq_history", "max_history": 100 }
     },
     {
       "id": "llm_task",
       "type": "LLM_Task",
       "config": {
+        "provider": "deepseek",
         "model": "deepseek-chat",
-        "system_prompt": "你是一个友好的 QQ 机器人助手。"
+        "system_prompt": "你是一个友好的 QQ 机器人助手。",
+        "temperature": 0.7
+      }
+    },
+    {
+      "id": "send_reply",
+      "type": "Plugin",
+      "label": "发送回复",
+      "config": {
+        "plugin": "qq_reply",
+        "function": "QQ_Reply_Operator"
       }
     },
     {
       "id": "log_output",
-      "type": "Log"
+      "type": "Log",
+      "label": "输出日志"
     }
   ],
   "edges": [
     { "source": "trigger", "sourcePort": "message", "target": "prompt_builder", "targetPort": "user" },
+    { "source": "trigger", "sourcePort": "user_id", "target": "send_reply", "targetPort": "user_id" },
+    { "source": "trigger", "sourcePort": "message_type", "target": "send_reply", "targetPort": "message_type" },
+    { "source": "trigger", "sourcePort": "group_id", "target": "send_reply", "targetPort": "group_id" },
     { "source": "prompt_builder", "sourcePort": "messages", "target": "llm_task", "targetPort": "messages" },
+    { "source": "llm_task", "sourcePort": "response", "target": "send_reply", "targetPort": "message" },
     { "source": "llm_task", "sourcePort": "response", "target": "log_output", "targetPort": "data" }
   ]
 }
@@ -1947,8 +1965,9 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli serve examples/qq_bot_agent.agrc
 
 **特性**：
 - 使用 `agenarc serve` 启动后台服务
-- Trigger 作为入口点，接收标准化事件
-- 每个用户有独立的对话历史（通过 user_id 分隔）
+- Trigger 作为入口点，接收标准化事件（包含 message_type 区分私聊/群聊）
+- qq_reply 插件通过 NapCat WebSocket 发送 QQ 消息（使用共享连接避免短连接问题）
+- 每个用户有独立的对话历史（通过 history 配置共享）
 - 支持私聊和群聊，可通过配置过滤
 - 断线自动重连
 
