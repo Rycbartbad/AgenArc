@@ -73,8 +73,10 @@ class TriggerOperator(IOperator):
             Port(name="user_id", type="any", description="User identifier"),
             Port(name="group_id", type="any", description="Group identifier (0 if not applicable)"),
             Port(name="message", type="any", description="Message content"),
+            Port(name="message_type", type="string", description="Message type: private or group"),
             Port(name="raw", type="any", description="Raw event data"),
             Port(name="timestamp", type="integer", description="Event timestamp"),
+            Port(name="token", type="string", description="Event token (for authentication)"),
         ]
 
     async def execute(
@@ -83,7 +85,50 @@ class TriggerOperator(IOperator):
         context: ExecutionContext
     ) -> Dict[str, Any]:
         # Trigger outputs the initial payload from context
+        # Event plugins store event data directly in context (source, user_id, message, etc.)
+        # Manual triggering stores data under "payload" key
+
+        # Check for payload key first
         payload = context.get("payload", {})
+
+        # If payload is empty, check for direct event data in context
+        # (from event plugins like QQ)
+        if not payload or not isinstance(payload, dict):
+            source = context.get("source", "manual")
+            if source == "manual":
+                # No event data, this is manual triggering
+                return {
+                    "payload": payload or {},
+                    "source": "manual",
+                    "user_id": None,
+                    "group_id": 0,
+                    "message": payload if payload else None,
+                    "message_type": "private",
+                    "raw": None,
+                    "timestamp": 0,
+                    "token": None,
+                }
+            # Event-driven: extract from direct context keys
+            return {
+                "payload": {
+                    "source": context.get("source"),
+                    "user_id": context.get("user_id"),
+                    "group_id": context.get("group_id", 0),
+                    "message": context.get("message"),
+                    "message_type": context.get("message_type", "private"),
+                    "raw": context.get("raw"),
+                    "timestamp": context.get("timestamp", 0),
+                    "token": context.get("token"),
+                },
+                "source": context.get("source", "manual"),
+                "user_id": context.get("user_id"),
+                "group_id": context.get("group_id", 0),
+                "message": context.get("message"),
+                "message_type": context.get("message_type", "private"),
+                "raw": context.get("raw"),
+                "timestamp": context.get("timestamp", 0),
+                "token": context.get("token"),
+            }
 
         # Extract standardized event fields if payload is a dict
         if isinstance(payload, dict):
@@ -93,8 +138,10 @@ class TriggerOperator(IOperator):
                 "user_id": payload.get("user_id"),
                 "group_id": payload.get("group_id", 0),
                 "message": payload.get("message"),
+                "message_type": payload.get("message_type", "private"),
                 "raw": payload.get("raw", payload),
                 "timestamp": payload.get("timestamp", 0),
+                "token": payload.get("token"),
             }
 
         # Simple payload (e.g., string)
@@ -104,8 +151,10 @@ class TriggerOperator(IOperator):
             "user_id": None,
             "group_id": 0,
             "message": payload,
+            "message_type": "private",
             "raw": None,
             "timestamp": 0,
+            "token": None,
         }
 
 
@@ -294,7 +343,14 @@ class Script_Node_Operator(IOperator):
         inputs: Dict[str, Any],
         context: ExecutionContext
     ) -> Dict[str, Any]:
+        # Script can come from inputs (edge) or from node config
         script = inputs.get("script", "")
+
+        # If no script from inputs, try to get from node config
+        if not script:
+            node_config = context.get("_node_config", {})
+            script = node_config.get("script", "")
+
         timeout = inputs.get("timeout", self._timeout)
 
         if not script:
@@ -316,7 +372,7 @@ class Script_Node_Operator(IOperator):
         max_memory_mb = context.get("_max_memory_mb", 128)
 
         # Build evaluation context
-        eval_context = self._build_context(context)
+        eval_context = self._build_context(context, inputs)
 
         try:
             # Check if it's a single expression or statements
@@ -352,7 +408,7 @@ class Script_Node_Operator(IOperator):
                 # Execute as statements (for context modifications)
                 # In "developer" mode, use less restricted globals
                 result = await self._execute_statements(
-                    script_stripped, context, eval_context,
+                    script_stripped, context, eval_context, inputs,
                     trust_level == "developer"
                 )
                 return {"result": result, "success": True, "error": None}
@@ -383,7 +439,7 @@ class Script_Node_Operator(IOperator):
                 return False
         return True
 
-    def _build_context(self, context: ExecutionContext) -> Dict[str, Any]:
+    def _build_context(self, context: ExecutionContext, inputs: Dict[str, Any] = None) -> Dict[str, Any]:
         """Build context dictionary for evaluation."""
         # Get relevant values from execution context
         eval_context = {
@@ -398,6 +454,13 @@ class Script_Node_Operator(IOperator):
             "input": context.get("input"),
             "payload": context.get("payload"),
         }
+
+        # Add node inputs from graph edges
+        if inputs:
+            eval_context["inputs"] = inputs
+            # Also add inputs directly to eval_context for convenience
+            for key, value in inputs.items():
+                eval_context[key] = value
 
         # Try to get iteration variables
         loop_id = context.get("_loop_id", "default")
@@ -419,6 +482,7 @@ class Script_Node_Operator(IOperator):
         script: str,
         context: ExecutionContext,
         eval_context: Dict[str, Any],
+        inputs: Dict[str, Any] = None,
         developer_mode: bool = False
     ) -> Any:
         """
@@ -428,53 +492,65 @@ class Script_Node_Operator(IOperator):
             script: Python script to execute
             context: Execution context
             eval_context: Evaluation context
+            inputs: Node inputs from graph edges
             developer_mode: If True, use less restricted globals (DANGEROUS)
         """
-        # Create safe globals for statement execution
-        # This is a simplified version - full sandboxing would need more work
-        safe_globals = {
-            "__builtins__": {
-                "len": len,
-                "str": str,
-                "int": int,
-                "float": float,
-                "bool": bool,
-                "list": list,
-                "dict": dict,
-                "tuple": tuple,
-                "set": set,
-                "range": range,
-                "enumerate": enumerate,
-                "zip": zip,
-                "map": map,
-                "filter": filter,
-                "sorted": sorted,
-                "any": any,
-                "all": all,
-                "min": min,
-                "max": max,
-                "abs": abs,
-                "sum": sum,
-                "print": print,
-                "json": json,
-            },
-        }
-
-        # Developer mode: add more builtins (DANGEROUS - only for local development)
+        # Create globals for statement execution
         if developer_mode:
-            safe_globals["__builtins__"].update({
-                "open": open,
-                "file": open,
-                "input": input,
-                "compile": compile,
-                "eval": eval,
-                "exec": exec,
-            })
-
-        # Create a namespace for the script with context access
-        script_globals = safe_globals.copy()
-        script_globals["_ctx"] = context
-        script_globals["_result"] = None
+            # Developer mode: use unrestricted globals (DANGEROUS - full Python access)
+            script_globals = {
+                "__builtins__": __builtins__,
+                "context": context,
+                "_ctx": context,
+                "_inputs": inputs or {},
+                "_result": None,
+                "asyncio": asyncio,
+                "websockets": __import__("websockets"),
+                "os": __import__("os"),
+                "struct": __import__("struct"),
+                "socket": __import__("socket"),
+                "base64": __import__("base64"),
+                "json": __import__("json"),
+                "urllib": __import__("urllib"),
+            }
+        else:
+            # Safe mode: limited builtins
+            safe_globals = {
+                "__builtins__": {
+                    "len": len,
+                    "str": str,
+                    "int": int,
+                    "float": float,
+                    "bool": bool,
+                    "list": list,
+                    "dict": dict,
+                    "tuple": tuple,
+                    "set": set,
+                    "range": range,
+                    "enumerate": enumerate,
+                    "zip": zip,
+                    "map": map,
+                    "filter": filter,
+                    "sorted": sorted,
+                    "any": any,
+                    "all": all,
+                    "min": min,
+                    "max": max,
+                    "abs": abs,
+                    "sum": sum,
+                    "print": print,
+                    "json": json,
+                    "Exception": Exception,
+                    "ValueError": ValueError,
+                    "TypeError": TypeError,
+                    "KeyError": KeyError,
+                },
+            }
+            script_globals = safe_globals.copy()
+            script_globals["context"] = context
+            script_globals["_ctx"] = context
+            script_globals["_inputs"] = inputs or {}
+            script_globals["_result"] = None
 
         # Wrap script to capture last expression
         wrapped_script = f"""

@@ -49,13 +49,14 @@ class TestTriggerOperator:
         """Test operator output ports."""
         op = TriggerOperator()
         ports = op.get_output_ports()
-        assert len(ports) == 7
+        assert len(ports) == 9
         port_names = {p.name for p in ports}
         assert "payload" in port_names
         assert "source" in port_names
         assert "user_id" in port_names
         assert "group_id" in port_names
         assert "message" in port_names
+        assert "message_type" in port_names
         assert "raw" in port_names
         assert "timestamp" in port_names
 

@@ -83,17 +83,12 @@ class PluginManager:
             if not plugins_dir.exists() or not plugins_dir.is_dir():
                 continue
 
-            # Scan for plugin directories within the bundle
-            for item in plugins_dir.iterdir():
-                if not item.is_dir():
-                    continue
-                agenarc_json = item / "agenarc.json"
-                if agenarc_json.exists():
-                    # Discover using hot loader's Python loader
-                    if self._hot_loader and self._hot_loader._python_loader:
-                        await self._hot_loader._python_loader.discover(
-                            item, self._hot_loader._on_plugin_discovered
-                        )
+            # Discover using hot loader's Python loader
+            # Pass the plugins_dir (parent directory containing plugin subdirs), not individual plugin dirs
+            if self._hot_loader and self._hot_loader._python_loader:
+                await self._hot_loader._python_loader.discover(
+                    plugins_dir, self._hot_loader._on_plugin_discovered
+                )
 
     def register_operator(
         self,

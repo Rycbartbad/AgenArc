@@ -38,6 +38,7 @@ class QQPlugin:
 
         # Configuration
         self.ws_url: str = "ws://127.0.0.1:3001"
+        self.token: str = ""  # NapCat token (if required)
         self.auto_reconnect: bool = True
         self.reconnect_interval: int = 5
         self.filter_groups: List[int] = []
@@ -52,10 +53,12 @@ class QQPlugin:
         self._ws_connection: Optional[Any] = None
         self._running: bool = False
         self._connected_logged: bool = False
+        self._ws_url_with_token: str = ""
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the plugin from agenarc.json config."""
         self.ws_url = config.get("ws_url", self.ws_url)
+        self.token = config.get("token", self.token)
         self.auto_reconnect = config.get("auto_reconnect", self.auto_reconnect)
         self.reconnect_interval = config.get("reconnect_interval", self.reconnect_interval)
         self.filter_groups = config.get("filter_groups", self.filter_groups)
@@ -71,6 +74,11 @@ class QQPlugin:
                 "type": "string",
                 "default": "ws://127.0.0.1:3001",
                 "description": "NapCat WebSocket address"
+            },
+            "token": {
+                "type": "string",
+                "default": "",
+                "description": "NapCat token (if required, found in NapCat webui config)"
             },
             "auto_reconnect": {
                 "type": "boolean",
@@ -135,15 +143,19 @@ class QQPlugin:
 
     async def stop(self) -> None:
         """Stop listening for QQ messages."""
+        print("[QQ Plugin] stop() called")
         if not self._running:
+            print("[QQ Plugin] stop() - not running")
             return
 
         self._running = False
+        print("[QQ Plugin] stop() - setting stop event")
 
         if self._stop_event:
             self._stop_event.set()
 
         if self._listener_task and not self._listener_task.done():
+            print("[QQ Plugin] stop() - cancelling listener task")
             self._listener_task.cancel()
             try:
                 await self._listener_task
@@ -151,10 +163,12 @@ class QQPlugin:
                 pass
 
         if self._ws_connection:
+            print("[QQ Plugin] stop() - closing websocket")
             try:
                 await self._ws_connection.close()
             except Exception:
                 pass
+        print("[QQ Plugin] stop() complete")
 
     async def _listen_websocket(self) -> None:
         """Main WebSocket listening loop."""
@@ -162,7 +176,14 @@ class QQPlugin:
         while not self._stop_event.is_set():
             try:
                 import websockets
-                async with websockets.connect(self.ws_url, ping_interval=30) as ws:
+
+                # Build URL with token (NapCat uses access_token query param)
+                ws_url = self.ws_url
+                if self.token:
+                    separator = "&" if "?" in ws_url else "?"
+                    ws_url = f"{ws_url}{separator}access_token={self.token}"
+
+                async with websockets.connect(ws_url, ping_interval=30) as ws:
                     self._ws_connection = ws
                     reconnect_count += 1
                     if reconnect_count == 1:
@@ -173,7 +194,7 @@ class QQPlugin:
                     async for raw_message in ws:
                         if self._stop_event.is_set():
                             break
-
+                        print(f"[QQ Plugin] Received: {raw_message[:80]}...")
                         await self._handle_message(raw_message)
 
             except ImportError:
@@ -182,7 +203,9 @@ class QQPlugin:
                 self._stop_event.set()
                 break
             except asyncio.CancelledError:
-                break
+                # Task was cancelled, exit gracefully
+                print("[QQ Plugin] CancelledError caught - exiting")
+                return
             except Exception as e:
                 if not self._stop_event.is_set():
                     if reconnect_count == 1:
@@ -239,13 +262,18 @@ class QQPlugin:
                 "sender": event.get("sender", {}),
                 "raw": event,
                 "timestamp": event.get("time", 0),
+                "token": self.token,  # Pass token for use in graph
             }
 
             print(f"[QQ Plugin] Received: [{message_type}] {user_id} -> {message_text[:50]}...")
 
             # Trigger graph execution
             if self._trigger_callback:
+                print(f"[QQ Plugin] Calling trigger_callback...")
                 await self._trigger_callback(standardized_event)
+                print(f"[QQ Plugin] trigger_callback completed")
+            else:
+                print("[QQ Plugin] No trigger_callback set!")
 
         except json.JSONDecodeError as e:
             print(f"[QQ Plugin] Failed to parse message: {e}")

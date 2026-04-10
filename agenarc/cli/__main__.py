@@ -283,6 +283,12 @@ def create_parser() -> argparse.ArgumentParser:
         default="",
         help="Comma-separated list of event plugins to load (default: all)"
     )
+    serve_parser.add_argument(
+        "--plugin-config",
+        type=str,
+        default="",
+        help="JSON string with plugin configuration (e.g., '{\"qq\":{\"ws_url\":\"ws://127.0.0.1:3002\"}}')"
+    )
 
     # validate command
     validate_parser = subparsers.add_parser(
@@ -686,7 +692,7 @@ def command_run(
             print_error(f"Invalid JSON in --input: {e}")
             return 1
 
-    # Create engine with bundle path for embedded plugin discovery
+    # Create engine
     plugin_manager = PluginManager(bundle_paths=[bundle_path] if bundle_path else [])
     engine = ExecutionEngine(plugin_manager=plugin_manager)
 
@@ -790,7 +796,8 @@ def command_validate(file: Path) -> int:
 async def _start_event_plugins(
     engine: ExecutionEngine,
     plugin_manager: PluginManager,
-    selected_plugins: Optional[List[str]] = None
+    selected_plugins: Optional[List[str]] = None,
+    plugin_configs: Optional[Dict[str, Dict[str, Any]]] = None
 ) -> None:
     """
     Start event plugins and register them with the plugin manager.
@@ -833,9 +840,28 @@ async def _start_event_plugins(
             plugin_class = getattr(module, class_name)
             plugin_instance = plugin_class()
 
-            # Try to configure from manifest if available
+            # Build plugin configuration from multiple sources (later sources override earlier):
+            # 1. From config.yaml: plugins.qq.*
+            # 2. From --plugin-config CLI argument
+            plugin_cfg = {}
+
+            # Load from config file (config.yaml)
+            try:
+                from agenarc.config import get_config
+                config = get_config()
+                file_config = config.get(f"plugins.{plugin_name}", {})
+                if file_config:
+                    plugin_cfg.update(file_config)
+                    print(f"[CLI] Loaded config for {plugin_name}: {plugin_cfg}")
+            except Exception as e:
+                print(f"[CLI] Config load error: {e}")
+
+            # Override from CLI argument
+            if plugin_configs and plugin_name in plugin_configs:
+                plugin_cfg.update(plugin_configs[plugin_name])
+
             if hasattr(plugin_instance, 'configure'):
-                plugin_instance.configure({})
+                plugin_instance.configure(plugin_cfg)
 
             # Register with plugin manager
             plugin_manager.register_event_plugin(plugin_name, plugin_instance)
@@ -855,7 +881,8 @@ def command_serve(
     file: Path,
     mode: str = "async",
     verbose: bool = False,
-    plugins: str = ""
+    plugins: str = "",
+    plugin_config: str = ""
 ) -> int:
     """
     Start agent as a background service with event plugins.
@@ -885,8 +912,22 @@ def command_serve(
     if plugins:
         selected_plugins = [p.strip() for p in plugins.split(",") if p.strip()]
 
-    # Create engine
-    plugin_manager = PluginManager(bundle_paths=[bundle_path] if bundle_path else [])
+    # Parse plugin configs
+    plugin_configs: Dict[str, Dict[str, Any]] = {}
+    if plugin_config:
+        try:
+            plugin_configs = json.loads(plugin_config)
+        except json.JSONDecodeError as e:
+            print_error(f"Invalid JSON in --plugin-config: {e}")
+            return 1
+
+    # Create engine with bundle path for embedded plugin discovery
+    import agenarc
+    package_plugins_dir = str(Path(agenarc.__file__).parent / "plugins")
+    plugin_manager = PluginManager(
+        plugin_dirs=[package_plugins_dir],
+        bundle_paths=[bundle_path] if bundle_path else []
+    )
     engine = ExecutionEngine(plugin_manager=plugin_manager)
 
     # Register built-in operators
@@ -929,20 +970,28 @@ def command_serve(
 
     async def run_service():
         """Run the service with event plugins."""
-        await _start_event_plugins(engine, plugin_manager, selected_plugins)
+        # Initialize plugin manager to discover operators
+        await plugin_manager.initialize()
+
+        await _start_event_plugins(engine, plugin_manager, selected_plugins, plugin_configs)
 
         print(f"\n[CLI] AgenArc service started")
         print(f"[CLI] Entry point: {engine._graph.entryPoint}")
         print(f"[CLI] Mode: {mode}")
         if selected_plugins:
             print(f"[CLI] Plugins: {', '.join(selected_plugins)}")
+        if plugin_configs:
+            print(f"[CLI] Plugin config: {json.dumps(plugin_configs)}")
         print("[CLI] Press Ctrl+C to stop...\n")
 
         # Wait for stop signal
         try:
-            await stop_event.wait()
+            # Also monitor plugin manager for stop events
+            while not stop_event.is_set():
+                # Check every 100ms if stop is requested
+                await asyncio.sleep(0.1)
         finally:
-            # Cleanup
+            # Cleanup - stop all event plugins
             await plugin_manager.stop_all_event_plugins()
             await plugin_manager.shutdown()
 
@@ -1066,7 +1115,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             file=args.file,
             mode=args.mode,
             verbose=args.verbose,
-            plugins=args.plugins
+            plugins=args.plugins,
+            plugin_config=args.plugin_config
         )
     else:
         parser.print_help()

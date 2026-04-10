@@ -99,11 +99,12 @@ class TriggerCallback:
         self,
         engine: Any,
         state_manager: Optional[Any] = None,
-        execution_mode: str = "async"
+        execution_mode: Any = None
     ):
         self.engine = engine
         self.state_manager = state_manager
-        self.execution_mode = execution_mode
+        from agenarc.engine.executor import ExecutionMode
+        self.execution_mode = execution_mode if execution_mode is not None else ExecutionMode.ASYNC
         self._running = False
         self._lock = asyncio.Lock()
 
@@ -133,11 +134,21 @@ class TriggerCallback:
                 # Attach state to engine
                 self.engine._state = state
 
+                print(f"[TriggerCallback] Executing graph with payload: {event_data}")
+
                 # Execute with event payload
-                await self.engine.execute(event_data, mode=self.execution_mode)
+                result = await self.engine.execute(event_data, mode=self.execution_mode)
+
+                print(f"[TriggerCallback] Execution result: status={result.status}, error={result.error}")
+                if result.node_results:
+                    print(f"[TriggerCallback] Node results:")
+                    for node_id, node_result in result.node_results.items():
+                        print(f"  [{node_id}] status={node_result.status}, outputs={node_result.outputs}")
 
             except Exception as e:
-                logger.error(f"Error executing graph for event: {e}")
+                print(f"[TriggerCallback] Error executing graph: {e}")
+                import traceback
+                traceback.print_exc()
 
     def start(self) -> None:
         """Mark as running."""

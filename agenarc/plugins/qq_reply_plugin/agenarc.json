@@ -1,0 +1,8 @@
+{
+  "name": "qq_reply",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "type": "operator",
+  "operators": ["QQ_Reply_Operator"],
+  "description": "QQ message reply operator via NapCat WebSocket"
+}

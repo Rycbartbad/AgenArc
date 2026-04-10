@@ -12,7 +12,7 @@
       "type": "Prompt_Builder",
       "label": "构建对话",
       "config": {
-        "history": "{{nodes.trigger.user_id}}",
+        "history": "qq_history",
         "max_history": 100
       }
     },
@@ -21,9 +21,19 @@
       "type": "LLM_Task",
       "label": "LLM 对话",
       "config": {
+        "provider": "deepseek",
         "model": "deepseek-chat",
         "system_prompt": "你是一个友好的 QQ 机器人助手。",
         "temperature": 0.7
+      }
+    },
+    {
+      "id": "send_reply",
+      "type": "Plugin",
+      "label": "发送回复",
+      "config": {
+        "plugin": "qq_reply",
+        "function": "QQ_Reply_Operator"
       }
     },
     {
@@ -40,10 +50,34 @@
       "targetPort": "user"
     },
     {
+      "source": "trigger",
+      "sourcePort": "user_id",
+      "target": "send_reply",
+      "targetPort": "user_id"
+    },
+    {
+      "source": "trigger",
+      "sourcePort": "message_type",
+      "target": "send_reply",
+      "targetPort": "message_type"
+    },
+    {
+      "source": "trigger",
+      "sourcePort": "group_id",
+      "target": "send_reply",
+      "targetPort": "group_id"
+    },
+    {
       "source": "prompt_builder",
       "sourcePort": "messages",
       "target": "llm_task",
       "targetPort": "messages"
+    },
+    {
+      "source": "llm_task",
+      "sourcePort": "response",
+      "target": "send_reply",
+      "targetPort": "message"
     },
     {
       "source": "llm_task",
