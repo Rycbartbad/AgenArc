@@ -149,25 +149,34 @@ class QQPlugin:
             return
 
         self._running = False
-        print("[QQ Plugin] stop() - setting stop event")
 
+        # Set stop event first to signal the listener to exit
         if self._stop_event:
             self._stop_event.set()
 
-        if self._listener_task and not self._listener_task.done():
-            print("[QQ Plugin] stop() - cancelling listener task")
-            self._listener_task.cancel()
-            try:
-                await self._listener_task
-            except asyncio.CancelledError:
-                pass
-
+        # Close websocket first - this should interrupt any blocking recv
         if self._ws_connection:
             print("[QQ Plugin] stop() - closing websocket")
             try:
                 await self._ws_connection.close()
             except Exception:
                 pass
+
+        # Now wait for the listener task to finish
+        if self._listener_task and not self._listener_task.done():
+            print("[QQ Plugin] stop() - waiting for listener task")
+            try:
+                await asyncio.wait_for(asyncio.shield(self._listener_task), timeout=5.0)
+            except asyncio.TimeoutError:
+                print("[QQ Plugin] stop() - listener task timed out, cancelling")
+                self._listener_task.cancel()
+                try:
+                    await self._listener_task
+                except asyncio.CancelledError:
+                    pass
+            except asyncio.CancelledError:
+                pass
+
         print("[QQ Plugin] stop() complete")
 
     async def _listen_websocket(self) -> None:
