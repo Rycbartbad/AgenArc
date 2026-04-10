@@ -107,6 +107,17 @@ class TriggerCallback:
         self.execution_mode = execution_mode if execution_mode is not None else ExecutionMode.ASYNC
         self._running = False
         self._lock = asyncio.Lock()
+        self._session_state: Optional[Any] = None  # Session-persistent state for multi-turn
+
+    def _is_multi_turn(self) -> bool:
+        """Check if trigger has incoming edges (multi-turn conversation)."""
+        if not self.engine._graph:
+            return False
+        trigger_node = self.engine._graph.get_node(self.engine._graph.entryPoint)
+        if not trigger_node:
+            return False
+        incoming_edges = self.engine._graph.get_incoming_edges(trigger_node.id)
+        return len(incoming_edges) > 0
 
     async def __call__(self, event_data: Dict[str, Any]) -> None:
         """
@@ -120,16 +131,28 @@ class TriggerCallback:
 
         async with self._lock:
             try:
-                # Create fresh state for each execution
                 from agenarc.engine.state import StateManager
 
-                state = StateManager(
-                    auto_checkpoint=self.engine.enable_checkpoint
-                )
-                state.initialize(
-                    f"event_{event_data.get('timestamp', 0)}",
-                    self.engine._graph.entryPoint if self.engine._graph else "agent"
-                )
+                if self._is_multi_turn():
+                    # Multi-turn: maintain session state across executions
+                    if self._session_state is None:
+                        self._session_state = StateManager(
+                            auto_checkpoint=self.engine.enable_checkpoint
+                        )
+                        self._session_state.initialize(
+                            self.engine._execution_id or "event_session",
+                            self.engine._graph.entryPoint if self.engine._graph else "agent"
+                        )
+                    state = self._session_state
+                else:
+                    # Single-turn: fresh state for each execution
+                    state = StateManager(
+                        auto_checkpoint=self.engine.enable_checkpoint
+                    )
+                    state.initialize(
+                        f"event_{event_data.get('timestamp', 0)}",
+                        self.engine._graph.entryPoint if self.engine._graph else "agent"
+                    )
 
                 # Attach state to engine
                 self.engine._state = state
@@ -149,3 +172,7 @@ class TriggerCallback:
     def stop(self) -> None:
         """Mark as stopped."""
         self._running = False
+
+    def reset_session(self) -> None:
+        """Reset session state for new conversation."""
+        self._session_state = None

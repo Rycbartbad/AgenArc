@@ -1908,19 +1908,27 @@ qq_bot_agent.agrc/
       "label": "接收事件"
     },
     {
-      "id": "prompt_builder",
+      "id": "user_history",
       "type": "Prompt_Builder",
+      "label": "构建对话",
       "config": { "history": "qq_history", "max_history": 100 }
     },
     {
       "id": "llm_task",
       "type": "LLM_Task",
+      "label": "LLM 对话",
       "config": {
         "provider": "deepseek",
         "model": "deepseek-chat",
         "system_prompt": "你是一个友好的 QQ 机器人助手。",
         "temperature": 0.7
       }
+    },
+    {
+      "id": "assistant_history",
+      "type": "Prompt_Builder",
+      "label": "构建对话",
+      "config": { "history": "qq_history", "max_history": 100 }
     },
     {
       "id": "send_reply",
@@ -1938,16 +1946,20 @@ qq_bot_agent.agrc/
     }
   ],
   "edges": [
-    { "source": "trigger", "sourcePort": "message", "target": "prompt_builder", "targetPort": "user" },
+    { "source": "trigger", "sourcePort": "message", "target": "user_history", "targetPort": "user" },
     { "source": "trigger", "sourcePort": "user_id", "target": "send_reply", "targetPort": "user_id" },
     { "source": "trigger", "sourcePort": "message_type", "target": "send_reply", "targetPort": "message_type" },
     { "source": "trigger", "sourcePort": "group_id", "target": "send_reply", "targetPort": "group_id" },
-    { "source": "prompt_builder", "sourcePort": "messages", "target": "llm_task", "targetPort": "messages" },
+    { "source": "user_history", "sourcePort": "messages", "target": "llm_task", "targetPort": "messages" },
     { "source": "llm_task", "sourcePort": "response", "target": "send_reply", "targetPort": "message" },
-    { "source": "llm_task", "sourcePort": "response", "target": "log_output", "targetPort": "data" }
+    { "source": "llm_task", "sourcePort": "response", "target": "log_output", "targetPort": "data" },
+    { "source": "llm_task", "sourcePort": "response", "target": "assistant_history", "targetPort": "assistant" },
+    { "source": "send_reply", "target": "trigger" }
   ]
 }
 ```
+
+**注意**：Prompt_Builder 有两个输入端口 `user` 和 `assistant`，用于区分用户消息和助手消息。`assistant_history` 必须使用 `targetPort: "assistant"` 才能正确保存助手回复到历史记录。
 
 **运行**：
 

@@ -8,7 +8,7 @@
       "label": "接收事件"
     },
     {
-      "id": "prompt_builder",
+      "id": "user_history",
       "type": "Prompt_Builder",
       "label": "构建对话",
       "config": {
@@ -25,6 +25,15 @@
         "model": "deepseek-chat",
         "system_prompt": "你是一个友好的 QQ 机器人助手。",
         "temperature": 0.7
+      }
+    },
+    {
+      "id": "assistant_history",
+      "type": "Prompt_Builder",
+      "label": "构建对话",
+      "config": {
+        "history": "qq_history",
+        "max_history": 100
       }
     },
     {
@@ -46,7 +55,7 @@
     {
       "source": "trigger",
       "sourcePort": "message",
-      "target": "prompt_builder",
+      "target": "user_history",
       "targetPort": "user"
     },
     {
@@ -68,7 +77,7 @@
       "targetPort": "group_id"
     },
     {
-      "source": "prompt_builder",
+      "source": "user_history",
       "sourcePort": "messages",
       "target": "llm_task",
       "targetPort": "messages"
@@ -84,6 +93,16 @@
       "sourcePort": "response",
       "target": "log_output",
       "targetPort": "data"
+    },
+    {
+      "source": "llm_task",
+      "sourcePort": "response",
+      "target": "assistant_history",
+      "targetPort": "assistant"
+    },
+     {
+      "source": "assistant_history",
+      "target": "trigger"
     }
   ]
 }

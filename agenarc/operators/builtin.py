@@ -614,7 +614,7 @@ class Log_Node_Operator(IOperator):
             log_output = f"[AGENARC] {message}" if message else "[AGENARC]"
             if data is not None:
                 log_output += f" {data}"
-            print(f"\n{log_output}")
+            print(f"{log_output}")
 
         return {
             "message": message,

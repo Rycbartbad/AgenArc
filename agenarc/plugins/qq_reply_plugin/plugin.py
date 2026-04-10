@@ -60,7 +60,7 @@ class QQConnectionManager:
             cls._lock = asyncio.Lock()
 
         async with cls._lock:
-            if cls._ws_connection is None or cls._ws_connection.closed:
+            if cls._ws_connection is None:
                 import websockets
                 full_url = cls._ws_url
                 if cls._token:
@@ -120,8 +120,11 @@ class QQConnectionManager:
     @classmethod
     async def close(cls):
         """Close the shared connection."""
-        if cls._ws_connection and not cls._ws_connection.closed:
-            await cls._ws_connection.close()
+        if cls._ws_connection is not None:
+            try:
+                await cls._ws_connection.close()
+            except Exception:
+                pass
             cls._ws_connection = None
 
 
