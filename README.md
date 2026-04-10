@@ -127,6 +127,9 @@ python -m agenarc.cli validate flow.json
 # Show agent/protocol info
 python -m agenarc.cli info my_agent.agrc
 python -m agenarc.cli info flow.json
+
+# Run serve (REPL mode)
+python -m agenarc.cli serve my_agent.agrc
 ```
 
 ## Node Types
