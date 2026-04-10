@@ -960,8 +960,10 @@ def command_serve(
 
     # Set up signal handlers for graceful shutdown
     stop_event = asyncio.Event()
+    shutdown_done = asyncio.Event()
 
     def signal_handler(sig, frame):
+        """Handle Ctrl+C by setting stop event."""
         print("\n[CLI] Received stop signal, shutting down...")
         stop_event.set()
 
@@ -984,21 +986,40 @@ def command_serve(
             print(f"[CLI] Plugin config: {json.dumps(plugin_configs)}")
         print("[CLI] Press Ctrl+C to stop...\n")
 
-        # Wait for stop signal
+        # Wait for stop signal - use wait() which is more responsive
         try:
-            # Also monitor plugin manager for stop events
-            while not stop_event.is_set():
-                # Check every 100ms if stop is requested
-                await asyncio.sleep(0.1)
+            await stop_event.wait()
         finally:
             # Cleanup - stop all event plugins
-            await plugin_manager.stop_all_event_plugins()
-            await plugin_manager.shutdown()
+            try:
+                await asyncio.wait_for(
+                    plugin_manager.stop_all_event_plugins(),
+                    timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                print("[CLI] Warning: stop_all_event_plugins timed out")
+            try:
+                await asyncio.wait_for(
+                    plugin_manager.shutdown(),
+                    timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                print("[CLI] Warning: plugin_manager.shutdown timed out")
+            shutdown_done.set()
 
     try:
         loop.run_until_complete(run_service())
     except KeyboardInterrupt:
-        pass
+        # If we get here, it means the signal handler didn't have time to set stop_event
+        # Force the stop
+        print("\n[CLI] Force shutdown...")
+        if not stop_event.is_set():
+            stop_event.set()
+        # Wait for shutdown with timeout
+        try:
+            loop.run_until_complete(asyncio.wait_for(shutdown_done.wait(), timeout=5.0))
+        except asyncio.TimeoutError:
+            print("[CLI] Warning: shutdown did not complete in time")
     finally:
         loop.close()
 
