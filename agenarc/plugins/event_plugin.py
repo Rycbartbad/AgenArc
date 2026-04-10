@@ -134,16 +134,8 @@ class TriggerCallback:
                 # Attach state to engine
                 self.engine._state = state
 
-                print(f"[TriggerCallback] Executing graph with payload: {event_data}")
-
                 # Execute with event payload
                 result = await self.engine.execute(event_data, mode=self.execution_mode)
-
-                print(f"[TriggerCallback] Execution result: status={result.status}, error={result.error}")
-                if result.node_results:
-                    print(f"[TriggerCallback] Node results:")
-                    for node_id, node_result in result.node_results.items():
-                        print(f"  [{node_id}] status={node_result.status}, outputs={node_result.outputs}")
 
             except Exception as e:
                 print(f"[TriggerCallback] Error executing graph: {e}")

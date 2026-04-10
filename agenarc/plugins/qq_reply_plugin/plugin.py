@@ -65,9 +65,7 @@ class QQConnectionManager:
                 full_url = cls._ws_url
                 if cls._token:
                     full_url = f"{cls._ws_url}?access_token={cls._token}"
-                print(f"[QQ_Reply] Connecting to {full_url[:50]}...")
                 cls._ws_connection = await websockets.connect(full_url, compression=None)
-                print("[QQ_Reply] Connected!")
             return cls._ws_connection
 
     @classmethod
@@ -96,13 +94,11 @@ class QQConnectionManager:
         echo_id = f"qq_reply_{id(params)}"
         payload = json.dumps({'action': action, 'params': params, 'echo': echo_id})
 
-        print(f"[QQ_Reply] Sending: {action}, params: {str(params)[:50]}...")
         await ws.send(payload)
 
         try:
             resp = await asyncio.wait_for(ws.recv(), timeout=timeout)
             resp_data = json.loads(resp)
-            print(f"[QQ_Reply] Received: {resp[:100] if resp else 'None'}")
 
             if resp_data.get('echo') == echo_id:
                 if resp_data.get('status') == 'ok':
@@ -114,7 +110,7 @@ class QQConnectionManager:
                         'data': resp_data.get('data')
                     }
         except asyncio.TimeoutError:
-            print("[QQ_Reply] Timeout waiting for response (message likely sent)")
+            pass
         except Exception as e:
             print(f"[QQ_Reply] Response error: {e}")
 

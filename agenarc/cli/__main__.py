@@ -852,9 +852,8 @@ async def _start_event_plugins(
                 file_config = config.get(f"plugins.{plugin_name}", {})
                 if file_config:
                     plugin_cfg.update(file_config)
-                    print(f"[CLI] Loaded config for {plugin_name}: {plugin_cfg}")
-            except Exception as e:
-                print(f"[CLI] Config load error: {e}")
+            except Exception:
+                pass
 
             # Override from CLI argument
             if plugin_configs and plugin_name in plugin_configs:
@@ -868,7 +867,6 @@ async def _start_event_plugins(
 
             # Start the plugin
             await plugin_manager.start_event_plugin(plugin_name, trigger_callback)
-            print(f"[CLI] Started event plugin: {plugin_name}")
 
         except Exception as e:
             print(f"[CLI] Failed to start plugin '{plugin_name}': {e}")
@@ -964,66 +962,82 @@ def command_serve(
 
     def signal_handler(sig, frame):
         """Handle Ctrl+C by setting stop event."""
-        print("\n[CLI] Received stop signal, shutting down...")
+        import sys
         stop_event.set()
+        loop.call_soon(loop.stop)
+        sys.stdout.flush()
+        sys.stderr.flush()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
     async def run_service():
         """Run the service with event plugins."""
+        print("[CLI] AgenArc service started.", flush=True)
+
         # Initialize plugin manager to discover operators
         await plugin_manager.initialize()
 
         await _start_event_plugins(engine, plugin_manager, selected_plugins, plugin_configs)
 
-        print(f"\n[CLI] AgenArc service started")
-        print(f"[CLI] Entry point: {engine._graph.entryPoint}")
-        print(f"[CLI] Mode: {mode}")
-        if selected_plugins:
-            print(f"[CLI] Plugins: {', '.join(selected_plugins)}")
-        if plugin_configs:
-            print(f"[CLI] Plugin config: {json.dumps(plugin_configs)}")
-        print("[CLI] Press Ctrl+C to stop...\n")
+        # Wait for stop signal
+        await stop_event.wait()
+        shutdown_done.set()
 
-        # Wait for stop signal - use wait() which is more responsive
+    # Track shutdown completion
+    shutdown_complete = False
+
+    async def shutdown_with_timeout():
+        """Perform shutdown with guaranteed timeout."""
+        nonlocal shutdown_complete
+        if shutdown_complete:
+            return
+        shutdown_complete = True
+
+        # Force stop event
+        stop_event.set()
+
+        # Stop all event plugins
         try:
-            await stop_event.wait()
-        finally:
-            # Cleanup - stop all event plugins
-            try:
-                await asyncio.wait_for(
-                    plugin_manager.stop_all_event_plugins(),
-                    timeout=5.0
-                )
-            except asyncio.TimeoutError:
-                print("[CLI] Warning: stop_all_event_plugins timed out")
-            try:
-                await asyncio.wait_for(
-                    plugin_manager.shutdown(),
-                    timeout=5.0
-                )
-            except asyncio.TimeoutError:
-                print("[CLI] Warning: plugin_manager.shutdown timed out")
-            shutdown_done.set()
+            await asyncio.wait_for(
+                plugin_manager.stop_all_event_plugins(),
+                timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            pass
+        except Exception:
+            pass
+
+        # Shutdown plugin manager
+        try:
+            await asyncio.wait_for(
+                plugin_manager.shutdown(),
+                timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            pass
+        except Exception:
+            pass
+
+        shutdown_done.set()
 
     try:
         loop.run_until_complete(run_service())
-    except KeyboardInterrupt:
-        # If we get here, it means the signal handler didn't have time to set stop_event
-        # Force the stop
-        print("\n[CLI] Force shutdown...")
-        if not stop_event.is_set():
-            stop_event.set()
-        # Wait for shutdown with timeout
-        try:
-            loop.run_until_complete(asyncio.wait_for(shutdown_done.wait(), timeout=5.0))
-        except asyncio.TimeoutError:
-            print("[CLI] Warning: shutdown did not complete in time")
+    except (KeyboardInterrupt, RuntimeError):
+        if not shutdown_complete:
+            loop.run_until_complete(shutdown_with_timeout())
     finally:
-        loop.close()
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        if not loop.is_closed():
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            loop.close()
 
-    print("[CLI] Service stopped.")
     return 0
 
 

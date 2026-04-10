@@ -129,9 +129,6 @@ class QQPlugin:
         self._running = True
         self._trigger_callback = trigger_callback
         self._stop_event = asyncio.Event()
-        self._connected_logged = False
-
-        print(f"[QQ Plugin] Starting listener for {self.ws_url}...")
 
         # Start listener task
         self._listener_task = asyncio.create_task(self._listen_websocket())
@@ -139,45 +136,33 @@ class QQPlugin:
         # Wait for stop signal
         await self._stop_event.wait()
 
-        print("[QQ Plugin] Stopped.")
-
     async def stop(self) -> None:
         """Stop listening for QQ messages."""
-        print("[QQ Plugin] stop() called")
         if not self._running:
-            print("[QQ Plugin] stop() - not running")
             return
 
         self._running = False
 
-        # Close websocket immediately to interrupt any blocking recv
+        # Close websocket
         if self._ws_connection:
-            print("[QQ Plugin] stop() - closing websocket")
             try:
-                self._ws_connection.close()
+                await self._ws_connection.close()
             except Exception:
                 pass
 
-        # Set stop event to signal listener to exit
+        # Signal listener to exit
         if self._stop_event:
             self._stop_event.set()
 
         # Wait for listener task with timeout
         if self._listener_task:
-            print("[QQ Plugin] stop() - waiting for listener task")
             try:
                 async with asyncio.timeout(3.0):
                     await self._listener_task
-                print("[QQ Plugin] stop() - listener task finished")
             except asyncio.CancelledError:
-                print("[QQ Plugin] stop() - cancelled")
+                pass
             except asyncio.TimeoutError:
-                print("[QQ Plugin] stop() - task timeout, forcing cancel")
                 self._listener_task.cancel()
-            except Exception as e:
-                print(f"[QQ Plugin] stop() - error: {e}")
-
-        print("[QQ Plugin] stop() complete")
 
     async def _listen_websocket(self) -> None:
         """Main WebSocket listening loop."""
@@ -195,37 +180,27 @@ class QQPlugin:
                 async with websockets.connect(ws_url, ping_interval=30) as ws:
                     self._ws_connection = ws
                     reconnect_count += 1
-                    if reconnect_count == 1:
-                        print(f"[QQ Plugin] Connected to {self.ws_url}")
-                    else:
-                        print(f"[QQ Plugin] Reconnected to {self.ws_url} (attempt #{reconnect_count})")
 
                     async for raw_message in ws:
                         if self._stop_event.is_set():
                             break
-                        print(f"[QQ Plugin] Received: {raw_message[:80]}...")
                         await self._handle_message(raw_message)
 
             except ImportError:
-                print("[QQ Plugin] Error: websockets library not installed.")
-                print("[QQ Plugin] Run: pip install websockets")
                 self._stop_event.set()
                 break
             except asyncio.CancelledError:
-                # Task was cancelled, exit gracefully
-                print("[QQ Plugin] CancelledError caught - exiting")
                 return
             except Exception as e:
-                if not self._stop_event.is_set():
-                    if reconnect_count == 1:
-                        print(f"[QQ Plugin] Connection error: {e}")
-                    if self.auto_reconnect:
-                        print(f"[QQ Plugin] Reconnecting in {self.reconnect_interval}s...")
-                        await asyncio.sleep(self.reconnect_interval)
-                    else:
-                        print("[QQ Plugin] Auto-reconnect disabled, stopping.")
-                        self._stop_event.set()
-                        break
+                # If stop was requested or we're not running, exit immediately
+                if self._stop_event.is_set() or not self._running:
+                    break
+                # Otherwise, try to reconnect
+                if self.auto_reconnect:
+                    await asyncio.sleep(self.reconnect_interval)
+                else:
+                    self._stop_event.set()
+                    break
 
     async def _handle_message(self, raw_message: str) -> None:
         """Process received WebSocket message and trigger callback."""
@@ -278,11 +253,7 @@ class QQPlugin:
 
             # Trigger graph execution
             if self._trigger_callback:
-                print(f"[QQ Plugin] Calling trigger_callback...")
                 await self._trigger_callback(standardized_event)
-                print(f"[QQ Plugin] trigger_callback completed")
-            else:
-                print("[QQ Plugin] No trigger_callback set!")
 
         except json.JSONDecodeError as e:
             print(f"[QQ Plugin] Failed to parse message: {e}")
