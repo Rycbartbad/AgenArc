@@ -177,7 +177,7 @@ class QQPlugin:
                     separator = "&" if "?" in ws_url else "?"
                     ws_url = f"{ws_url}{separator}access_token={self.token}"
 
-                async with websockets.connect(ws_url, ping_interval=30) as ws:
+                async with websockets.connect(ws_url) as ws:
                     self._ws_connection = ws
                     reconnect_count += 1
 

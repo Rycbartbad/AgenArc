@@ -65,7 +65,12 @@ class QQConnectionManager:
                 full_url = cls._ws_url
                 if cls._token:
                     full_url = f"{cls._ws_url}?access_token={cls._token}"
-                cls._ws_connection = await websockets.connect(full_url, compression=None)
+                try:
+                    cls._ws_connection = await websockets.connect(full_url, compression=None)
+                except Exception as e:
+                    print(f"[QQ_Reply] Connection error: {e}")
+                    cls._ws_connection = None
+                    raise
             return cls._ws_connection
 
     @classmethod
@@ -113,6 +118,9 @@ class QQConnectionManager:
             pass
         except Exception as e:
             print(f"[QQ_Reply] Response error: {e}")
+            # Connection is broken, clear it so next call creates a new one
+            cls._ws_connection = None
+            return {'success': False, 'error': str(e)}
 
         # Assume success if no error response
         return {'success': True}
