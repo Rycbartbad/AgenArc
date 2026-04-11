@@ -207,12 +207,28 @@ my_agent.agrc/
 AgenArc uses YAML configuration for API keys and settings:
 
 ```yaml
-# config.yaml
-openai:
-  api_key: your-api-key
-  base_url: https://api.deepseek.com
-  default_model: deepseek-chat
-  temperature: 0.7
+# config.yaml (~/.agenarc/config.yaml)
+
+providers:
+  openrouter:
+    api_key: your-openrouter-api-key
+    base_url: https://openrouter.ai/api/v1
+    default_model: openrouter/free
+    temperature: 0.7
+
+  deepseek:
+    api_key: your-deepseek-api-key
+    base_url: https://api.deepseek.com
+    default_model: deepseek-chat
+    temperature: 0.7
+
+agent:
+  checkpoint_dir: ~/.agenarc
+
+plugins:
+  qq:
+    ws_url: "ws://127.0.0.1:3001"
+    token: "your-napcat-token"
 ```
 
 **Supported API endpoints:**
@@ -221,6 +237,7 @@ openai:
 |----------|----------|
 | DeepSeek | `https://api.deepseek.com` |
 | OpenAI | `https://api.openai.com/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
 | Ollama (local) | `http://localhost:11434/v1` |
 
 Environment variables override config file:
@@ -228,6 +245,9 @@ Environment variables override config file:
 - `AGENARC_OPENAI_API_KEY`
 - `AGENARC_OPENAI_BASE_URL`
 - `AGENARC_OPENAI_MODEL`
+- `AGENARC_DEEPSEEK_API_KEY`
+- `AGENARC_DEEPSEEK_BASE_URL`
+- `AGENARC_DEEPSEEK_MODEL`
 
 ## Development
 
