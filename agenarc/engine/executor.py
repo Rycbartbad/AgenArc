@@ -193,6 +193,56 @@ class ExecutionEngine:
         """
         self._bundle_path = bundle_path
 
+    def _find_source_nodes(self) -> List[Node]:
+        """
+        Find all source nodes (nodes with no incoming edges).
+
+        These nodes will be the entry points for execution when
+        entryPoint is not explicitly specified.
+
+        Returns:
+            List of source nodes
+        """
+        if not self._graph.edges:
+            # No edges at all - all nodes are source nodes
+            return list(self._graph.nodes)
+
+        # Find nodes that have no incoming edges
+        target_nodes = {edge.target for edge in self._graph.edges}
+        source_nodes = [
+            node for node in self._graph.nodes
+            if node.id not in target_nodes
+        ]
+        return source_nodes
+
+    def _get_entry_nodes(self) -> List[Node]:
+        """
+        Get entry node(s) for execution.
+
+        If entryPoint is explicitly set, returns that single node.
+        Otherwise, auto-detects source nodes (nodes with no incoming edges).
+
+        Returns:
+            List of entry nodes
+
+        Raises:
+            ValueError: If no entry point can be determined
+        """
+        entry_point = self._graph.entryPoint
+
+        if entry_point:
+            node = self._graph.get_node(entry_point)
+            if not node:
+                raise ValueError(f"Entry point '{entry_point}' not found")
+            return [node]
+
+        # Auto-detect source nodes
+        source_nodes = self._find_source_nodes()
+        if not source_nodes:
+            raise ValueError("No source nodes found. Graph may be empty or all nodes have incoming edges.")
+
+        return source_nodes
+
     def load_protocol(
         self,
         source: Any,
@@ -219,7 +269,8 @@ class ExecutionEngine:
         for edge in self._graph.edges:
             # Skip edges pointing to entry point - they create cycles
             # Entry point is always executed first, ignoring incoming edges
-            if edge.target == entry_point:
+            # Only skip if entryPoint is explicitly set
+            if entry_point and edge.target == entry_point:
                 continue
             if edge.source in self._adjacency:
                 self._adjacency[edge.source].append(edge.target)
@@ -326,23 +377,21 @@ class ExecutionEngine:
                 }
             self._state.set_global("_vfs_permissions", perms)
 
-        # Get entry point
-        entry_node = self._graph.get_node(self._graph.entryPoint)
-        if not entry_node:
-            raise ValueError(f"Entry point '{self._graph.entryPoint}' not found")
+        # Get entry point(s) - auto-detect if not specified
+        entry_nodes = self._get_entry_nodes()
 
         # Track execution
         self._running = True
         start_time = asyncio.get_event_loop().time()
 
         try:
-            # Execute from entry point
+            # Execute from entry point(s)
             if mode == ExecutionMode.ASYNC:
-                await self._execute_async(entry_node)
+                await self._execute_async(entry_nodes)
             elif mode == ExecutionMode.PARALLEL:
-                await self._execute_parallel(entry_node)
+                await self._execute_parallel(entry_nodes)
             else:
-                await self._execute_sync(entry_node)
+                await self._execute_sync(entry_nodes)
 
             # Commit transactional Memory_I/O if any
             if self._state.in_transaction:
@@ -389,21 +438,30 @@ class ExecutionEngine:
             duration_ms=duration_ms
         )
 
-    async def _execute_sync(self, entry_node: Node) -> None:
+    async def _execute_sync(self, entry_nodes: List[Node]) -> None:
         """
         Synchronous execution (sequential).
 
         Args:
-            entry_node: Entry point node
+            entry_nodes: Entry point node(s)
         """
-        execution_order = self._traversal.get_execution_order(entry_node.id)
+        # Collect execution orders from all entry nodes and merge
+        all_order: List[str] = []
+        seen: Set[str] = set()
 
-        for node_id in execution_order:
+        for entry_node in entry_nodes:
+            order = self._traversal.get_execution_order(entry_node.id)
+            for node_id in order:
+                if node_id not in seen:
+                    all_order.append(node_id)
+                    seen.add(node_id)
+
+        for node_id in all_order:
             node = self._graph.get_node(node_id)
             if node:
                 await self._execute_node(node)
 
-    async def _execute_async(self, entry_node: Node) -> None:
+    async def _execute_async(self, entry_nodes: List[Node]) -> None:
         """
         Async execution with dependency tracking.
 
@@ -411,7 +469,7 @@ class ExecutionEngine:
         executed nodes, forming a cycle.
 
         Args:
-            entry_node: Entry point node
+            entry_nodes: Entry point node(s)
         """
         executed: Set[str] = set()
         pending: Set[str] = {
@@ -523,12 +581,12 @@ class ExecutionEngine:
 
         return result
 
-    async def _execute_parallel(self, entry_node: Node) -> None:
+    async def _execute_parallel(self, entry_nodes: List[Node]) -> None:
         """
         Parallel execution with concurrency limiting.
 
         Args:
-            entry_node: Entry point node
+            entry_nodes: Entry point node(s)
         """
         semaphore = asyncio.Semaphore(self.max_parallel)
         executed: Set[str] = set()

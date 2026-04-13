@@ -289,7 +289,10 @@ agent_name.agrc/
 
 ### entryPoint 入口点
 
-必须是某个节点（Node）的 `id`，且该节点类型必须是 `Trigger`。
+**可选字段**。指定执行入口节点 ID。
+
+- 如果指定了 `entryPoint`，从该节点开始执行
+- 如果不指定，系统自动查找**没有入边的节点**（源节点）作为入口点
 
 ### nodes 节点列表
 
@@ -774,7 +777,6 @@ result = {
 |------|------|
 | `context` | 执行上下文对象 |
 | `input` | 输入端口的值 |
-| `loop` | 循环信息（iteration, current_item, accumulator） |
 
 **信任级别**：Script_Node 默认使用 `developer` 模式（完全信任），可按需通过 `config.script_trust_level` 覆盖。
 

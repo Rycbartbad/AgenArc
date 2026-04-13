@@ -277,7 +277,7 @@ AGENARC_SCHEMA = {
     "title": "AgenArc Protocol",
     "description": "Directed-graph agent orchestration protocol",
     "type": "object",
-    "required": ["version", "entryPoint", "nodes", "edges"],
+    "required": ["version", "nodes", "edges"],
     "properties": {
         "version": {
             "type": "string",

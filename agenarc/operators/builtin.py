@@ -462,19 +462,6 @@ class Script_Node_Operator(IOperator):
             for key, value in inputs.items():
                 eval_context[key] = value
 
-        # Try to get iteration variables
-        loop_id = context.get("_loop_id", "default")
-        iteration = context.get(f"_loop_{loop_id}_iteration")
-        current_item = context.get(f"_loop_{loop_id}_current_item")
-        accumulator = context.get(f"_loop_{loop_id}_accumulator")
-
-        if iteration is not None:
-            eval_context["loop"] = {
-                "iteration": iteration,
-                "current_item": current_item,
-                "accumulator": accumulator,
-            }
-
         return eval_context
 
     async def _execute_statements(
