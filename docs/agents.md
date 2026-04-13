@@ -294,6 +294,24 @@ agent_name.agrc/
 - 如果指定了 `entryPoint`，从该节点开始执行
 - 如果不指定，系统自动查找**没有入边的节点**（源节点）作为入口点
 
+### 源节点与 Trigger
+
+源节点是**没有入边的节点**，作为数据生产者：
+
+- **Plugin 节点**：在 serve 模式下自动加载并监听外部事件
+- **Script_Node**：可作为自定义数据源
+- **Trigger 节点**：接收源节点的数据，进行标准化处理
+
+**执行流程**：
+
+```text
+源节点 (Plugin/Script) → 写入 context.payload → Trigger (标准化) → 后续节点
+```
+
+**Shell 模式**：用户输入 → 存入 context.payload → Trigger 执行
+
+**Serve 模式**：外部事件 → 写入 context.payload → Trigger 执行
+
 ### nodes 节点列表
 
 节点定义数组，每个节点是一个对象。详见[第6节](#6-节点类型详解)。

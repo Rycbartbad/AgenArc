@@ -527,7 +527,11 @@ class InteractiveREPL:
             # Mark if this is the first execution (Trigger will run)
             self.engine._state.set_global("_session_first_run", not self._session_initialized)
 
-            result = asyncio.run(self.engine.execute(payload, exec_mode))
+            # Shell acts as a source node: store payload for Trigger to consume
+            # Trigger reads from context.payload
+            self.engine._state.set_global("payload", payload)
+
+            result = asyncio.run(self.engine.execute({}, exec_mode))
             return result.final_outputs, None, result.node_results
         except Exception as e:
             return None, str(e), None
@@ -802,10 +806,14 @@ async def _start_event_plugins(
     """
     Start event plugins and register them with the plugin manager.
 
+    Event plugins are auto-detected from source nodes (nodes with no incoming edges)
+    in the graph. Plugin nodes that are source nodes will be automatically loaded.
+
     Args:
         engine: Execution engine instance
         plugin_manager: Plugin manager instance
-        selected_plugins: List of plugin names to start, or None for all
+        selected_plugins: List of plugin names to start, or None for auto-detect
+        plugin_configs: Plugin configuration overrides
     """
     # Import event plugin base
     from agenarc.plugins.event_plugin import TriggerCallback
@@ -819,15 +827,33 @@ async def _start_event_plugins(
         "qq": "agenarc.plugins.qq_plugin.plugin.QQPlugin",
     }
 
-    # Load selected plugins
+    # Auto-detect source nodes (nodes with no incoming edges)
+    source_nodes = engine._find_source_nodes()
+
+    # For Plugin nodes that are source nodes, extract plugin info
+    auto_detected_plugins = []
+    for node in source_nodes:
+        if node.type.value == "Plugin":
+            # Extract plugin name from node config
+            config = node.metadata.get("config", {})
+            plugin_name = config.get("plugin", "")
+            if plugin_name:
+                auto_detected_plugins.append((node.id, plugin_name))
+
+    # Load selected plugins or auto-detect from graph
     plugins_to_load = []
     if selected_plugins:
         # Load specified plugins only
         for name in selected_plugins:
             if name in built_in_plugins:
                 plugins_to_load.append((name, built_in_plugins[name]))
+    elif auto_detected_plugins:
+        # Auto-detect: load plugins from source nodes in graph
+        for node_id, plugin_name in auto_detected_plugins:
+            if plugin_name in built_in_plugins:
+                plugins_to_load.append((plugin_name, built_in_plugins[plugin_name]))
     else:
-        # Load all built-in plugins
+        # Load all built-in plugins (fallback)
         plugins_to_load = list(built_in_plugins.items())
 
     # Load and start each plugin

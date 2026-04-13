@@ -85,10 +85,9 @@ class TriggerOperator(IOperator):
         context: ExecutionContext
     ) -> Dict[str, Any]:
         # Trigger outputs the initial payload from context
-        # Event plugins store event data directly in context (source, user_id, message, etc.)
-        # Manual triggering stores data under "payload" key
+        # Source nodes (Plugin/Script) write data to context.payload
+        # Trigger reads from context.payload and normalizes it
 
-        # Check for payload key first
         payload = context.get("payload", {})
 
         # If payload is empty, check for direct event data in context
