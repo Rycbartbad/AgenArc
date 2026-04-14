@@ -119,7 +119,7 @@ class GraphTraversal:
         A node is ready if:
         1. It's pending (not yet executed)
         2. All its predecessors have been executed
-        3. OR it's the entry point (special case - always ready first)
+        3. OR it's a source node (no incoming edges) - always ready first
 
         Args:
             executed: Set of executed node IDs
@@ -130,13 +130,13 @@ class GraphTraversal:
         """
         ready = []
 
-        # Find entry point - it should be ready regardless of predecessors
-        entry_point = self._graph.entryPoint if hasattr(self, '_graph') else None
+        # Find source nodes (nodes with no incoming edges) - they should be ready first
+        source_nodes = self._find_source_nodes()
+        source_ids = {node.id for node in source_nodes}
 
         for node_id in pending:
-            # Entry point is always ready first (special case for session loops)
-            entry = self.graph.entryPoint if hasattr(self.graph, 'entryPoint') else None
-            if node_id == entry and node_id not in executed:
+            # Source nodes are always ready first
+            if node_id in source_ids and node_id not in executed:
                 ready.append(node_id)
                 continue
 
@@ -146,6 +146,18 @@ class GraphTraversal:
                 ready.append(node_id)
 
         return ready
+
+    def _find_source_nodes(self) -> List["Node"]:
+        """Find all source nodes (nodes with no incoming edges)."""
+        if not self.graph.edges:
+            return list(self.graph.nodes)
+
+        target_nodes = {edge.target for edge in self.graph.edges}
+        source_nodes = [
+            node for node in self.graph.nodes
+            if node.id not in target_nodes
+        ]
+        return source_nodes
 
     def find_path(self, source: str, target: str) -> Optional[List[str]]:
         """
@@ -197,7 +209,6 @@ class GraphTraversal:
 
         new_graph = Graph(
             version=self.graph.version,
-            entryPoint=self.graph.entryPoint if self.graph.entryPoint in node_ids else "",
             nodes=nodes,
             edges=edges,
         )
@@ -277,47 +288,40 @@ class GraphTraversal:
         Validate the graph structure.
 
         Allows cycles that are part of loop regions (feedback loops).
-        Rejects orphan cycles with no entry point.
+        A valid graph must have at least one source node (node with no incoming edges).
 
         Returns:
             List of validation error messages (empty if valid)
         """
         errors = []
 
-        # Check entry point exists
-        if self.graph.entryPoint:
-            if not self.graph.get_node(self.graph.entryPoint):
-                errors.append(f"Entry point '{self.graph.entryPoint}' does not exist")
+        # Check for source nodes (entry points)
+        source_nodes = self._find_source_nodes()
+        if not source_nodes and self.graph.nodes:
+            errors.append("No source nodes found. Graph may have cycles but must have at least one source node.")
 
-        # Check all nodes are referenced
-        referenced_ids = {self.graph.entryPoint} if self.graph.entryPoint else set()
+        # Check all nodes are referenced (unless they are source nodes)
         for edge in self.graph.edges:
-            referenced_ids.add(edge.source)
-            referenced_ids.add(edge.target)
-
-        for node in self.graph.nodes:
-            if node.id not in referenced_ids:
-                errors.append(f"Node '{node.id}' is not referenced by any edge")
-
-        # Check for orphan edges
-        node_ids = {n.id for n in self.graph.nodes}
-        for edge in self.graph.edges:
-            if edge.source not in node_ids:
+            # Check for orphan edges
+            source_exists = any(n.id == edge.source for n in self.graph.nodes)
+            target_exists = any(n.id == edge.target for n in self.graph.nodes)
+            if not source_exists:
                 errors.append(f"Edge references non-existent source node '{edge.source}'")
-            if edge.target not in node_ids:
+            if not target_exists:
                 errors.append(f"Edge references non-existent target node '{edge.target}'")
 
-        # Check for cycles - but allow "loop cycles"
-        loop_regions = self.find_loop_regions()
-
         # Check for disconnected nodes (warning, not error)
-        if self.graph.entryPoint:
-            reachable = set(self.get_execution_order(self.graph.entryPoint))
-            for node in self.graph.nodes:
-                if node.id not in reachable and node.id != self.graph.entryPoint:
-                    # Check if node is part of a loop region
-                    is_in_loop = any(node.id in loop_set for loop_set in loop_regions.values())
-                    if not is_in_loop:
-                        errors.append(f"Node '{node.id}' is not reachable from entry point")
+        # A node is disconnected if it's not a source and not reachable from any source
+        reachable = set()
+        for source in source_nodes:
+            reachable.update(self.get_execution_order(source.id))
+
+        for node in self.graph.nodes:
+            if node.id not in reachable:
+                # Check if node is part of a loop region
+                loop_regions = self.find_loop_regions()
+                is_in_loop = any(node.id in loop_set for loop_set in loop_regions.values())
+                if not is_in_loop:
+                    errors.append(f"Node '{node.id}' is not reachable from any source node")
 
         return errors

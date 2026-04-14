@@ -206,12 +206,10 @@ class TestGraph:
         """Test Graph creation."""
         graph = Graph(
             version="1.0.0",
-            entryPoint="trigger_1",
             nodes=[],
             edges=[]
         )
         assert graph.version == "1.0.0"
-        assert graph.entryPoint == "trigger_1"
         assert len(graph.nodes) == 0
         assert len(graph.edges) == 0
 

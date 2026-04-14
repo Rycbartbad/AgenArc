@@ -1,0 +1,73 @@
+{
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "启动"
+    },
+    {
+      "id": "pb_user",
+      "type": "Prompt_Builder",
+      "label": "用户输入",
+      "config": {
+        "history": "chat_history"
+      }
+    },
+    {
+      "id": "llm_1",
+      "type": "LLM_Task",
+      "label": "LLM 调用",
+      "config": {
+        "provider": "openrouter",
+        "model": "openrouter/free",
+        "temperature": 0.7,
+        "max_tokens": 150,
+        "system_prompt": "你是我的人工智能助手，协助我完成各种任务。"
+      }
+    },
+    {
+      "id": "pb_assistant",
+      "type": "Prompt_Builder",
+      "label": "助手响应",
+      "config": {
+        "history": "chat_history"
+      }
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "日志"
+    }
+  ],
+  "edges": [
+    {
+      "source": "trigger_1",
+      "sourcePort": "payload",
+      "target": "pb_user",
+      "targetPort": "user"
+    },
+    {
+      "source": "pb_user",
+      "sourcePort": "messages",
+      "target": "llm_1",
+      "targetPort": "messages"
+    },
+    {
+      "source": "llm_1",
+      "sourcePort": "response",
+      "target": "pb_assistant",
+      "targetPort": "assistant"
+    },
+    {
+      "source": "llm_1",
+      "sourcePort": "response",
+      "target": "log_1",
+      "targetPort": "message"
+    },
+    {
+      "source": "pb_assistant",
+      "target": "trigger_1"
+    }
+  ]
+}

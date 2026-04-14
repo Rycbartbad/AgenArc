@@ -38,7 +38,6 @@ class TestProtocolLoader:
         graph = loader.load_dict(data)
 
         assert graph.version == "1.0.0"
-        assert graph.entryPoint == "trigger_1"
         assert len(graph.nodes) == 1
 
     def test_load_node_with_ports(self):
@@ -300,7 +299,6 @@ class TestLoadFile:
         graph = loader.load_file(tmp_path)
 
         assert graph.version == "1.0.0"
-        assert graph.entryPoint == "trigger_1"
 
     def test_load_from_directory_without_flow_json(self, tmp_path):
         """Test loading from directory without flow.json raises error."""

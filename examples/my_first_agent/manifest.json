@@ -1,0 +1,10 @@
+{
+  "name": "my_agent",
+  "version": "1.0.0",
+  "entry": "flow.json",
+  "description": "我的第一个 Agent",
+  "permissions": {
+    "autonomy_level": "level_0"
+  },
+  "hot_reload": true
+}

@@ -227,7 +227,6 @@ class IOperator(ABC):
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {

@@ -249,7 +249,6 @@ class Graph:
     This is the root structure loaded from flow.json.
     """
     version: str = "1.0.0"
-    entryPoint: str = ""
     errorNode: str = ""  # Global error handler node ID
 
     nodes: List[Node] = field(default_factory=list)
@@ -283,10 +282,6 @@ AGENARC_SCHEMA = {
             "type": "string",
             "pattern": "^\\d+\\.\\d+\\.\\d+$",
             "description": "Semantic version"
-        },
-        "entryPoint": {
-            "type": "string",
-            "description": "ID of the entry Trigger node"
         },
         "nodes": {
             "type": "array",

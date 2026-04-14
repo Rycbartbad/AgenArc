@@ -197,8 +197,7 @@ class ExecutionEngine:
         """
         Find all source nodes (nodes with no incoming edges).
 
-        These nodes will be the entry points for execution when
-        entryPoint is not explicitly specified.
+        These nodes are the entry points for execution.
 
         Returns:
             List of source nodes
@@ -219,8 +218,7 @@ class ExecutionEngine:
         """
         Get entry node(s) for execution.
 
-        If entryPoint is explicitly set, returns that single node.
-        Otherwise, auto-detects source nodes (nodes with no incoming edges).
+        Auto-detects source nodes (nodes with no incoming edges).
 
         Returns:
             List of entry nodes
@@ -228,14 +226,6 @@ class ExecutionEngine:
         Raises:
             ValueError: If no entry point can be determined
         """
-        entry_point = self._graph.entryPoint
-
-        if entry_point:
-            node = self._graph.get_node(entry_point)
-            if not node:
-                raise ValueError(f"Entry point '{entry_point}' not found")
-            return [node]
-
         # Auto-detect source nodes
         source_nodes = self._find_source_nodes()
         if not source_nodes:
@@ -265,13 +255,7 @@ class ExecutionEngine:
 
         # Build adjacency list for loop support
         self._adjacency = {node.id: [] for node in self._graph.nodes}
-        entry_point = self._graph.entryPoint
         for edge in self._graph.edges:
-            # Skip edges pointing to entry point - they create cycles
-            # Entry point is always executed first, ignoring incoming edges
-            # Only skip if entryPoint is explicitly set
-            if entry_point and edge.target == entry_point:
-                continue
             if edge.source in self._adjacency:
                 self._adjacency[edge.source].append(edge.target)
 
@@ -346,7 +330,10 @@ class ExecutionEngine:
         # Reuse existing state if already set (e.g., from REPL session)
         if self._state is None:
             self._state = StateManager(auto_checkpoint=self.enable_checkpoint)
-            self._state.initialize(self._execution_id, self._graph.entryPoint or "unknown")
+            # Use first source node as graph_id, or "graph" if no nodes
+            source_nodes = self._find_source_nodes()
+            graph_id = source_nodes[0].id if source_nodes else "graph"
+            self._state.initialize(self._execution_id, graph_id)
 
         # Seed initial inputs
         if initial_inputs:

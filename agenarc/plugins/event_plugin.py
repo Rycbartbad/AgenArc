@@ -109,15 +109,12 @@ class TriggerCallback:
         self._lock = asyncio.Lock()
         self._session_state: Optional[Any] = None  # Session-persistent state for multi-turn
 
-    def _is_multi_turn(self) -> bool:
-        """Check if trigger has incoming edges (multi-turn conversation)."""
+    def _get_graph_id(self) -> str:
+        """Get a graph identifier from source nodes."""
         if not self.engine._graph:
-            return False
-        trigger_node = self.engine._graph.get_node(self.engine._graph.entryPoint)
-        if not trigger_node:
-            return False
-        incoming_edges = self.engine._graph.get_incoming_edges(trigger_node.id)
-        return len(incoming_edges) > 0
+            return "agent"
+        source_nodes = self.engine._find_source_nodes()
+        return source_nodes[0].id if source_nodes else "agent"
 
     async def __call__(self, event_data: Dict[str, Any]) -> None:
         """
@@ -133,26 +130,17 @@ class TriggerCallback:
             try:
                 from agenarc.engine.state import StateManager
 
-                if self._is_multi_turn():
-                    # Multi-turn: maintain session state across executions
-                    if self._session_state is None:
-                        self._session_state = StateManager(
-                            auto_checkpoint=self.engine.enable_checkpoint
-                        )
-                        self._session_state.initialize(
-                            self.engine._execution_id or "event_session",
-                            self.engine._graph.entryPoint if self.engine._graph else "agent"
-                        )
-                    state = self._session_state
-                else:
-                    # Single-turn: fresh state for each execution
-                    state = StateManager(
+                graph_id = self._get_graph_id()
+
+                if self._session_state is None:
+                    self._session_state = StateManager(
                         auto_checkpoint=self.engine.enable_checkpoint
                     )
-                    state.initialize(
-                        f"event_{event_data.get('timestamp', 0)}",
-                        self.engine._graph.entryPoint if self.engine._graph else "agent"
+                    self._session_state.initialize(
+                        self.engine._execution_id or "event_session",
+                        graph_id
                     )
+                state = self._session_state
 
                 # Attach state to engine
                 self.engine._state = state

@@ -161,8 +161,18 @@ class TestExecutionEngine:
         """Test load_protocol validates graph structure."""
         engine = ExecutionEngine()
 
+        # Create a graph with edge to non-existent node
+        invalid_graph = {
+            "version": "1.0.0",
+            "nodes": [
+                {"id": "trigger_1", "type": "Trigger", "label": "Trigger"},
+            ],
+            "edges": [
+                {"source": "trigger_1", "target": "nonexistent"},
+            ],
+        }
         with pytest.raises(ValueError, match="Graph validation errors"):
-            engine.load_protocol(create_test_graph_dict(entry="nonexistent"))
+            engine.load_protocol(invalid_graph)
 
     def test_load_protocol_resets_state(self):
         """Test load_protocol resets execution state."""

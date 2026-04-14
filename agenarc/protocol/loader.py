@@ -166,7 +166,6 @@ class ProtocolLoader:
 
         return Graph(
             version=data.get("version", "1.0.0"),
-            entryPoint=data.get("entryPoint", ""),
             nodes=nodes,
             edges=edges,
         )

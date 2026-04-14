@@ -175,47 +175,54 @@ class TestGraphTraversal:
     def test_validate_valid_graph(self):
         """Test validating a valid graph."""
         graph = self.create_linear_graph()
-        graph.entryPoint = "a"
         traversal = GraphTraversal(graph)
 
         errors = traversal.validate()
         assert len(errors) == 0
 
-    def test_validate_missing_entry_point(self):
-        """Test validating graph with missing entry point."""
-        graph = self.create_linear_graph()
-        graph.entryPoint = "nonexistent"
+    def test_validate_no_source_nodes(self):
+        """Test validating graph with no source nodes (all nodes have incoming edges)."""
+        nodes = [
+            Node(id="a", type=NodeType.TRIGGER, label="A"),
+            Node(id="b", type=NodeType.LLM_TASK, label="B"),
+        ]
+        edges = [
+            Edge(source="a", target="b"),
+            Edge(source="b", target="a"),  # cycle, no source nodes
+        ]
+        graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
         errors = traversal.validate()
-        assert any("Entry point" in e for e in errors)
+        assert any("No source nodes" in e for e in errors)
 
     def test_validate_unreferenced_node(self):
-        """Test validating graph with unreferenced node."""
+        """Test validating graph with unreferenced node (node with no incoming edges is a source node)."""
         nodes = [
             Node(id="a", type=NodeType.TRIGGER, label="A"),
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
             Node(id="orphan", type=NodeType.LLM_TASK, label="Orphan"),
         ]
         edges = [Edge(source="a", target="b")]
-        graph = Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+        graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
+        # orphan has no incoming edges, so it's a valid source node - no errors
         errors = traversal.validate()
-        assert any("not referenced" in e for e in errors)
+        assert len(errors) == 0
 
     def test_validate_edge_to_nonexistent_node(self):
         """Test validating graph with edge to nonexistent node."""
         nodes = [Node(id="a", type=NodeType.TRIGGER, label="A")]
         edges = [Edge(source="a", target="nonexistent")]
-        graph = Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+        graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
         errors = traversal.validate()
         assert any("non-existent" in e for e in errors)
 
     def test_validate_disconnected_node(self):
-        """Test validating graph with disconnected node."""
+        """Test validating graph with disconnected node (node not reachable from sources)."""
         nodes = [
             Node(id="a", type=NodeType.TRIGGER, label="A"),
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
@@ -223,13 +230,14 @@ class TestGraphTraversal:
         ]
         edges = [
             Edge(source="a", target="b"),
-            # c is not connected to a
+            Edge(source="c", target="a"),  # c is source, a is reachable, b is reachable
         ]
-        graph = Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+        graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
+        # All nodes are reachable from sources
         errors = traversal.validate()
-        assert any("not reachable" in e for e in errors)
+        assert len(errors) == 0
 
     def test_get_subgraph(self):
         """Test extracting subgraph."""
@@ -242,7 +250,7 @@ class TestGraphTraversal:
             Edge(source="a", target="b"),
             Edge(source="b", target="c"),
         ]
-        graph = Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+        graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
         subgraph = traversal.get_subgraph({"a", "b"})
@@ -261,7 +269,7 @@ class TestFindCycles:
         edges = [
             Edge(source="a", target="a"),
         ]
-        return Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+        return Graph(version="1.0.0", nodes=nodes, edges=edges)
 
     def test_find_cycles_returns_list(self):
         """Test find_cycles returns a list."""
@@ -285,7 +293,7 @@ class TestFindLoopRegions:
         edges = [
             Edge(source="a", target="b"),
         ]
-        return Graph(version="1.0.0", nodes=nodes, edges=edges, entryPoint="a")
+        return Graph(version="1.0.0", nodes=nodes, edges=edges)
 
     def test_find_loop_regions_returns_dict(self):
         """Test find_loop_regions returns a dict."""

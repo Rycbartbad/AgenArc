@@ -276,19 +276,6 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Verbose output"
     )
-    serve_parser.add_argument(
-        "--plugins",
-        "-p",
-        type=str,
-        default="",
-        help="Comma-separated list of event plugins to load (default: all)"
-    )
-    serve_parser.add_argument(
-        "--plugin-config",
-        type=str,
-        default="",
-        help="JSON string with plugin configuration (e.g., '{\"qq\":{\"ws_url\":\"ws://127.0.0.1:3002\"}}')"
-    )
 
     # validate command
     validate_parser = subparsers.add_parser(
@@ -329,6 +316,42 @@ def create_parser() -> argparse.ArgumentParser:
         help="Output .agrc file path (default: <source>.agrc)"
     )
     pack_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Verbose output"
+    )
+
+    # visualize command
+    visualize_parser = subparsers.add_parser(
+        "visualize",
+        help="Start visualization studio for agent editing and debugging"
+    )
+    visualize_parser.add_argument(
+        "file",
+        type=Path,
+        help="Path to agent bundle (.agrc) or protocol (.json)"
+    )
+    visualize_parser.add_argument(
+        "--host",
+        default="localhost",
+        help="Host to bind the visualization server"
+    )
+    visualize_parser.add_argument(
+        "--port",
+        "-p",
+        type=int,
+        default=8765,
+        help="Port for the visualization server"
+    )
+    visualize_parser.add_argument(
+        "--mode",
+        "-m",
+        choices=["sync", "async", "parallel"],
+        default="async",
+        help="Execution mode"
+    )
+    visualize_parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -440,19 +463,22 @@ class InteractiveREPL:
             self._session_state = None
             self._session_initialized = False
             self.engine._state = StateManager()
+            source_nodes = self.engine._find_source_nodes()
+            graph_id = source_nodes[0].id if source_nodes else "agent"
             self.engine._state.initialize(
                 self.engine._execution_id or "reset",
-                self.engine._graph.entryPoint if self.engine._graph else "agent"
+                graph_id
             )
             print("Session reset (new conversation started).")
             return True
 
         if cmd == ":info":
             if self.engine._graph:
-                print(f"Entry Point: {self.engine._graph.entryPoint}")
+                source_nodes = self.engine._find_source_nodes()
+                source_ids = [n.id for n in source_nodes]
+                print(f"Source Nodes: {source_ids}")
                 print(f"Nodes: {len(self.engine._graph.nodes)}")
                 print(f"Edges: {len(self.engine._graph.edges)}")
-                print(f"Status: {self.engine._graph.entryPoint or 'unknown'}")
             else:
                 print("No agent loaded.")
             return True
@@ -492,34 +518,18 @@ class InteractiveREPL:
         exec_mode = ExecutionMode.ASYNC
 
         try:
-            # Check if trigger has incoming edges (determines multi-turn session)
-            trigger_node = self.engine._graph.get_node(self.engine._graph.entryPoint)
-            incoming_edges = self.engine._graph.get_incoming_edges(trigger_node.id)
-            has_incoming = len(incoming_edges) > 0
-
-            if not has_incoming:
-                # No incoming edges: fresh state for each execution
-                self._session_state = StateManager(
-                    auto_checkpoint=self.engine.enable_checkpoint
-                )
-                self._session_state.initialize(
-                    self.engine._execution_id or "session",
-                    self.engine._graph.entryPoint if self.engine._graph else "agent"
-                )
-                self._session_initialized = False
-            else:
-                # Has incoming edges: maintain session state (multi-turn conversation)
-                if self._session_state is None:
-                    self._session_state = StateManager(
-                        auto_checkpoint=self.engine.enable_checkpoint
-                    )
-                    self._session_state.initialize(
-                        self.engine._execution_id or "session",
-                        self.engine._graph.entryPoint if self.engine._graph else "agent"
-                    )
-                    self._session_initialized = False
-                else:
-                    self._session_initialized = True
+            # In shell mode, Trigger acts as the entry point that normalizes input
+            # Shell mode always creates a fresh state for each execution
+            self._session_state = StateManager(
+                auto_checkpoint=self.engine.enable_checkpoint
+            )
+            source_nodes = self.engine._find_source_nodes()
+            graph_id = source_nodes[0].id if source_nodes else "shell"
+            self._session_state.initialize(
+                self.engine._execution_id or "session",
+                graph_id
+            )
+            self._session_initialized = False
 
             # Attach session StateManager to engine
             self.engine._state = self._session_state
@@ -786,7 +796,6 @@ def command_validate(file: Path) -> int:
 
         print_success(f"Protocol is valid")
         print(f"  Version: {graph.version}")
-        print(f"  Entry Point: {graph.entryPoint}")
         print(f"  Nodes: {len(graph.nodes)}")
         print(f"  Edges: {len(graph.edges)}")
 
@@ -812,8 +821,6 @@ async def _start_event_plugins(
     Args:
         engine: Execution engine instance
         plugin_manager: Plugin manager instance
-        selected_plugins: List of plugin names to start, or None for auto-detect
-        plugin_configs: Plugin configuration overrides
     """
     # Import event plugin base
     from agenarc.plugins.event_plugin import TriggerCallback
@@ -840,21 +847,13 @@ async def _start_event_plugins(
             if plugin_name:
                 auto_detected_plugins.append((node.id, plugin_name))
 
-    # Load selected plugins or auto-detect from graph
+    # Auto-detect plugins from graph source nodes
     plugins_to_load = []
-    if selected_plugins:
-        # Load specified plugins only
-        for name in selected_plugins:
-            if name in built_in_plugins:
-                plugins_to_load.append((name, built_in_plugins[name]))
-    elif auto_detected_plugins:
-        # Auto-detect: load plugins from source nodes in graph
+    if auto_detected_plugins:
+        # Load plugins from source nodes in graph
         for node_id, plugin_name in auto_detected_plugins:
             if plugin_name in built_in_plugins:
                 plugins_to_load.append((plugin_name, built_in_plugins[plugin_name]))
-    else:
-        # Load all built-in plugins (fallback)
-        plugins_to_load = list(built_in_plugins.items())
 
     # Load and start each plugin
     for plugin_name, plugin_class_path in plugins_to_load:
@@ -866,9 +865,7 @@ async def _start_event_plugins(
             plugin_class = getattr(module, class_name)
             plugin_instance = plugin_class()
 
-            # Build plugin configuration from multiple sources (later sources override earlier):
-            # 1. From config.yaml: plugins.qq.*
-            # 2. From --plugin-config CLI argument
+            # Build plugin configuration from config.yaml: plugins.qq.*
             plugin_cfg = {}
 
             # Load from config file (config.yaml)
@@ -880,10 +877,6 @@ async def _start_event_plugins(
                     plugin_cfg.update(file_config)
             except Exception:
                 pass
-
-            # Override from CLI argument
-            if plugin_configs and plugin_name in plugin_configs:
-                plugin_cfg.update(plugin_configs[plugin_name])
 
             if hasattr(plugin_instance, 'configure'):
                 plugin_instance.configure(plugin_cfg)
@@ -904,18 +897,17 @@ async def _start_event_plugins(
 def command_serve(
     file: Path,
     mode: str = "async",
-    verbose: bool = False,
-    plugins: str = "",
-    plugin_config: str = ""
+    verbose: bool = False
 ) -> int:
     """
     Start agent as a background service with event plugins.
+
+    Plugins are auto-detected from source nodes (Plugin nodes with no incoming edges).
 
     Args:
         file: Path to agent bundle (.agrc) or protocol (.json)
         mode: Execution mode
         verbose: Verbose output flag
-        plugins: Comma-separated list of plugins to load
 
     Returns:
         Exit code
@@ -930,20 +922,6 @@ def command_serve(
     if protocol_path.is_dir():
         bundle_path = protocol_path
         _install_bundle_plugins(bundle_path, verbose)
-
-    # Parse selected plugins
-    selected_plugins = None
-    if plugins:
-        selected_plugins = [p.strip() for p in plugins.split(",") if p.strip()]
-
-    # Parse plugin configs
-    plugin_configs: Dict[str, Dict[str, Any]] = {}
-    if plugin_config:
-        try:
-            plugin_configs = json.loads(plugin_config)
-        except json.JSONDecodeError as e:
-            print_error(f"Invalid JSON in --plugin-config: {e}")
-            return 1
 
     # Create engine with bundle path for embedded plugin discovery
     import agenarc
@@ -1004,7 +982,7 @@ def command_serve(
         # Initialize plugin manager to discover operators
         await plugin_manager.initialize()
 
-        await _start_event_plugins(engine, plugin_manager, selected_plugins, plugin_configs)
+        await _start_event_plugins(engine, plugin_manager)
 
         # Wait for stop signal
         await stop_event.wait()
@@ -1067,6 +1045,80 @@ def command_serve(
     return 0
 
 
+def command_visualize(
+    file: Path,
+    host: str = "localhost",
+    port: int = 8765,
+    mode: str = "async",
+    verbose: bool = False
+) -> int:
+    """
+    Start visualization studio for agent editing and debugging.
+
+    Args:
+        file: Path to agent bundle (.agrc) or protocol (.json)
+        host: Host to bind the visualization server
+        port: Port for the visualization server
+        mode: Execution mode
+        verbose: Verbose output flag
+
+    Returns:
+        Exit code
+    """
+    from agenarc.visualization.server import VisualizationServer
+
+    # Resolve bundle path
+    protocol_path = _resolve_bundle_path(file)
+
+    # Determine bundle path
+    bundle_path = None
+    if protocol_path.is_dir():
+        bundle_path = protocol_path
+        _install_bundle_plugins(bundle_path, verbose)
+
+    # Create engine
+    plugin_manager = PluginManager(
+        plugin_dirs=[],
+        bundle_paths=[bundle_path] if bundle_path else []
+    )
+    engine = ExecutionEngine(plugin_manager=plugin_manager)
+
+    # Register built-in operators
+    for node_type, operator_class in BUILTIN_OPERATORS.items():
+        if operator_class:
+            engine.register_builtin_operator(node_type, operator_class)
+
+    # Load protocol
+    if verbose:
+        print(f"Loading agent from {protocol_path}...")
+
+    try:
+        engine.load_protocol(protocol_path)
+    except LoaderError as e:
+        print_error(f"Failed to load protocol: {e}")
+        return 1
+    except ValueError as e:
+        print_error(f"Invalid protocol: {e}")
+        return 1
+
+    # Create and start visualization server
+    server = VisualizationServer(engine=engine, host=host, port=port)
+
+    if verbose:
+        print(f"Starting visualization server at http://{host}:{port}")
+        print("Open http://localhost:8765 in your browser")
+
+    # Run server
+    try:
+        asyncio.run(server.start())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        asyncio.run(server.stop())
+
+    return 0
+
+
 def command_info(file: Path) -> int:
     """
     Show agent/protocol information.
@@ -1102,7 +1154,6 @@ def command_info(file: Path) -> int:
         print(f"AgenArc Protocol Information")
         print(f"=" * 40)
         print(f"Version: {graph.version}")
-        print(f"Entry Point: {graph.entryPoint}")
         if manifest_name:
             print(f"Name: {manifest_name}")
         if manifest_description:
@@ -1171,13 +1222,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             verbose=args.verbose,
             show_logs=args.log
         )
+    elif args.command == "visualize":
+        return command_visualize(
+            file=args.file,
+            host=args.host,
+            port=args.port,
+            mode=args.mode,
+            verbose=args.verbose
+        )
     elif args.command == "serve":
         return command_serve(
             file=args.file,
             mode=args.mode,
-            verbose=args.verbose,
-            plugins=args.plugins,
-            plugin_config=args.plugin_config
+            verbose=args.verbose
         )
     else:
         parser.print_help()

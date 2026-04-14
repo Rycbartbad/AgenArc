@@ -9,45 +9,46 @@
     {
       "id": "user_history",
       "type": "Prompt_Builder",
-      "label": "构建对话",
+      "label": "获取外部数据",
       "config": {
-        "history": "qq_history",
+        "history": "main_history",
         "max_history": 100
       }
     },
     {
       "id": "llm_task",
       "type": "LLM_Task",
-      "label": "LLM 对话",
+      "label": "Planner",
       "config": {
         "provider": "deepseek",
         "model": "deepseek-chat",
-        "system_prompt": "你是一个友好的 QQ 机器人助手。",
+        "system_prompt": "agrc://prompts/main_system_prompt.pt",
         "temperature": 0.7
       }
     },
     {
       "id": "assistant_history",
       "type": "Prompt_Builder",
-      "label": "构建对话",
+      "label": "收集AI回复",
       "config": {
-        "history": "qq_history",
+        "history": "main_history",
         "max_history": 100
-      }
-    },
-    {
-      "id": "send_reply",
-      "type": "Plugin",
-      "label": "发送回复",
-      "config": {
-        "plugin": "qq_reply",
-        "function": "QQ_Reply_Operator"
       }
     },
     {
       "id": "log_output",
       "type": "Log",
       "label": "输出日志"
+    },
+    {
+      "id": "router",
+      "type": "Router",
+      "label": "工具调用",
+      "config": {
+        "conditions": [
+          {}
+        ]
+      }
     }
   ],
   "edges": [

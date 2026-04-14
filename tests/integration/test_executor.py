@@ -39,7 +39,6 @@ class TestExecutionEngine:
         """Test loading a simple protocol."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {
                     "id": "trigger_1",
@@ -53,13 +52,15 @@ class TestExecutionEngine:
         engine.load_protocol(data, validate=False)
 
         assert engine.graph is not None
-        assert engine.graph.entryPoint == "trigger_1"
+        # Source nodes are auto-detected (nodes with no incoming edges)
+        source_nodes = engine._find_source_nodes()
+        assert len(source_nodes) == 1
+        assert source_nodes[0].id == "trigger_1"
 
     def test_load_invalid_protocol(self):
         """Test loading invalid protocol."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "nonexistent",
             "nodes": [
                 {"id": "a", "type": "Trigger", "label": "A"}
             ],
@@ -67,15 +68,17 @@ class TestExecutionEngine:
         }
         engine = create_test_engine()
 
-        with pytest.raises(ValueError, match="Graph validation errors"):
-            engine.load_protocol(data, validate=False)
+        # entryPoint no longer exists - the graph should load fine with auto-detected source nodes
+        engine.load_protocol(data, validate=False)
+        source_nodes = engine._find_source_nodes()
+        assert len(source_nodes) == 1
+        assert source_nodes[0].id == "a"
 
     @pytest.mark.asyncio
     async def test_execute_empty_graph(self):
         """Test executing empty graph."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"}
             ],
@@ -94,7 +97,6 @@ class TestExecutionEngine:
         """Test executing single node."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {
                     "id": "trigger_1",
@@ -119,7 +121,6 @@ class TestExecutionEngine:
         """Test executing linear flow of nodes."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {
                     "id": "trigger_1",
@@ -164,7 +165,6 @@ class TestExecutionEngine:
         """Test executing with context values."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {
                     "id": "trigger_1",
@@ -199,7 +199,6 @@ class TestExecutionEngine:
         """Test executing in sync mode."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"}
             ],
@@ -229,7 +228,6 @@ class TestExecutionEngine:
         """Test getting operator for node type."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"}
             ],
@@ -253,7 +251,6 @@ class TestGraphResult:
         """Test GraphResult has correct structure."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"}
             ],
@@ -279,7 +276,6 @@ class TestNodeExecutionTracking:
         """Test node status is tracked correctly."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"}
             ],
@@ -297,7 +293,6 @@ class TestNodeExecutionTracking:
         """Test node outputs are stored in context."""
         data = {
             "version": "1.0.0",
-            "entryPoint": "trigger_1",
             "nodes": [
                 {
                     "id": "trigger_1",
