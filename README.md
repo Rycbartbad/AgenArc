@@ -167,9 +167,9 @@ my_agent.agrc/
   "version": "1.0.0",
   "entry": "flow.json",
   "permissions": {
-    "allow_script_read": true,
-    "allow_script_write": true,
-    "allow_prompt_read": true
+    "prompts": "r--",
+    "scripts": "rw-",
+    "assets": "r--"
   },
   "immutable_nodes": ["trigger_1"],
   "hot_reload": true
@@ -181,7 +181,6 @@ my_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "Start"},
     {

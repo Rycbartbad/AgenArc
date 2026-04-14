@@ -9,12 +9,18 @@ VFS Mapping:
 - agrc://scripts/  -> <bundle>/scripts/
 - agrc://assets/   -> <bundle>/assets/
 - agrc://flow.json -> <bundle>/flow.json
+
+Permission Model (rwx):
+- Permissions are configured directly in manifest.json under permissions
+- Format: {"prompts": "r--", "scripts": "rw-", "assets": "r--"}
+- Subdirectories inherit parent permissions if not explicitly configured
+- Default permission: "---" (no access, directory not allowed)
+- Only directories with non-"---" permission are accessible
 """
 
-import os
-import re
+
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional
 
 
 class VFSError(Exception):
@@ -34,25 +40,32 @@ class VFS:
         vfs.write("scripts/tool.py", "print('hello')")
     """
 
-    # Allowed VFS paths and their real equivalents
+    # VFS scheme prefix
     VFS_SCHEME = "agrc://"
 
-    # Allowed directories within bundle
-    ALLOWED_DIRS = {"prompts", "scripts", "assets"}
+    # Default permission (no access)
+    DEFAULT_PERMISSION = "---"
 
-    def __init__(self, bundle_path: Path, permissions: Dict[str, bool] = None):
+    def __init__(
+        self,
+        bundle_path: Path,
+        permissions: Optional[Dict[str, str]] = None
+    ):
         """
         Initialize VFS with bundle path.
 
         Args:
             bundle_path: Path to .agrc bundle directory
-            permissions: Optional permissions dict from manifest.json
-                         e.g., {"allow_script_read": True, "allow_prompt_write": False}
-                         If None, no permission checks are performed (backward compatible).
+            permissions: VFS permission dict with rwx format.
+                         e.g., {"prompts": "r--", "scripts": "rw-", "assets": "r--"}
+                         Subdirectories inherit parent: {"prompts/custom": "rwx"}
+                         Only directories with non-"---" permission are accessible.
+                         If None, no permission checks are performed.
         """
         self._bundle_path = Path(bundle_path).resolve()
 
-        # Permissions - if None, no checks are performed
+        # VFS permissions (rwx format)
+        # If None, no permission checks are performed
         self._permissions = permissions
 
         # Validate bundle exists and is a directory
@@ -66,6 +79,76 @@ class VFS:
     def bundle_path(self) -> Path:
         """Get bundle path."""
         return self._bundle_path
+
+    def _get_effective_permission(self, vfs_path: str) -> str:
+        """
+        Get effective permission for a VFS path.
+
+        Args:
+            vfs_path: VFS path (e.g., "prompts/subdir/file.txt")
+
+        Returns:
+            Permission string (e.g., "r--", "rw-", "rwx")
+        """
+        if not self._permissions:
+            # No permissions configured (None or empty dict), allow all
+            return "rwx"
+
+        # Extract directory from path (e.g., "prompts/subdir" from "prompts/subdir/file.txt")
+        parts = vfs_path.split("/")
+        directory = parts[0] if parts else ""
+
+        # Check explicit permission for this path (most specific)
+        if vfs_path in self._permissions:
+            return self._permissions[vfs_path]
+
+        # Check explicit permission for the directory
+        if directory in self._permissions:
+            return self._permissions[directory]
+
+        # Check for parent directory permissions (inheritance for subdirs)
+        # e.g., for "prompts/subdir/file.txt", check "prompts"
+        if directory in self._permissions:
+            return self._permissions[directory]
+
+        # Directory not configured - default to no access
+        return self.DEFAULT_PERMISSION
+
+    def _has_permission(self, vfs_path: str, operation: str) -> bool:
+        """
+        Check if operation is permitted for VFS path.
+
+        Args:
+            vfs_path: VFS path
+            operation: "r" (read), "w" (write), "x" (execute)
+
+        Returns:
+            True if permitted
+        """
+        if not self._permissions:
+            return True
+
+        perm = self._get_effective_permission(vfs_path)
+        return operation in perm
+
+    def _is_directory_allowed(self, directory: str) -> bool:
+        """
+        Check if directory is allowed (has non-"---" permission).
+
+        Args:
+            directory: VFS directory name (prompts, scripts, assets, etc.)
+
+        Returns:
+            True if directory is accessible
+        """
+        if not self._permissions:
+            return True
+
+        if directory in self._permissions:
+            return self._permissions[directory] != self.DEFAULT_PERMISSION
+
+        # Not configured, default to not allowed
+        return False
 
     def _parse_vfs_path(self, vfs_path: str) -> tuple[str, str]:
         """
@@ -93,11 +176,8 @@ class VFS:
         filename = "/".join(parts[1:])
 
         # Validate directory is allowed
-        if directory not in self.ALLOWED_DIRS:
-            raise VFSError(
-                f"Directory not allowed: {directory}. "
-                f"Allowed: {self.ALLOWED_DIRS}"
-            )
+        if not self._is_directory_allowed(directory):
+            raise VFSError(f"Directory not allowed: {directory}")
 
         return directory, filename
 
@@ -139,10 +219,9 @@ class VFS:
         Raises:
             VFSError: If permission denied or path invalid
         """
-        directory, _ = self._parse_vfs_path(vfs_path)
-
         # Check read permission
-        self._check_permission(directory, "read")
+        if not self._has_permission(vfs_path, "r"):
+            raise VFSError(f"Permission denied: read not allowed for {vfs_path}")
 
         real_path = self._get_real_path(vfs_path)
 
@@ -157,32 +236,6 @@ class VFS:
         except Exception as e:
             raise VFSError(f"Failed to read {vfs_path}: {e}")
 
-    def _check_permission(self, directory: str, operation: str) -> None:
-        """
-        Check if operation is permitted based on manifest permissions.
-
-        Args:
-            directory: VFS directory (prompts, scripts, assets)
-            operation: "read" or "write"
-
-        Raises:
-            VFSError: If permission denied
-        """
-        # If no permissions configured (None or empty dict), skip checks
-        if not self._permissions:
-            return
-
-        if operation == "read":
-            if directory == "scripts" and not self._permissions.get("allow_script_read", False):
-                raise VFSError(f"Permission denied: script read not allowed")
-            if directory == "prompts" and not self._permissions.get("allow_prompt_read", False):
-                raise VFSError(f"Permission denied: prompt read not allowed")
-        elif operation == "write":
-            if directory == "scripts" and not self._permissions.get("allow_script_write", False):
-                raise VFSError(f"Permission denied: script write not allowed")
-            if directory == "prompts" and not self._permissions.get("allow_prompt_write", False):
-                raise VFSError(f"Permission denied: prompt write not allowed")
-
     def write(self, vfs_path: str, content: str, encoding: str = "utf-8") -> None:
         """
         Write content to VFS path.
@@ -195,10 +248,9 @@ class VFS:
         Raises:
             VFSError: If permission denied or path invalid
         """
-        directory, _ = self._parse_vfs_path(vfs_path)
-
         # Check write permission
-        self._check_permission(directory, "write")
+        if not self._has_permission(vfs_path, "w"):
+            raise VFSError(f"Permission denied: write not allowed for {vfs_path}")
 
         real_path = self._get_real_path(vfs_path)
 
@@ -244,7 +296,7 @@ class VFS:
             vfs_dir: VFS directory like "agrc://prompts"
 
         Returns:
-            List of filenames/directories
+            List of filenames/directories (empty if directory not allowed)
         """
         if not vfs_dir.startswith(self.VFS_SCHEME):
             vfs_dir = self.VFS_SCHEME + vfs_dir
@@ -254,10 +306,16 @@ class VFS:
             vfs_dir += "/"
 
         parts = vfs_dir[len(self.VFS_SCHEME):].rstrip("/").split("/")
-        if not parts or parts[0] not in self.ALLOWED_DIRS:
-            raise VFSError(f"Invalid directory: {vfs_dir}")
+        if not parts:
+            return []
 
-        real_dir = self._bundle_path / parts[0]
+        directory = parts[0]
+
+        # If directory not allowed, return empty (ignore silently)
+        if not self._is_directory_allowed(directory):
+            return []
+
+        real_dir = self._bundle_path / directory
 
         if not real_dir.exists():
             return []
@@ -289,7 +347,7 @@ class VFS:
 
 def resolve_agrc_path(vfs_path: str, bundle_path: Path) -> Optional[Path]:
     """
-    Resolve g:// path to real filesystem path.
+    Resolve agrc:// path to real filesystem path.
 
     Args:
         vfs_path: VFS path like "agrc://prompts/system.pt"
@@ -316,6 +374,7 @@ def resolve_agrc_path(vfs_path: str, bundle_path: Path) -> Optional[Path]:
     directory = parts[0]
     filename = "/".join(parts[1:])
 
+    # Check directory is in the standard VFS directories
     if directory not in {"prompts", "scripts", "assets"}:
         return None
 

@@ -92,7 +92,6 @@ my_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "启动"},
     {
@@ -202,10 +201,10 @@ agent_name.agrc/
   "entry": "flow.json",
   "description": "我的第一个 Agent",
   "permissions": {
-    "allow_script_read": true,
-    "allow_script_write": true,
-    "allow_prompt_read": true,
-    "allow_prompt_write": false,
+    "prompts": "r--",
+    "scripts": "rw-",
+    "assets": "r--",
+    "prompts/custom": "rwx",
     "allowed_modules": ["os", "json", "re"],
     "autonomy_level": "level_1",
     "gas_budget": 1000,
@@ -234,15 +233,43 @@ agent_name.agrc/
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `allow_script_read` | boolean | true | 是否允许读取 scripts/ 目录 |
-| `allow_script_write` | boolean | false | 是否允许写入 scripts/ 目录 |
-| `allow_prompt_read` | boolean | true | 是否允许读取 prompts/ 目录 |
-| `allow_prompt_write` | boolean | false | 是否允许写入 prompts/ 目录 |
+| `prompts` | string | `---` | prompts 目录权限（rwx 格式） |
+| `scripts` | string | `---` | scripts 目录权限（rwx 格式） |
+| `assets` | string | `---` | assets 目录权限（rwx 格式） |
+| `{path}` | string | `---` | 自定义路径权限（子目录继承父目录） |
 | `allow_flow_modification` | boolean | false | 是否允许修改 flow.json（level_2+） |
 | `allow_manifest_modification` | boolean | false | 是否允许修改 manifest.json（level_3） |
 | `autonomy_level` | string | "level_1" | 信任式自主等级 |
 | `gas_budget` | integer | 1000 | 表达式求值的 Gas 上限 |
 | `max_memory_mb` | integer | 128 | SafeContext 内存限制（MB） |
+
+### VFS rwx 权限模型
+
+VFS 权限使用 Linux 风格的 rwx 格式，直接配置在 `permissions` 中：
+
+```json
+{
+  "permissions": {
+    "prompts": "r--",
+    "scripts": "rw-",
+    "assets": "r--",
+    "prompts/custom": "rwx"
+  }
+}
+```
+
+| 权限字符 | 含义 |
+|---------|------|
+| `r` | 读取（read） |
+| `w` | 写入（write） |
+| `x` | 执行（execute） |
+
+**权限继承**：子目录未配置时自动继承父目录权限。
+
+**未配置的目录**：
+- 默认权限为 `---`（不可访问）
+- `list_dir()` 返回空列表（静默忽略）
+- 读写操作报错
 
 ### autonomy_level 信任式自主等级
 
@@ -277,7 +304,6 @@ agent_name.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [...],
   "edges": [...]
 }
@@ -287,30 +313,25 @@ agent_name.agrc/
 
 固定值：`"1.0.0"`
 
-### entryPoint 入口点
+### 源节点自动检测
 
-**可选字段**。指定执行入口节点 ID。
+AgenArc 使用**源节点自动检测**机制：没有入边的节点（源节点）自动作为执行入口点。
 
-- 如果指定了 `entryPoint`，从该节点开始执行
-- 如果不指定，系统自动查找**没有入边的节点**（源节点）作为入口点
+**源节点类型**：
 
-### 源节点与 Trigger
-
-源节点是**没有入边的节点**，作为数据生产者：
-
+- **Trigger 节点**：接收用户输入，进行标准化处理
 - **Plugin 节点**：在 serve 模式下自动加载并监听外部事件
 - **Script_Node**：可作为自定义数据源
-- **Trigger 节点**：接收源节点的数据，进行标准化处理
 
 **执行流程**：
 
 ```text
-源节点 (Plugin/Script) → 写入 context.payload → Trigger (标准化) → 后续节点
+源节点 (Trigger/Plugin/Script) → 写入 context.payload → 后续节点
 ```
 
 **Shell 模式**：用户输入 → 存入 context.payload → Trigger 执行
 
-**Serve 模式**：外部事件 → 写入 context.payload → Trigger 执行
+**Serve 模式**：外部事件 → 写入 context.payload → Plugin 源节点检测到事件 → 后续节点
 
 ### nodes 节点列表
 
@@ -366,7 +387,7 @@ agent_name.agrc/
 
 ### 6.1 Trigger（触发器）
 
-**作用**：工作流的入口点，每个流程只能有一个 Trigger。
+**作用**：Trigger 是源节点之一，接收用户输入并标准化为事件格式。
 
 **示例**：
 
@@ -383,7 +404,14 @@ agent_name.agrc/
 
 | 端口名 | 类型 | 说明 |
 |--------|------|------|
-| `payload` | any | 初始载荷，包含用户输入 |
+| `payload` | any | 原始输入载荷 |
+| `source` | string | 事件来源：manual |
+| `user_id` | any | 用户标识 |
+| `group_id` | any | 群组标识（私聊为 0） |
+| `message` | any | 消息内容 |
+| `message_type` | string | 消息类型：'private' 或 'group' |
+| `raw` | any | 原始输入数据 |
+| `timestamp` | integer | 事件时间戳 |
 
 ---
 
@@ -1132,7 +1160,7 @@ Event Source (NapCat/Webhook/Timer)
          ↓
     Event Plugin  ← 统一消息格式
          ↓
-    Trigger Node ← entryPoint
+    Trigger Node ← Source Node (auto-detected)
          ↓
     后续节点执行
 ```
@@ -1531,7 +1559,10 @@ engine.load_protocol("my_agent.agrc")
 
 # 创建会话 StateManager（只创建一次）
 session_state = StateManager(auto_checkpoint=False)
-session_state.initialize("session_id", engine._graph.entryPoint)
+# 获取第一个源节点作为 graph_id
+source_nodes = engine._find_source_nodes()
+graph_id = source_nodes[0].id if source_nodes else "agent"
+session_state.initialize("session_id", graph_id)
 
 # 多轮对话：每次执行前绑定 session StateManager
 while True:
@@ -1592,7 +1623,7 @@ Event Plugin (e.g., QQ)
          ↓
     标准化事件格式
          ↓
-    Trigger 节点（entryPoint）
+    Trigger 节点（源节点）
          ↓
     后续节点执行
 ```
@@ -1739,7 +1770,6 @@ hello_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {
@@ -1792,7 +1822,6 @@ chat_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {
@@ -1851,7 +1880,6 @@ router_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {"id": "llm_1", "type": "LLM_Task", "label": "处理请求"},
@@ -1920,7 +1948,6 @@ qq_bot_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger",
   "nodes": [
     {
       "id": "trigger",
@@ -2043,7 +2070,6 @@ full_agent.agrc/
 ```json
 {
   "version": "1.0.0",
-  "entryPoint": "trigger_1",
   "nodes": [
     {"id": "trigger_1", "type": "Trigger", "label": "开始"},
     {"id": "llm_1", "type": "LLM_Task", "label": "AI 处理"},

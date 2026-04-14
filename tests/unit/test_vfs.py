@@ -51,13 +51,20 @@ class TestVFS:
             vfs._parse_vfs_path("/prompts/system.pt")
 
     def test_parse_vfs_path_invalid_directory(self, tmp_path):
-        """Test parsing with invalid directory."""
+        """Test parsing with invalid directory when permissions set to deny."""
         bundle = tmp_path / "test.agrc"
         bundle.mkdir()
-        vfs = VFS(bundle)
+        # With new model, permissions=None means allow all (backward compatible)
+        vfs = VFS(bundle, permissions=None)
+        # Should not raise when permissions is None
+        directory, filename = vfs._parse_vfs_path("agrc://invalid/system.pt")
+        assert directory == "invalid"
+        assert filename == "system.pt"
 
+        # When permissions explicitly denies a directory
+        vfs_denied = VFS(bundle, permissions={"invalid": "---"})
         with pytest.raises(VFSError, match="Directory not allowed"):
-            vfs._parse_vfs_path("agrc://invalid/system.pt")
+            vfs_denied._parse_vfs_path("agrc://invalid/system.pt")
 
     def test_read_file(self, tmp_path):
         """Test reading file via VFS."""
