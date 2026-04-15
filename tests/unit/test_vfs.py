@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from agenarc.vfs.filesystem import VFS, VFSError, resolve_agrc_path
+from agenarc.vfs.filesystem import VFS, VFSError
 
 
 class TestVFS:
@@ -161,65 +161,6 @@ class TestVFS:
             {"name": "Alice", "count": 5}
         )
         assert result == "Hello Alice, you have 5 messages"
-
-
-class TestResolveAgrcPath:
-    """Tests for resolve_agrc_path function."""
-
-    def test_resolve_valid_path(self, tmp_path):
-        """Test resolving valid VFS path."""
-        bundle = tmp_path / "test.agrc"
-        bundle.mkdir()
-        prompts_dir = bundle / "prompts"
-        prompts_dir.mkdir()
-        (prompts_dir / "test.pt").write_text("content")
-
-        result = resolve_agrc_path("agrc://prompts/test.pt", bundle)
-        assert result is not None
-        assert result.name == "test.pt"
-
-    def test_resolve_invalid_scheme(self, tmp_path):
-        """Test resolving path without agrc:// scheme."""
-        bundle = tmp_path / "test.agrc"
-        bundle.mkdir()
-
-        result = resolve_agrc_path("/prompts/test.pt", bundle)
-        assert result is None
-
-    def test_resolve_invalid_directory(self, tmp_path):
-        """Test resolving path with invalid directory."""
-        bundle = tmp_path / "test.agrc"
-        bundle.mkdir()
-
-        result = resolve_agrc_path("agrc://invalid/test.pt", bundle)
-        assert result is None
-
-    def test_resolve_flow_json(self, tmp_path):
-        """Test resolving flow.json."""
-        bundle = tmp_path / "test.agrc"
-        bundle.mkdir()
-        flow_file = bundle / "flow.json"
-        flow_file.write_text("{}")
-
-        result = resolve_agrc_path("agrc://flow.json", bundle)
-        assert result is not None
-        assert result == flow_file
-
-    def test_resolve_path_traversal(self, tmp_path):
-        """Test path traversal is blocked."""
-        bundle = tmp_path / "test.agrc"
-        bundle.mkdir()
-
-        result = resolve_agrc_path("agrc://prompts/../../../etc/passwd", bundle)
-        assert result is None
-
-    def test_resolve_path_single_part(self, tmp_path):
-        """Test resolving path with only directory (no file)."""
-        bundle = tmp_path / "test.agrc"
-        bundle.mkdir()
-
-        result = resolve_agrc_path("agrc://prompts", bundle)
-        assert result is None
 
 
 class TestVFSPathTraversal:
