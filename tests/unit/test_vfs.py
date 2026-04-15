@@ -131,7 +131,7 @@ class TestVFS:
         assert vfs.exists("agrc://prompts/nonexistent.pt") is False
 
     def test_list_dir(self, tmp_path):
-        """Test listing directory contents."""
+        """Test listing directory contents with directory suffix."""
         bundle = tmp_path / "test.agrc"
         bundle.mkdir()
         prompts_dir = bundle / "prompts"
@@ -139,10 +139,11 @@ class TestVFS:
 
         (prompts_dir / "a.pt").write_text("a")
         (prompts_dir / "b.pt").write_text("b")
+        (prompts_dir / "subdir").mkdir()
 
         vfs = VFS(bundle)
         contents = vfs.list_dir("agrc://prompts")
-        assert set(contents) == {"a.pt", "b.pt"}
+        assert set(contents) == {"a.pt", "b.pt", "subdir/"}  # directories have / suffix
 
     def test_render_template(self, tmp_path):
         """Test template rendering."""
@@ -232,7 +233,8 @@ class TestVFSPathTraversal:
         prompts_dir.mkdir()
 
         vfs = VFS(bundle)
-        with pytest.raises(VFSError, match="Path traversal detected"):
+        # Path traversal is blocked - filename validation catches ".." in path
+        with pytest.raises(VFSError, match="(Path traversal|Filename contains illegal)"):
             vfs._get_real_path("agrc://prompts/../../../etc/passwd")
 
     def test_write_path_traversal_blocked(self, tmp_path):
@@ -242,7 +244,7 @@ class TestVFSPathTraversal:
 
         vfs = VFS(bundle)
         # The path traversal would be blocked in _get_real_path
-        with pytest.raises(VFSError, match="Path traversal detected"):
+        with pytest.raises(VFSError, match="(Path traversal|Filename contains illegal)"):
             vfs._get_real_path("agrc://scripts/../../../etc/passwd")
 
 
@@ -303,7 +305,7 @@ class TestVFSListDir:
     """Tests for VFS list_dir."""
 
     def test_list_dir_nonexistent(self, tmp_path):
-        """Test listing nonexistent directory."""
+        """Test listing nonexistent directory returns empty list."""
         bundle = tmp_path / "test.agrc"
         bundle.mkdir()
 
@@ -322,3 +324,76 @@ class TestVFSListDir:
         vfs = VFS(bundle)
         contents = vfs.list_dir("prompts")
         assert "test.pt" in contents
+
+    def test_list_dir_multi_level_path(self, tmp_path):
+        """Test listing subdirectory with multi-level path."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        prompts_dir = bundle / "prompts"
+        prompts_dir.mkdir()  # ensure parent exists
+        subdir = prompts_dir / "subdir"
+        subdir.mkdir()
+        (subdir / "nested.pt").write_text("nested")
+
+        vfs = VFS(bundle)
+        contents = vfs.list_dir("prompts/subdir")
+        assert "nested.pt" in contents
+
+    def test_list_dir_path_traversal_raises(self, tmp_path):
+        """Test that path traversal raises VFSError."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        prompts_dir = bundle / "prompts"
+        prompts_dir.mkdir()
+
+        vfs = VFS(bundle)
+        with pytest.raises(VFSError, match="Path traversal detected"):
+            vfs.list_dir("prompts/../../../etc")
+
+    def test_list_dir_permission_denied_raises(self, tmp_path):
+        """Test that permission denied raises VFSError."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        prompts_dir = bundle / "prompts"
+        prompts_dir.mkdir()
+
+        vfs = VFS(bundle, permissions={"prompts": "---"})  # no read permission
+        with pytest.raises(VFSError, match="Permission denied"):
+            vfs.list_dir("prompts")
+
+    def test_list_dir_root_lists_top_level(self, tmp_path):
+        """Test VFS root lists top-level contents."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        prompts_dir = bundle / "prompts"
+        prompts_dir.mkdir()
+        (bundle / "manifest.json").write_text("{}")
+
+        vfs = VFS(bundle)
+        contents = vfs.list_dir("agrc://")
+        assert "prompts/" in contents
+        assert "manifest.json" in contents
+
+    def test_list_dir_file_path_returns_empty(self, tmp_path):
+        """Test listing a file path (not directory) returns empty list."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        prompts_dir = bundle / "prompts"
+        prompts_dir.mkdir()
+        (prompts_dir / "file.pt").write_text("content")
+
+        vfs = VFS(bundle)
+        assert vfs.list_dir("prompts/file.pt") == []
+
+    def test_list_dir_results_sorted(self, tmp_path):
+        """Test that results are sorted."""
+        bundle = tmp_path / "test.agrc"
+        bundle.mkdir()
+        prompts_dir = bundle / "prompts"
+        prompts_dir.mkdir()
+        (prompts_dir / "z_file.pt").write_text("z")
+        (prompts_dir / "a_file.pt").write_text("a")
+
+        vfs = VFS(bundle)
+        contents = vfs.list_dir("prompts")
+        assert contents == ["a_file.pt", "z_file.pt"]

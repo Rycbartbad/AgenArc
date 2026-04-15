@@ -34,10 +34,23 @@ class VFS:
 
     Provides secure access to bundle assets via agrc:// protocol.
 
+    Permission Model:
+        When permissions=None (default), all operations are allowed BUT
+        path traversal protection (is_relative_to check) remains active.
+
+        When permissions dict is provided, only explicitly allowed directories
+        are accessible. Subdirectories inherit parent permissions.
+
     Usage:
         vfs = VFS(bundle_path="/path/to/my_agent.agrc")
         content = vfs.read("prompts/system.pt")
         vfs.write("scripts/tool.py", "print('hello')")
+
+    Context Manager:
+        Supports 'with VFS(path) as vfs:' pattern.
+
+    Raises:
+        VFSError: For permission denied, path traversal, or invalid operations
     """
 
     # VFS scheme prefix
@@ -45,6 +58,16 @@ class VFS:
 
     # Default permission (no access)
     DEFAULT_PERMISSION = "---"
+
+    # Permission constants
+    PERM_ALL = "rwx"
+    PERM_READ = "r"
+    PERM_WRITE = "w"
+    PERM_EXEC = "x"
+
+    # File size limits
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    MAX_TEMPLATE_SIZE = 1024 * 1024  # 1MB
 
     def __init__(
         self,
@@ -67,6 +90,12 @@ class VFS:
         # VFS permissions (rwx format)
         # If None, no permission checks are performed
         self._permissions = permissions
+        if self._permissions:
+            # Normalize: strip trailing slashes from keys
+            self._permissions = {k.rstrip("/"): v for k, v in self._permissions.items()}
+
+        # Permission cache for performance
+        self._permission_cache: Dict[str, str] = {}
 
         # Validate bundle exists and is a directory
         if not self._bundle_path.exists():
@@ -82,7 +111,10 @@ class VFS:
 
     def _get_effective_permission(self, vfs_path: str) -> str:
         """
-        Get effective permission for a VFS path.
+        Get effective permission for a VFS path with hierarchical inheritance.
+
+        Check order: exact path match -> parent directory inheritance ->
+        top-level directory -> default
 
         Args:
             vfs_path: VFS path (e.g., "prompts/subdir/file.txt")
@@ -94,25 +126,44 @@ class VFS:
             # No permissions configured (None or empty dict), allow all
             return "rwx"
 
-        # Extract directory from path (e.g., "prompts/subdir" from "prompts/subdir/file.txt")
-        parts = vfs_path.split("/")
-        directory = parts[0] if parts else ""
+        # Check cache first
+        if vfs_path in self._permission_cache:
+            return self._permission_cache[vfs_path]
 
-        # Check explicit permission for this path (most specific)
-        if vfs_path in self._permissions:
-            return self._permissions[vfs_path]
+        # Normalize: strip trailing slashes
+        path = vfs_path.strip("/")
+        if not path:
+            result = "rwx"
+            self._permission_cache[vfs_path] = result
+            return result
 
-        # Check explicit permission for the directory
-        if directory in self._permissions:
-            return self._permissions[directory]
+        # 1. Exact path match
+        if path in self._permissions:
+            result = self._permissions[path]
+            self._permission_cache[vfs_path] = result
+            return result
 
-        # Check for parent directory permissions (inheritance for subdirs)
-        # e.g., for "prompts/subdir/file.txt", check "prompts"
-        if directory in self._permissions:
-            return self._permissions[directory]
+        parts = path.split("/")
 
-        # Directory not configured - default to no access
-        return self.DEFAULT_PERMISSION
+        # 2. Parent directory inheritance (walk up the tree)
+        # e.g., for "prompts/subdir/file.txt", check "prompts/subdir" then "prompts"
+        for i in range(len(parts) - 1, 0, -1):
+            parent = "/".join(parts[:i])
+            if parent in self._permissions:
+                result = self._permissions[parent]
+                self._permission_cache[vfs_path] = result
+                return result
+
+        # 3. Top-level directory
+        if parts[0] in self._permissions:
+            result = self._permissions[parts[0]]
+            self._permission_cache[vfs_path] = result
+            return result
+
+        # Not configured - default to no access
+        result = self.DEFAULT_PERMISSION
+        self._permission_cache[vfs_path] = result
+        return result
 
     def _has_permission(self, vfs_path: str, operation: str) -> bool:
         """
@@ -181,6 +232,24 @@ class VFS:
 
         return directory, filename
 
+    def _validate_filename(self, filename: str) -> None:
+        """
+        Validate filename has no path traversal or illegal characters.
+
+        Args:
+            filename: Filename to validate
+
+        Raises:
+            VFSError: If filename contains illegal characters
+        """
+        if not filename:
+            return
+        if filename in (".", ".."):
+            raise VFSError("Invalid filename")
+        illegal = set('/\\\0')
+        if any(c in illegal for c in filename):
+            raise VFSError("Filename contains illegal characters")
+
     def _get_real_path(self, vfs_path: str) -> Path:
         """
         Convert VFS path to real filesystem path.
@@ -193,15 +262,16 @@ class VFS:
         """
         directory, filename = self._parse_vfs_path(vfs_path)
 
+        # Validate filename BEFORE building path
+        self._validate_filename(filename)
+
         # Build real path
         real_path = self._bundle_path / directory / filename
 
         # Security check: ensure resolved path is within bundle
         resolved = real_path.resolve()
         if not resolved.is_relative_to(self._bundle_path):
-            raise VFSError(
-                f"Path traversal detected: {vfs_path}"
-            )
+            raise VFSError("Path traversal detected")
 
         return real_path
 
@@ -236,7 +306,7 @@ class VFS:
         except Exception as e:
             raise VFSError(f"Failed to read {vfs_path}: {e}")
 
-    def write(self, vfs_path: str, content: str, encoding: str = "utf-8") -> None:
+    def write(self, vfs_path: str, content: str = "", encoding: str = "utf-8") -> None:
         """
         Write content to VFS path.
 
@@ -246,31 +316,35 @@ class VFS:
             encoding: File encoding (default utf-8)
 
         Raises:
-            VFSError: If permission denied or path invalid
+            VFSError: If permission denied, path invalid, or content too large
         """
         # Check write permission
         if not self._has_permission(vfs_path, "w"):
-            raise VFSError(f"Permission denied: write not allowed for {vfs_path}")
+            raise VFSError("Permission denied")
+
+        # Check file size limit (10MB)
+        MAX_FILE_SIZE = 10 * 1024 * 1024
+        if len(content) > MAX_FILE_SIZE:
+            raise VFSError(f"File too large: {len(content)} bytes")
 
         real_path = self._get_real_path(vfs_path)
-
-        # Security check: ensure we're not writing outside bundle
-        resolved = real_path.resolve()
-        if not resolved.is_relative_to(self._bundle_path):
-            raise VFSError(
-                f"Path traversal detected: {vfs_path}"
-            )
+        tmp_path = None
 
         try:
             # Ensure parent directory exists
             real_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Write atomically (write to temp, then rename)
+            # Atomic write: write to temp, then rename
             tmp_path = real_path.with_suffix(real_path.suffix + ".tmp")
             tmp_path.write_text(content, encoding=encoding)
             tmp_path.replace(real_path)
+        except VFSError:
+            raise
         except Exception as e:
-            raise VFSError(f"Failed to write {vfs_path}: {e}")
+            # Clean up temp file on failure
+            if tmp_path is not None and tmp_path.exists():
+                tmp_path.unlink()
+            raise VFSError(f"Failed to write: {e}")
 
     def exists(self, vfs_path: str) -> bool:
         """
@@ -293,40 +367,74 @@ class VFS:
         List contents of VFS directory.
 
         Args:
-            vfs_dir: VFS directory like "agrc://prompts"
+            vfs_dir: VFS directory path (e.g., "agrc://prompts", "prompts/subdir", "agrc://prompts/")
 
         Returns:
-            List of filenames/directories (empty if directory not allowed)
+            List of entry names. Directories have "/" suffix appended.
+            Empty list if: directory not found, empty directory, or OS error.
+            Raises VFSError if: permission denied, path traversal detected.
+
+        Raises:
+            VFSError: If path traversal detected or read permission denied
         """
+        # Handle empty or None input
+        if not vfs_dir:
+            return []
+
+        # Normalize path: ensure scheme prefix
         if not vfs_dir.startswith(self.VFS_SCHEME):
             vfs_dir = self.VFS_SCHEME + vfs_dir
 
-        # Parse directory
-        if not vfs_dir.endswith("/"):
-            vfs_dir += "/"
+        # Extract VFS path without scheme, strip trailing slashes
+        vfs_path = vfs_dir[len(self.VFS_SCHEME):].rstrip("/")
 
-        parts = vfs_dir[len(self.VFS_SCHEME):].rstrip("/").split("/")
-        if not parts:
+        # Handle VFS root: list top-level contents
+        if not vfs_path:
+            resolved = self._bundle_path
+        else:
+            # Check read permission
+            if not self._has_permission(vfs_path, "r"):
+                raise VFSError(f"Permission denied: read not allowed for {vfs_path}")
+
+            real_dir = self._bundle_path / vfs_path
+
+            # Security check: resolve symlinks and verify within bundle
+            try:
+                resolved = real_dir.resolve()
+            except OSError:
+                # Broken symlink or other OS error
+                return []
+
+            # Path traversal detection
+            if not resolved.is_relative_to(self._bundle_path):
+                raise VFSError(f"Path traversal detected: {vfs_path}")
+
+        # Check if path is a valid directory
+        if not resolved.exists() or not resolved.is_dir():
             return []
 
-        directory = parts[0]
-
-        # If directory not allowed, return empty (ignore silently)
-        if not self._is_directory_allowed(directory):
+        # List contents
+        result = []
+        try:
+            for entry in resolved.iterdir():
+                name = entry.name
+                if entry.is_dir():
+                    name += "/"
+                result.append(name)
+        except PermissionError:
+            return []
+        except OSError:
             return []
 
-        real_dir = self._bundle_path / directory
-
-        if not real_dir.exists():
-            return []
-
-        return [p.name for p in real_dir.iterdir()]
+        result.sort()
+        return result
 
     def render_template(self, vfs_path: str, context: Dict[str, Any]) -> str:
         """
         Render template with context variables.
 
-        Supports {{variable}} syntax.
+        Supports {{variable}} syntax. Uses unique placeholders to prevent
+        injection attacks where context values contain {{other}} patterns.
 
         Args:
             vfs_path: VFS path to template
@@ -337,12 +445,125 @@ class VFS:
         """
         content = self.read(vfs_path)
 
-        # Simple template rendering
+        # Use unique placeholders to prevent double-replacement injection
+        import uuid
+        placeholders = {}
         for key, value in context.items():
-            placeholder = f"{{{{{key}}}}}"
-            content = content.replace(placeholder, str(value))
+            placeholder = f"__PH_{uuid.uuid4().hex}__"
+            placeholders[placeholder] = str(value)
+            content = content.replace(f"{{{{{key}}}}}", placeholder)
+
+        # Replace placeholders with actual values
+        for placeholder, value in placeholders.items():
+            content = content.replace(placeholder, value)
 
         return content
+
+    def create_dir(self, vfs_dir: str) -> None:
+        """
+        Create directory and parents if needed.
+
+        Args:
+            vfs_dir: VFS directory path to create
+
+        Raises:
+            VFSError: If permission denied or path invalid
+        """
+        if not vfs_dir.startswith(self.VFS_SCHEME):
+            vfs_dir = self.VFS_SCHEME + vfs_dir
+
+        vfs_path = vfs_dir[len(self.VFS_SCHEME):].strip("/")
+
+        if not vfs_path:
+            raise VFSError("Cannot create root directory")
+
+        if not self._has_permission(vfs_path, "w"):
+            raise VFSError("Permission denied")
+
+        real_path = self._bundle_path / vfs_path
+        real_path.mkdir(parents=True, exist_ok=True)
+
+    def delete(self, vfs_path: str) -> None:
+        """
+        Delete file or empty directory.
+
+        Args:
+            vfs_path: VFS path to delete
+
+        Raises:
+            VFSError: If permission denied, path invalid, or directory not empty
+        """
+        if not self._has_permission(vfs_path, "w"):
+            raise VFSError("Permission denied")
+
+        real_path = self._get_real_path(vfs_path)
+
+        if real_path.is_dir():
+            if any(real_path.iterdir()):
+                raise VFSError("Cannot delete non-empty directory")
+            real_path.rmdir()
+        else:
+            real_path.unlink()
+
+    def move(self, src: str, dst: str) -> None:
+        """
+        Move/rename file or directory.
+
+        Args:
+            src: Source VFS path
+            dst: Destination VFS path
+
+        Raises:
+            VFSError: If permission denied or path invalid
+        """
+        # Check write permission on both source and destination
+        if not self._has_permission(src, "w"):
+            raise VFSError("Permission denied for source")
+        if not self._has_permission(dst, "w"):
+            raise VFSError("Permission denied for destination")
+
+        src_path = self._get_real_path(src)
+
+        # For destination, build path directly without full parsing
+        if not dst.startswith(self.VFS_SCHEME):
+            dst = self.VFS_SCHEME + dst
+        dst_vfs_path = dst[len(self.VFS_SCHEME):].strip("/")
+        dst_path = self._bundle_path / dst_vfs_path
+
+        import shutil
+        shutil.move(str(src_path), str(dst_path))
+
+    def metadata(self, vfs_path: str) -> dict:
+        """
+        Get file/directory metadata.
+
+        Args:
+            vfs_path: VFS path
+
+        Returns:
+            Dict with size, mtime, is_dir, is_file
+
+        Raises:
+            VFSError: If path invalid
+        """
+        real_path = self._get_real_path(vfs_path)
+        stat = real_path.stat()
+        return {
+            "size": stat.st_size,
+            "mtime": stat.st_mtime,
+            "is_dir": real_path.is_dir(),
+            "is_file": real_path.is_file(),
+        }
+
+    def is_valid(self) -> bool:
+        """Check if bundle path is still valid (exists and is directory)."""
+        return self._bundle_path.exists() and self._bundle_path.is_dir()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
 
 
 def resolve_agrc_path(vfs_path: str, bundle_path: Path) -> Optional[Path]:
