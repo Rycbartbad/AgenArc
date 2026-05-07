@@ -44,6 +44,9 @@ euchea = [
     "PyMuPDF",            # PDF 备选
 ]
 
+[project.scripts]
+agenarc = "agenarc.cli.__main__:main"
+
 [project.urls]
 homepage = "https://github.com/Rycbartbad/agenarc"
 repository = "https://github.com/Rycbartbad/agenarc"

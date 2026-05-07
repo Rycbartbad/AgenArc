@@ -311,7 +311,7 @@ class TestExternalPluginLoaderLoadHttp:
         )
         loader._configs["test"] = config
 
-        # Mock aiohttp
+        # Mock aiohttp module (instead of string-patching which requires it installed)
         mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status = 200
@@ -324,7 +324,11 @@ class TestExternalPluginLoaderLoadHttp:
             __aexit__=AsyncMock(return_value=None)
         ))
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        mock_aiohttp = MagicMock()
+        mock_aiohttp.ClientSession.return_value = mock_session
+        mock_aiohttp.ClientTimeout = MagicMock
+
+        with patch.dict("sys.modules", {"aiohttp": mock_aiohttp}):
             result = await loader._load_http_plugin("test", config)
 
         assert "op1" in result
@@ -348,7 +352,11 @@ class TestExternalPluginLoaderLoadHttp:
             __aexit__=AsyncMock(return_value=None)
         ))
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        mock_aiohttp = MagicMock()
+        mock_aiohttp.ClientSession.return_value = mock_session
+        mock_aiohttp.ClientTimeout = MagicMock
+
+        with patch.dict("sys.modules", {"aiohttp": mock_aiohttp}):
             result = await loader._load_http_plugin("test", config)
 
         assert result == {}

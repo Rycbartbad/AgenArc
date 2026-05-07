@@ -137,7 +137,7 @@ def build_prompt():
 3. 完整实现，可直接编译
 """
     body = "\n\n---\n\n".join(sections) if sections else "(目录中没有找到PDF或源文件)"
-    full_prompt = instruction + "\n\n" + body
+    full_prompt = body + "\n\n" + instruction
     print(f"[euchea] 提示词构建完成：{len(full_prompt)} 字符")
     return [{"role": "user", "content": full_prompt}]
 

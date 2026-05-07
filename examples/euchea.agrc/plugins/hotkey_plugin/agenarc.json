@@ -1,0 +1,8 @@
+{
+  "name": "hotkey",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "type": "event",
+  "operators": ["HotkeyPlugin"],
+  "description": "Global Alt+A hotkey listener for euchea PDF→code generation"
+}

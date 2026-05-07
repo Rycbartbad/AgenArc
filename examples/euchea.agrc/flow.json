@@ -7,6 +7,14 @@
       "label": "触发入口"
     },
     {
+      "id": "hotkey_listener",
+      "type": "Plugin",
+      "label": "热键监听",
+      "config": {
+        "plugin": "hotkey"
+      }
+    },
+    {
       "id": "preprocessor",
       "type": "Script_Node",
       "label": "文件处理+提示词构建",

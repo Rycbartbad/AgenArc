@@ -656,6 +656,10 @@ def command_shell(
         print_error(f"Invalid protocol: {e}")
         return 1
 
+    # Set bundle path for VFS resolution and embedded plugin discovery
+    if bundle_path:
+        engine.set_bundle_path(bundle_path)
+
     # Start interactive shell
     repl = InteractiveREPL(
         engine=engine,
@@ -694,7 +698,6 @@ def command_run(
     bundle_path = None
     if protocol_path.is_dir():
         bundle_path = protocol_path
-        # Install plugins from bundle assets to global plugins directory
         _install_bundle_plugins(bundle_path, verbose)
 
     # Parse initial inputs
@@ -726,6 +729,10 @@ def command_run(
     except ValueError as e:
         print_error(f"Invalid protocol: {e}")
         return 1
+
+    # Set bundle path for VFS resolution
+    if bundle_path:
+        engine.set_bundle_path(bundle_path)
 
     # Choose execution mode
     exec_mode = {
@@ -847,48 +854,91 @@ async def _start_event_plugins(
             if plugin_name:
                 auto_detected_plugins.append((node.id, plugin_name))
 
-    # Auto-detect plugins from graph source nodes
-    plugins_to_load = []
-    if auto_detected_plugins:
-        # Load plugins from source nodes in graph
-        for node_id, plugin_name in auto_detected_plugins:
-            if plugin_name in built_in_plugins:
-                plugins_to_load.append((plugin_name, built_in_plugins[plugin_name]))
+    # Load and start each detected plugin
+    for node_id, plugin_name in auto_detected_plugins:
+        plugin_instance = None
 
-    # Load and start each plugin
-    for plugin_name, plugin_class_path in plugins_to_load:
-        try:
-            # Import and instantiate plugin
-            module_path, class_name = plugin_class_path.rsplit(".", 1)
-            import importlib
-            module = importlib.import_module(module_path)
-            plugin_class = getattr(module, class_name)
-            plugin_instance = plugin_class()
-
-            # Build plugin configuration from config.yaml: plugins.qq.*
-            plugin_cfg = {}
-
-            # Load from config file (config.yaml)
+        # 1) Try built-in plugin (e.g. qq)
+        if plugin_name in built_in_plugins:
             try:
-                from agenarc.config import get_config
-                config = get_config()
-                file_config = config.get(f"plugins.{plugin_name}", {})
-                if file_config:
-                    plugin_cfg.update(file_config)
-            except Exception:
-                pass
+                class_path = built_in_plugins[plugin_name]
+                module_path, class_name = class_path.rsplit(".", 1)
+                import importlib as _il
+                module = _il.import_module(module_path)
+                plugin_class = getattr(module, class_name)
+                plugin_instance = plugin_class()
+            except Exception as e:
+                print(f"[CLI] Failed to load built-in plugin '{plugin_name}': {e}")
+                continue
 
-            if hasattr(plugin_instance, 'configure'):
-                plugin_instance.configure(plugin_cfg)
+        # 2) Try bundle-embedded plugin: scan plugins/ subdirs, read agenarc.json name field
+        elif engine._bundle_path:
+            plugins_root = engine._bundle_path / "plugins"
+            if plugins_root.exists():
+                import json as _json
+                import importlib.util as _util
+                found = False
+                for subdir in plugins_root.iterdir():
+                    if not subdir.is_dir():
+                        continue
+                    mp = subdir / "agenarc.json"
+                    if not mp.exists():
+                        continue
+                    try:
+                        with open(mp, encoding="utf-8") as f:
+                            manifest = _json.load(f)
+                    except Exception:
+                        continue
+                    if manifest.get("name") != plugin_name:
+                        continue
+                    # Match by agenarc.json name field
+                    found = True
+                    entry = manifest.get("entry", "plugin.py")
+                    ops = manifest.get("operators", [])
+                    if not ops:
+                        print(f"[CLI] Plugin '{plugin_name}' has no operators in manifest")
+                        break
+                    entry_path = subdir / entry
+                    if not entry_path.exists():
+                        print(f"[CLI] Plugin '{plugin_name}' entry not found: {entry_path}")
+                        break
+                    spec = _util.spec_from_file_location(
+                        f"_bundle_plugin_{plugin_name}", entry_path
+                    )
+                    if spec is None or spec.loader is None:
+                        print(f"[CLI] Failed to create module spec for '{plugin_name}'")
+                        break
+                    module = _util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    plugin_class = getattr(module, ops[0])
+                    plugin_instance = plugin_class()
+                    break
+                if not found:
+                    print(f"[CLI] Unknown event plugin '{plugin_name}' — not found in bundle plugins/")
+                    continue
 
-            # Register with plugin manager
-            plugin_manager.register_event_plugin(plugin_name, plugin_instance)
+        if plugin_instance is None:
+            continue
 
-            # Start the plugin
-            await plugin_manager.start_event_plugin(plugin_name, trigger_callback)
+        # Build plugin configuration from config.yaml: plugins.<name>.*
+        plugin_cfg = {}
+        try:
+            from agenarc.config import get_config
+            config = get_config()
+            file_config = config.get(f"plugins.{plugin_name}", {})
+            if file_config:
+                plugin_cfg.update(file_config)
+        except Exception:
+            pass
 
-        except Exception as e:
-            print(f"[CLI] Failed to start plugin '{plugin_name}': {e}")
+        if hasattr(plugin_instance, 'configure'):
+            plugin_instance.configure(plugin_cfg)
+
+        # Register with plugin manager
+        plugin_manager.register_event_plugin(plugin_name, plugin_instance)
+
+        # Start the plugin
+        await plugin_manager.start_event_plugin(plugin_name, trigger_callback)
 
     # Store callback reference to prevent garbage collection
     engine._event_trigger_callback = trigger_callback
@@ -948,6 +998,10 @@ def command_serve(
     except ValueError as e:
         print_error(f"Invalid protocol: {e}")
         return 1
+
+    # Set bundle path for VFS resolution and embedded plugin discovery
+    if bundle_path:
+        engine.set_bundle_path(bundle_path)
 
     # Choose execution mode
     exec_mode = {
