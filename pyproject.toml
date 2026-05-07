@@ -1,0 +1,77 @@
+[project]
+name = "agenarc"
+version = "0.1.0"
+description = "Directed-graph Agent Orchestration Engine"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Rycbartbad" },
+]
+
+dependencies = [
+    # 核心
+    "pyyaml",             # config.yaml 加载
+    "jsonschema",         # 协议 JSON Schema 校验
+    "openai",             # LLM_Task 算子
+
+    # 插件系统（可选但为运行必须的）
+    "websockets",         # Script_Node developer mode + QQ 插件
+]
+
+[project.optional-dependencies]
+llm = [
+    "anthropic",          # Anthropic_Task_Operator
+]
+plugins = [
+    "watchdog",           # HotPluginLoader 文件监听
+    "aiohttp",            # ExternalPluginLoader HTTP
+    "websockets",         # QQ 事件插件
+]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov",
+]
+test = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov",
+]
+euchea = [
+    "keyboard",           # 全局热键
+    "markitdown",         # PDF→MD
+    "pdfplumber",         # PDF 备选
+    "PyMuPDF",            # PDF 备选
+]
+
+[project.urls]
+homepage = "https://github.com/Rycbartbad/agenarc"
+repository = "https://github.com/Rycbartbad/agenarc"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agenarc*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov",
+]

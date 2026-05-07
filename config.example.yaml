@@ -1,27 +1,47 @@
 # AgenArc Configuration
-# Copy this file to config.yaml and fill in your API keys
+# Copy to ~/.agenarc/config.yaml and fill in your API keys
 
-# OpenAI API Configuration
-openai:
-  api_key: ""
-  base_url: ""  # Optional: for proxy/custom endpoints
-  default_model: "gpt-4"
-  default_temperature: 0.7
+# ==================== LLM Providers ====================
+providers:
+  deepseek:
+    api_key: ""                    # AGENARC_DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com
+    default_model: deepseek-chat
+    temperature: 0.7
 
-# Anthropic API Configuration
-anthropic:
-  api_key: ""
-  default_model: "claude-3-sonnet-20240229"
-  default_temperature: 0.7
-  max_tokens: 4096
+  openrouter:
+    api_key: ""                    # AGENARC_OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    default_model: openrouter/free
+    temperature: 0.7
 
-# Agent Configuration
+  openai:
+    api_key: ""                    # AGENARC_OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    default_model: gpt-4o
+    temperature: 0.7
+
+  anthropic:
+    api_key: ""                    # AGENARC_ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
+    default_model: claude-sonnet-4-20250514
+    temperature: 0.7
+
+  # 本地模型（Ollama）
+  ollama:
+    api_key: ollama
+    base_url: http://localhost:11434/v1
+    default_model: llama3
+    temperature: 0.7
+
+# ==================== Agent ====================
 agent:
-  checkpoint_dir: "~/.agenarc/checkpoints"
-  storage_dir: "~/.agenarc/storage"
-  log_level: "INFO"
+  checkpoint_dir: ~/.agenarc/checkpoints
+  storage_dir: ~/.agenarc/storage
 
-# Plugin Configuration
+# ==================== 插件 ====================
 plugins:
-  search_paths:
-    - "~/.agenarc/plugins"
+  # QQ 机器人（NapCat WebSocket / OneBot v11）
+  qq:
+    ws_url: "ws://127.0.0.1:3001"
+    token: ""

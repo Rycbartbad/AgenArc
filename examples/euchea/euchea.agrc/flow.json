@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "Trigger",
+      "label": "触发入口"
+    },
+    {
+      "id": "preprocessor",
+      "type": "Script_Node",
+      "label": "文件处理+提示词构建",
+      "config": {
+        "script_trust_level": "developer",
+        "script": "from pathlib import Path; p = Path(context.get('_bundle_path')) / 'scripts/processor.py'; code = p.read_text(encoding='utf-8'); exec(code); _result = build_prompt()"
+      }
+    },
+    {
+      "id": "llm_task",
+      "type": "LLM_Task",
+      "label": "AI代码生成",
+      "config": {
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "system_prompt": "agrc://prompts/system.pt",
+        "temperature": 0.3,
+        "max_tokens": 8192
+      }
+    },
+    {
+      "id": "saver",
+      "type": "Script_Node",
+      "label": "解析响应+保存文件",
+      "config": {
+        "script_trust_level": "developer",
+        "script": "from pathlib import Path; p = Path(context.get('_bundle_path')) / 'scripts/processor.py'; code = p.read_text(encoding='utf-8'); exec(code); resp = _inputs.get('response', ''); print('[euchea] AI响应预览:', resp[:500] if resp else '(空)'); saved = parse_response_and_save(resp); _result = {'success': True, 'saved_count': len(saved), 'files': saved}"
+      }
+    },
+    {
+      "id": "log_1",
+      "type": "Log",
+      "label": "输出日志"
+    }
+  ],
+  "edges": [
+    {
+      "source": "trigger_1",
+      "target": "preprocessor"
+    },
+    {
+      "source": "preprocessor",
+      "sourcePort": "result",
+      "target": "llm_task",
+      "targetPort": "messages"
+    },
+    {
+      "source": "llm_task",
+      "sourcePort": "response",
+      "target": "saver"
+    },
+    {
+      "source": "saver",
+      "sourcePort": "result",
+      "target": "log_1",
+      "targetPort": "data"
+    }
+  ]
+}

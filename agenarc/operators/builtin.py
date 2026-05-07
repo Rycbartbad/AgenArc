@@ -484,6 +484,13 @@ class Script_Node_Operator(IOperator):
         # Create globals for statement execution
         if developer_mode:
             # Developer mode: use unrestricted globals (DANGEROUS - full Python access)
+            # Optional modules: gracefully degrade if not installed
+            def _safe_import(name):
+                try:
+                    return __import__(name)
+                except ImportError:
+                    return None
+
             script_globals = {
                 "__builtins__": __builtins__,
                 "context": context,
@@ -491,7 +498,7 @@ class Script_Node_Operator(IOperator):
                 "_inputs": inputs or {},
                 "_result": None,
                 "asyncio": asyncio,
-                "websockets": __import__("websockets"),
+                "websockets": _safe_import("websockets"),
                 "os": __import__("os"),
                 "struct": __import__("struct"),
                 "socket": __import__("socket"),
@@ -538,17 +545,13 @@ class Script_Node_Operator(IOperator):
             script_globals["_inputs"] = inputs or {}
             script_globals["_result"] = None
 
-        # Wrap script to capture last expression
-        wrapped_script = f"""
-{script}
-_result = None  # Default
-"""
-
         # Run in executor to avoid blocking
+        # Use script_globals as both globals AND locals (single namespace)
+        # so that _result assignments from the script are captured correctly.
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
-            lambda: exec(wrapped_script, script_globals, {})
+            lambda: exec(script, script_globals)
         )
 
         return script_globals.get("_result")
