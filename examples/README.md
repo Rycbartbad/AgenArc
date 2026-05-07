@@ -1,34 +1,38 @@
 # AgenArc Examples
 
-可运行的 Agent 示例，按复杂度递增排列：
+可运行的 Agent 示例：
 
 | Agent | 说明 | 关键特性 |
 |-------|------|----------|
-| **hello_agent** | Hello World | Trigger + Log |
-| **chat_agent** | 简单对话 | Trigger + LLM_Task + Log |
-| **router_agent** | 条件路由 | Trigger + LLM_Task + Router + Log |
-| **full_agent** | 完整功能 | manifest + permissions + immutable_anchors |
-| **euchea** | PDF→代码生成服务 | Script_Node(dev) + LLM_Task + 热键监听 |
+| **my_first_agent** | 多轮对话 | Trigger + Prompt_Builder + LLM_Task |
+| **qq_bot_agent** | QQ 机器人 | Trigger + LLM_Task + 事件插件（serve 模式） |
+| **euchea** | PDF→代码生成 | Script_Node + LLM_Task + 热键插件（serve 模式） |
 
 ## 运行示例
 
 ```bash
-# Hello Agent（无需 LLM）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
+# 多轮对话（需要 LLM）
+uv run agenarc run examples/my_first_agent.agrc --input '{"payload":"Hello"}'
 
-# Chat Agent（需要 LLM）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
-
-# Router Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
-
-# Full Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
+# 交互式对话
+uv run agenarc shell examples/my_first_agent.agrc
 ```
 
-## euchea - PDF→代码生成热键服务
+## 服务模式示例
 
-euchea 是一个后台服务，全局监听 Alt+A 热键，将指定目录中的 PDF（转 Markdown）和 C++ 源文件注入 AI 提示词，由 LLM 生成/完善代码并保存到输出目录。
+需要事件插件的 agent 通过 `agenarc serve` 启动：
+
+```bash
+# QQ 机器人（需 NapCat WebSocket）
+uv run agenarc serve examples/qq_bot_agent.agrc
+
+# euchea — PDF→代码生成（需 keyboard 库）
+uv run agenarc serve examples/euchea.agrc
+```
+
+## euchea — PDF→代码生成热键服务
+
+全局监听 **Alt+A** 热键，扫描 `C:\Users\Admin\Downloads\AA\` 目录中的 PDF 和 C++ 源文件，由 LLM 生成/完善代码并保存到 `project/` 子目录。
 
 ### 安装依赖
 
@@ -39,19 +43,17 @@ uv pip install pdfplumber PyMuPDF    # PDF→MD 备选方案
 uv pip install openai                # LLM 调用
 ```
 
-### 服务模式运行（推荐）
+### 使用方法
 
 ```bash
-PYTHONIOENCODING=utf-8 python examples/euchea_serve.py
+# 后台服务模式（推荐）
+uv run agenarc serve examples/euchea.agrc
+
+# 单次执行（开发调试）
+uv run agenarc run examples/euchea.agrc --input '{}'
 ```
 
-按 Alt+A 触发处理，Ctrl+C 停止服务。
-
-### 单次运行（开发调试）
-
-```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/euchea.agrc --input '{}'
-```
+按 **Alt+A** 触发，**Ctrl+C** 停止服务。
 
 ### 工作流
 

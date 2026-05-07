@@ -148,11 +148,13 @@ class GraphTraversal:
         return ready
 
     def _find_source_nodes(self) -> List["Node"]:
-        """Find all source nodes (nodes with no incoming edges)."""
+        """Find all source nodes (nodes with no incoming data edges)."""
         if not self.graph.edges:
             return list(self.graph.nodes)
 
-        target_nodes = {edge.target for edge in self.graph.edges}
+        # Only data edges (with sourcePort) count — control-flow edges (e.g. →trigger for session)
+        # without sourcePort should not block source node detection.
+        target_nodes = {edge.target for edge in self.graph.edges if edge.sourcePort}
         source_nodes = [
             node for node in self.graph.nodes
             if node.id not in target_nodes

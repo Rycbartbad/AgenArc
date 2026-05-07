@@ -16,8 +16,8 @@ class TestGraphTraversal:
             Node(id="c", type=NodeType.LLM_TASK, label="C"),
         ]
         edges = [
-            Edge(source="a", target="b"),
-            Edge(source="b", target="c"),
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
+            Edge(source="b", sourcePort="response", target="c", targetPort="data"),
         ]
         return Graph(version="1.0.0", nodes=nodes, edges=edges)
 
@@ -29,8 +29,8 @@ class TestGraphTraversal:
             Node(id="c", type=NodeType.LLM_TASK, label="C"),
         ]
         edges = [
-            Edge(source="a", target="b"),
-            Edge(source="a", target="c"),
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
+            Edge(source="a", sourcePort="payload", target="c", targetPort="message"),
         ]
         return Graph(version="1.0.0", nodes=nodes, edges=edges)
 
@@ -43,10 +43,10 @@ class TestGraphTraversal:
             Node(id="d", type=NodeType.LLM_TASK, label="D"),
         ]
         edges = [
-            Edge(source="a", target="b"),
-            Edge(source="a", target="c"),
-            Edge(source="b", target="d"),
-            Edge(source="c", target="d"),
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
+            Edge(source="a", sourcePort="payload", target="c", targetPort="message"),
+            Edge(source="b", sourcePort="response", target="d", targetPort="data"),
+            Edge(source="c", sourcePort="response", target="d", targetPort="data"),
         ]
         return Graph(version="1.0.0", nodes=nodes, edges=edges)
 
@@ -97,7 +97,7 @@ class TestGraphTraversal:
             Node(id="a", type=NodeType.TRIGGER, label="A"),
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
         ]
-        edges = [Edge(source="a", target="b")]
+        edges = [Edge(source="a", sourcePort="payload", target="b", targetPort="message")]
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
@@ -165,7 +165,7 @@ class TestGraphTraversal:
             Node(id="a", type=NodeType.TRIGGER, label="A"),
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
         ]
-        edges = [Edge(source="a", target="b")]
+        edges = [Edge(source="a", sourcePort="payload", target="b", targetPort="message")]
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
@@ -187,8 +187,8 @@ class TestGraphTraversal:
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
         ]
         edges = [
-            Edge(source="a", target="b"),
-            Edge(source="b", target="a"),  # cycle, no source nodes
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
+            Edge(source="b", sourcePort="response", target="a", targetPort="message"),  # cycle, no source nodes
         ]
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
@@ -203,7 +203,7 @@ class TestGraphTraversal:
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
             Node(id="orphan", type=NodeType.LLM_TASK, label="Orphan"),
         ]
-        edges = [Edge(source="a", target="b")]
+        edges = [Edge(source="a", sourcePort="payload", target="b", targetPort="message")]
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
@@ -214,7 +214,8 @@ class TestGraphTraversal:
     def test_validate_edge_to_nonexistent_node(self):
         """Test validating graph with edge to nonexistent node."""
         nodes = [Node(id="a", type=NodeType.TRIGGER, label="A")]
-        edges = [Edge(source="a", target="nonexistent")]
+        edges = [Edge(source="a", sourcePort="payload", target="nonexistent")]
+        # targetPort intentionally omitted — target node doesn't exist
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
@@ -229,9 +230,10 @@ class TestGraphTraversal:
             Node(id="c", type=NodeType.LLM_TASK, label="C"),
         ]
         edges = [
-            Edge(source="a", target="b"),
-            Edge(source="c", target="a"),  # c is source, a is reachable, b is reachable
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
+            Edge(source="c", sourcePort="payload", target="a"),  # c is source, a reachable, b reachable
         ]
+        # Edge c→a has no targetPort — data still flows via context
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
 
@@ -247,8 +249,8 @@ class TestGraphTraversal:
             Node(id="c", type=NodeType.LLM_TASK, label="C"),
         ]
         edges = [
-            Edge(source="a", target="b"),
-            Edge(source="b", target="c"),
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
+            Edge(source="b", sourcePort="response", target="c", targetPort="data"),
         ]
         graph = Graph(version="1.0.0", nodes=nodes, edges=edges)
         traversal = GraphTraversal(graph)
@@ -267,7 +269,7 @@ class TestFindCycles:
             Node(id="a", type=NodeType.TRIGGER, label="A"),
         ]
         edges = [
-            Edge(source="a", target="a"),
+            Edge(source="a", sourcePort="payload", target="a", targetPort="message"),
         ]
         return Graph(version="1.0.0", nodes=nodes, edges=edges)
 
@@ -291,7 +293,7 @@ class TestFindLoopRegions:
             Node(id="b", type=NodeType.LLM_TASK, label="B"),
         ]
         edges = [
-            Edge(source="a", target="b"),
+            Edge(source="a", sourcePort="payload", target="b", targetPort="message"),
         ]
         return Graph(version="1.0.0", nodes=nodes, edges=edges)
 

@@ -19,35 +19,26 @@
 
 ## 示例 Agents
 
-本目录包含以下示例 Agent，按照复杂度递增排列：
+本目录包含以下示例 Agent：
 
 | Agent | 说明 | 关键特性 |
 |-------|------|----------|
-| **hello_agent** | 最简单的 Hello World | Trigger + Log |
-| **chat_agent** | 简单对话 | Trigger + LLM_Task + Log |
-| **my_first_agent** | 多轮对话 | Trigger + Prompt_Builder + LLM_Task + Prompt_Builder + Log |
-| **router_agent** | 带路由 | Trigger + LLM_Task + Router + Log |
-| **full_agent** | 完整功能 | Trigger + LLM_Task + Router + Log + manifest |
-| **qq_bot_agent** | QQ 机器人 | Trigger + Prompt_Builder + LLM_Task + Log（事件插件服务模式） |
+| **my_first_agent** | 多轮对话 | Trigger + Prompt_Builder + LLM_Task |
+| **qq_bot_agent** | QQ 机器人 | Trigger + LLM_Task + 事件插件（serve 模式） |
+| **euchea** | PDF→代码生成 | Script_Node + LLM_Task + 热键插件（serve 模式） |
 
 ### 运行示例
 
 ```bash
-# Hello Agent（无需 LLM）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
+# 多轮对话（需 LLM）
+agenarc run examples/my_first_agent.agrc --input '{"payload":"Hello!"}'
+agenarc shell examples/my_first_agent.agrc
 
-# Chat Agent（需 LLM）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
+# QQ 机器人（需 NapCat WebSocket）
+agenarc serve examples/qq_bot_agent.agrc
 
-# 多轮对话 Agent（需 LLM）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/my_first_agent.agrc --input '{"payload":"Hello!"}'
-PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/my_first_agent.agrc
-
-# Router Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
-
-# Full Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
+# euchea（需 keyboard 库）
+agenarc serve examples/euchea.agrc
 ```
 
 ---
@@ -143,10 +134,10 @@ my_agent.agrc/
 
 ```bash
 # 单次执行
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run my_agent.agrc --input '{"payload":"Hello"}'
+agenarc run my_agent.agrc --input '{"payload":"Hello"}'
 
 # 交互式对话（多轮）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli shell my_agent.agrc
+agenarc shell my_agent.agrc
 ```
 
 ---
@@ -1169,10 +1160,10 @@ Event Source (NapCat/Webhook/Timer)
 
 ```bash
 # 启动事件服务
-PYTHONIOENCODING=utf-8 python -m agenarc.cli serve qq_agent.agrc
+agenarc serve qq_agent.agrc
 
 # 指定插件
-PYTHONIOENCODING=utf-8 python -m agenarc.cli serve qq_agent.agrc --plugins qq
+agenarc serve qq_agent.agrc --plugins qq
 
 # 停止服务：Ctrl+C
 ```
@@ -1435,7 +1426,7 @@ providers:
 ### 9.2 运行命令
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent-path> --input '<json>'
+agenarc run <agent-path> --input '<json>'
 ```
 
 ### 9.3 输入格式
@@ -1473,14 +1464,14 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli run <agent-path> --input '<json>'
 交互式 Shell 允许你以 REPL 模式运行 Agent，无需每次输入完整的 JSON：
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli shell examples/hello_agent.agrc
+agenarc shell examples/my_first_agent.agrc
 ```
 
 **输入格式**：
 
 | 输入类型 | 示例 | 处理方式 |
 |----------|------|----------|
-| 纯文本 | `Hello` | 自动转换为 `{"input": "Hello"}` |
+| 纯文本 | `Hello` | 直接作为字符串 payload |
 | JSON 对象 | `{"payload":"Hi"}` | 直接作为完整 payload |
 
 **会话持久化**：
@@ -1512,7 +1503,7 @@ Shell 根据 flow.json 的结构决定会话行为：
 ==================================================
 AgenArc Interactive Shell
 ==================================================
-Agent: examples/hello_agent.agrc
+Agent: examples/my_first_agent.agrc
 Context persists during session, resets on new session
 Type input and press Enter to execute
   - Plain text: treated as payload
@@ -1522,10 +1513,10 @@ Commands: :quit/:exit to exit, :reset to start new session
 ==================================================
 
 > Hello
-[AGENARC] Hello from AgenArc!
+[AGENARC] {'messages': [{'role': 'user', 'content': 'Hello'}]}
 
 > World
-[AGENARC] World from AgenArc!
+[AGENARC] {'messages': [{'role': 'user', 'content': 'Hello'}, {'role': 'assistant', 'content': '...'}, {'role': 'user', 'content': 'World'}]}
 
 > :reset
 Session reset (new conversation started).
@@ -1606,10 +1597,10 @@ session_state.set_global("_session_first_run", False) # 后续执行
 
 ```bash
 # 启动事件服务
-PYTHONIOENCODING=utf-8 python -m agenarc.cli serve <agent.agrc>
+agenarc serve <agent.agrc>
 
 # 指定插件（逗号分隔）
-PYTHONIOENCODING=utf-8 python -m agenarc.cli serve <agent.agrc> --plugins qq
+agenarc serve <agent.agrc> --plugins qq
 
 # 停止服务：Ctrl+C
 ```
@@ -1631,7 +1622,26 @@ Event Plugin (e.g., QQ)
 3. 调用 `trigger_callback(standardized_event)` 触发图执行
 4. Trigger 节点接收事件，输出标准化字段供下游节点使用
 
-### 10.4 标准化事件格式
+### 10.4 Bundle 内嵌事件插件
+
+事件插件可以嵌入在 `.agrc` bundle 的 `plugins/` 目录中，随 agent 分发，无需修改引擎代码：
+
+```
+euchea.agrc/
+└── plugins/
+    └── hotkey_plugin/
+        ├── agenarc.json   # name: "hotkey", type: "event"
+        └── plugin.py      # HotkeyPlugin class
+```
+
+serve 命令启动时会自动扫描 `plugins/` 子目录，读取每个 `agenarc.json` 的 `name` 字段，与 flow.json 中 Plugin 源节点的 `config.plugin` 匹配，加载并启动事件插件。
+
+```bash
+# 使用 bundle 内嵌事件插件
+agenarc serve examples/euchea.agrc
+```
+
+### 10.5 标准化事件格式
 
 所有事件插件使用统一的事件格式：
 
@@ -1743,179 +1753,7 @@ QQ 插件支持以下配置（在 `agenarc.json` 中）：
 
 ## 11. 完整示例
 
-### 11.1 hello_agent.agrc - 最简单的 Agent
-
-**目录结构**：
-
-```
-hello_agent.agrc/
-├── manifest.json
-└── flow.json
-```
-
-**manifest.json**：
-
-```json
-{
-  "name": "hello_agent",
-  "version": "1.0.0",
-  "entry": "flow.json"
-}
-```
-
-**flow.json**：
-
-```json
-{
-  "version": "1.0.0",
-  "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
-    {
-      "id": "log_1",
-      "type": "Log",
-      "label": "输出",
-      "inputs": [
-        {"name": "message", "type": "string", "default": "Hello from AgenArc!"}
-      ]
-    }
-  ],
-  "edges": [
-    {"source": "trigger_1", "sourcePort": "payload", "target": "log_1", "targetPort": "message"}
-  ]
-}
-```
-
-**运行**（无需 LLM）：
-
-```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
-```
-
----
-
-### 10.2 chat_agent.agrc - 简单对话 Agent
-
-**目录结构**：
-
-```
-chat_agent.agrc/
-├── manifest.json
-├── flow.json
-└── prompts/
-    └── system.pt
-```
-
-**manifest.json**：
-
-```json
-{
-  "name": "chat_agent",
-  "version": "1.0.0",
-  "entry": "flow.json"
-}
-```
-
-**flow.json**：
-
-```json
-{
-  "version": "1.0.0",
-  "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
-    {
-      "id": "llm_1",
-      "type": "LLM_Task",
-      "label": "对话",
-      "inputs": [{"name": "prompt", "type": "string"}],
-      "config": {
-        "model": "deepseek-chat",
-        "temperature": 0.7,
-        "system_prompt": "agrc://prompts/system.pt"
-      }
-    },
-    {"id": "log_response", "type": "Log", "label": "输出回复"}
-  ],
-  "edges": [
-    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
-    {"source": "llm_1", "sourcePort": "response", "target": "log_response", "targetPort": "message"}
-  ]
-}
-```
-
-**prompts/system.pt**：
-
-```jinja2
-You are a helpful and friendly AI assistant.
-
-Guidelines:
-- Respond in the same language as the user
-- Be concise and helpful
-- Use friendly tone
-
-Context: {{context}}
-```
-
-**运行**：
-
-```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
-```
-
----
-
-### 10.3 router_agent.agrc - 带路由的 Agent
-
-**目录结构**：
-
-```
-router_agent.agrc/
-├── manifest.json
-└── flow.json
-```
-
-**flow.json**（关键部分）：
-
-```json
-{
-  "version": "1.0.0",
-  "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
-    {"id": "llm_1", "type": "LLM_Task", "label": "处理请求"},
-    {
-      "id": "router_1",
-      "type": "Router",
-      "label": "检查结束",
-      "inputs": [{"name": "input", "type": "any"}],
-      "config": {
-        "conditions": [
-          {"ref": "input", "operator": "contains", "value": "quit", "output": "B"},
-          {"ref": "input", "operator": "contains", "value": "bye", "output": "B"},
-          {"ref": "input", "operator": "contains", "value": "goodbye", "output": "B"}
-        ],
-        "default": "A"
-      }
-    },
-    {"id": "log_goodbye", "type": "Log", "label": "结束语"},
-    {"id": "log_continue", "type": "Log", "label": "继续"}
-  ],
-  "edges": [
-    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
-    {"source": "llm_1", "sourcePort": "response", "target": "router_1", "targetPort": "input"},
-    {"source": "router_1", "sourcePort": "output_A", "target": "log_continue"},
-    {"source": "router_1", "sourcePort": "output_B", "target": "log_goodbye"}
-  ]
-}
-```
-
-**运行**：
-
-```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
-```
-
----
-
-### 11.5 qq_bot_agent.agrc - QQ 机器人
+### 11.1 qq_bot_agent.agrc - QQ 机器人
 
 **目录结构**：
 
@@ -2004,8 +1842,6 @@ qq_bot_agent.agrc/
 }
 ```
 
-**注意**：Prompt_Builder 有两个输入端口 `user` 和 `assistant`，用于区分用户消息和助手消息。`assistant_history` 必须使用 `targetPort: "assistant"` 才能正确保存助手回复到历史记录。
-
 **运行**：
 
 ```bash
@@ -2015,7 +1851,7 @@ pip install websockets
 # 2. 启动 NapCat（确保正向 WebSocket 端口 3001 开启）
 
 # 3. 启动 Agent 服务
-PYTHONIOENCODING=utf-8 python -m agenarc.cli serve examples/qq_bot_agent.agrc
+agenarc serve examples/qq_bot_agent.agrc
 
 # 4. 停止服务：Ctrl+C
 ```
@@ -2030,79 +1866,11 @@ PYTHONIOENCODING=utf-8 python -m agenarc.cli serve examples/qq_bot_agent.agrc
 
 ---
 
-### 11.6 full_agent.agrc - 完整功能 Agent
 
-**目录结构**：
 
-```text
-full_agent.agrc/
-├── manifest.json
-├── flow.json
-├── prompts/
-│   └── system.pt
-└── scripts/
-    └── text_tools.py
-```
 
-**manifest.json**：
 
-```json
-{
-  "name": "full_agent",
-  "version": "1.0.0",
-  "entry": "flow.json",
-  "permissions": {
-    "allow_script_read": true,
-    "allow_script_write": false,
-    "autonomy_level": "level_2"
-  },
-  "immutable_anchors": [
-    {"node_id": "trigger_1", "reason": "Entry point cannot be modified"}
-  ],
-  "hot_reload": true
-}
-```
 
-**flow.json**（关键部分）：
-
-```json
-{
-  "version": "1.0.0",
-  "nodes": [
-    {"id": "trigger_1", "type": "Trigger", "label": "开始"},
-    {"id": "llm_1", "type": "LLM_Task", "label": "AI 处理"},
-    {
-      "id": "router_1",
-      "type": "Router",
-      "label": "路由",
-      "config": {
-        "conditions": [
-          {"ref": "input", "operator": "contains", "value": "?", "output": "A"}
-        ],
-        "default": "B"
-      }
-    },
-    {"id": "log_question", "type": "Log", "label": "问题日志"},
-    {"id": "log_statement", "type": "Log", "label": "陈述日志"},
-    {"id": "log_final", "type": "Log", "label": "最终输出"}
-  ],
-  "edges": [
-    {"source": "trigger_1", "sourcePort": "payload", "target": "llm_1", "targetPort": "prompt"},
-    {"source": "llm_1", "sourcePort": "response", "target": "router_1", "targetPort": "input"},
-    {"source": "router_1", "sourcePort": "output_A", "target": "log_question"},
-    {"source": "router_1", "sourcePort": "output_B", "target": "log_statement"},
-    {"source": "llm_1", "sourcePort": "response", "target": "log_final", "targetPort": "message"}
-  ]
-}
-```
-
-**运行**：
-
-```bash
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
-```
-
----
 
 ## 附录：常见问题
 

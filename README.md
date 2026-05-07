@@ -80,7 +80,9 @@ pip install agenarc
 
 ```bash
 # Run an .agrc agent bundle
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello"}'
+PYTHONIOENCODING=utf-8 uv run agenarc run examples/chat_agent.agrc --input '{"payload":"Hello"}'
+# Or without uv:
+# PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello"}'
 ```
 
 ## Examples
@@ -89,47 +91,44 @@ Located in `examples/` directory:
 
 | Agent | Description |
 |-------|-------------|
-| `hello_agent.agrc` | Minimal example (Trigger + Log) |
-| `chat_agent.agrc` | Basic LLM chat (Trigger + LLM_Task + Log) |
-| `router_agent.agrc` | Conditional routing (Trigger + LLM_Task + Router + Log) |
-| `full_agent.agrc` | Complete features with manifest and scripts |
+| `my_first_agent.agrc` | Multi-turn chat (Trigger + Prompt_Builder + LLM_Task) |
+| `qq_bot_agent.agrc` | QQ bot with event plugin (serve mode) |
+| `euchea.agrc` | PDF→C++ code generation via Alt+A hotkey (serve mode) |
 
 ### Running Examples
 
 ```bash
-# Hello Agent (no LLM needed)
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/hello_agent.agrc --input '{}'
+# Multi-turn chat (requires LLM)
+uv run agenarc run examples/my_first_agent.agrc --input '{"payload":"Hello!"}'
+uv run agenarc shell examples/my_first_agent.agrc
 
-# Chat Agent (requires LLM)
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello!"}'
-
-# Router Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/router_agent.agrc --input '{"payload":"Say hello"}'
-
-# Full Agent
-PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/full_agent.agrc --input '{"payload":"What is AI?"}'
+# euchea — background service with Alt+A hotkey (PDF→code generation)
+uv run agenarc serve examples/euchea.agrc
 ```
 
 ## CLI Commands
 
 ```bash
 # Run an agent (.agrc) or protocol (.json)
-python -m agenarc.cli run my_agent.agrc
-python -m agenarc.cli run flow.json --input '{"key": "value"}' --mode async
+uv run agenarc run my_agent.agrc
+uv run agenarc run flow.json --input '{"key": "value"}' --mode async
 
 # Interactive shell (REPL mode)
-python -m agenarc.cli shell my_agent.agrc
+uv run agenarc shell my_agent.agrc
 
 # Validate an agent or protocol
-python -m agenarc.cli validate my_agent.agrc
-python -m agenarc.cli validate flow.json
+uv run agenarc validate my_agent.agrc
+uv run agenarc validate flow.json
 
 # Show agent/protocol info
-python -m agenarc.cli info my_agent.agrc
-python -m agenarc.cli info flow.json
+uv run agenarc info my_agent.agrc
+uv run agenarc info flow.json
 
-# Run serve (REPL mode)
-python -m agenarc.cli serve my_agent.agrc
+# Service mode — event plugins (QQ bot, hotkey, etc.)
+uv run agenarc serve my_agent.agrc
+
+# Fallback (without uv):
+# PYTHONIOENCODING=utf-8 python -m agenarc.cli run my_agent.agrc
 ```
 
 ## Node Types
@@ -156,6 +155,10 @@ my_agent.agrc/
 │   └── system.pt     # System prompt
 ├── scripts/          # Custom scripts (optional)
 │   └── tool.py
+├── plugins/           # Embedded Python plugins (optional, auto-discovered)
+│   └── my_plugin/
+│       ├── agenarc.json
+│       └── plugin.py
 └── assets/           # Static assets (optional)
 ```
 

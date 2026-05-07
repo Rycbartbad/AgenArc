@@ -195,9 +195,10 @@ class ExecutionEngine:
 
     def _find_source_nodes(self) -> List[Node]:
         """
-        Find all source nodes (nodes with no incoming edges).
+        Find all source nodes (nodes with no incoming data edges).
 
-        These nodes are the entry points for execution.
+        Control-flow-only edges (no sourcePort, e.g. →trigger for session)
+        do not block source node detection.
 
         Returns:
             List of source nodes
@@ -206,8 +207,8 @@ class ExecutionEngine:
             # No edges at all - all nodes are source nodes
             return list(self._graph.nodes)
 
-        # Find nodes that have no incoming edges
-        target_nodes = {edge.target for edge in self._graph.edges}
+        # Only data edges (with sourcePort) count
+        target_nodes = {edge.target for edge in self._graph.edges if edge.sourcePort}
         source_nodes = [
             node for node in self._graph.nodes
             if node.id not in target_nodes

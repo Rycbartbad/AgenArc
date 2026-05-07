@@ -428,7 +428,7 @@ class InteractiveREPL:
         print(f"Agent: {self.protocol_path}")
         print("Context persists during session, resets on new session")
         print("Type input and press Enter to execute")
-        print("  - Plain text: treated as payload")
+        print("  - Plain text: treated as payload string")
         print("  - JSON object: used as full payload")
         print("Commands: :quit/:exit to exit, :reset to start new session")
         print("          :info to show agent info, :logs to toggle logs, :results to toggle output")
@@ -580,8 +580,8 @@ class InteractiveREPL:
                     print(f"ERROR: Invalid JSON: {e}")
                     continue
             else:
-                # Plain text - wrap as payload
-                payload = {"payload": stripped}
+                # Plain text - store directly so trigger sees a string
+                payload = stripped
 
             # Execute
             if self.verbose:
