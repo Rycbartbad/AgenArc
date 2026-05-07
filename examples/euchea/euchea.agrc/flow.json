@@ -21,10 +21,9 @@
       "label": "AI代码生成",
       "config": {
         "provider": "deepseek",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "system_prompt": "agrc://prompts/system.pt",
-        "temperature": 0.3,
-        "max_tokens": 8192
+        "temperature": 0.3
       }
     },
     {

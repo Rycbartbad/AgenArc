@@ -21,21 +21,37 @@ class Config:
     Configuration manager for AgenArc.
 
     Loads from:
-    1. config.yaml in project root (if exists)
-    2. Environment variables (take precedence)
+    1. config.yaml in user home or project root (if exists)
+    2. Environment variables (take precedence, opt-in via env_overrides=True)
 
     Environment variable pattern:
     - AGENARC_OPENAI_API_KEY
     - AGENARC_ANTHROPIC_API_KEY
     - AGENARC_OPENAI_MODEL
     - etc.
+
+    Not a strict singleton: tests can construct independent instances
+    by passing config_dict and env_overrides=False.
     """
 
     _instance: Optional["Config"] = None
 
-    def __init__(self):
+    def __init__(self, config_dict: Optional[Dict[str, Any]] = None, env_overrides: bool = True):
+        """
+        Initialize Config.
+
+        Args:
+            config_dict: Pre-populated config dict (for testing). If provided,
+                         no file loading occurs and env_overrides defaults to False.
+            env_overrides: Whether to apply environment variable overrides.
+        """
         self._config: Dict[str, Any] = {}
-        self._load_config()
+        if config_dict is not None:
+            self._config = config_dict
+        else:
+            self._load_config()
+        if env_overrides:
+            self._apply_env_overrides()
 
     @classmethod
     def get_instance(cls) -> "Config":

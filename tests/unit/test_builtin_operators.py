@@ -382,13 +382,13 @@ class TestAutonomyToTrustLevel:
         """level_0 should return locked trust level."""
         assert _autonomy_to_trust_level(0) == "locked"
 
-    def test_level_1_returns_locked(self):
-        """level_1 should return locked trust level."""
-        assert _autonomy_to_trust_level(1) == "locked"
+    def test_level_1_returns_trusted(self):
+        """level_1 (Supervised) should return trusted trust level."""
+        assert _autonomy_to_trust_level(1) == "trusted"
 
-    def test_level_2_returns_trusted(self):
-        """level_2 should return trusted trust level."""
-        assert _autonomy_to_trust_level(2) == "trusted"
+    def test_level_2_returns_developer(self):
+        """level_2 (Autonomous) should return developer trust level."""
+        assert _autonomy_to_trust_level(2) == "developer"
 
     def test_level_3_returns_developer(self):
         """level_3 should return developer trust level."""

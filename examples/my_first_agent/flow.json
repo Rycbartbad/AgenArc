@@ -22,7 +22,6 @@
         "provider": "openrouter",
         "model": "openrouter/free",
         "temperature": 0.7,
-        "max_tokens": 150,
         "system_prompt": "你是我的人工智能助手，协助我完成各种任务。"
       }
     },

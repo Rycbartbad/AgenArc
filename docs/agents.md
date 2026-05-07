@@ -107,7 +107,6 @@ my_agent.agrc/
       "config": {
         "model": "deepseek-chat",
         "temperature": 0.7,
-        "max_tokens": 150,
         "system_prompt": "agrc://prompts/system.pt"
       }
     },
@@ -455,7 +454,6 @@ AgenArc 使用**源节点自动检测**机制：没有入边的节点（源节�
 | `model` | string | provider.default_model | 模型名称，会覆盖 provider 的 default_model |
 | `temperature` | number | 0.7 | 温度参数，控制随机性（0-1） |
 | `system_prompt` | string | - | 系统提示词（与 messages 列表区分） |
-| `max_tokens` | integer | - | 最大生成 token 数 |
 
 ---
 
