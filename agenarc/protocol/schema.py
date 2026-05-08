@@ -21,6 +21,7 @@ class NodeType(str, Enum):
     LOG = "Log"
     CONTEXT_SET = "Context_Set"
     CONTEXT_GET = "Context_Get"
+    JOIN = "Join"
     PLUGIN = "Plugin"  # Custom plugin operator
     PROMPT_BUILDER = "Prompt_Builder"
 

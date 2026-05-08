@@ -363,13 +363,17 @@ AgenArc 使用**源节点自动检测**机制：没有入边的节点（源节�
 
 #### 连接到 Trigger 的边
 
-当边指向 trigger 时，只需 source 和 target：
+当边指向 trigger 时，只需 source 和 target，无需指定端口：
 
 ```json
 {"source": "pb_assistant", "target": "trigger_1"}
 ```
 
-这类边只起控制流作用（决定是否维护会话），不传递数据。
+这类边只起控制流作用，不传递数据。常见场景：
+- **多轮对话**：`pb_assistant → trigger` 标识会话持续
+- **Plugin 事件源**：`hotkey_listener → trigger` 标识插件触发入口
+
+Plugin 作为事件源时，必须通过边连接到 Trigger，否则视为无效配置。
 
 ---
 
@@ -395,13 +399,14 @@ AgenArc 使用**源节点自动检测**机制：没有入边的节点（源节�
 | 端口名 | 类型 | 说明 |
 |--------|------|------|
 | `payload` | any | 原始输入载荷 |
-| `source` | string | 事件来源：manual |
+| `source` | string | 事件来源：manual, qq, webhook 等 |
 | `user_id` | any | 用户标识 |
 | `group_id` | any | 群组标识（私聊为 0） |
 | `message` | any | 消息内容 |
 | `message_type` | string | 消息类型：'private' 或 'group' |
 | `raw` | any | 原始输入数据 |
 | `timestamp` | integer | 事件时间戳 |
+| `token` | string | 事件令牌（用于鉴权） |
 
 ---
 
@@ -828,8 +833,10 @@ result = {
 **作用**：同步多个并行分支的输入并合并。
 
 **特性**：
-- Join **不声明固定输入端口**，基于 `_incoming_edges` 动态读取
-- 根据边的 source 信息从 context 中读取数据：`nodes.{source}.{sourcePort}`
+- Join **不声明固定输入端口**，通过入边自动收集上游数据
+- **自动穿透**：入边可不指定 `sourcePort`，Join 自动收集上游节点的**所有输出端口**
+- 显式指定 `sourcePort` 时，仅收集指定端口的数据
+- 输出端口以 `{上游节点ID}_{端口名}` 格式命名，防止多个上游端口名重复
 - 使用配置指定合并策略
 
 **使用场景**：当多个节点并行执行后需要汇合时使用。
@@ -846,7 +853,7 @@ result = {
 }
 ```
 
-对应的边配置：
+对应的边配置（显式指定端口）：
 
 ```json
 {
@@ -857,13 +864,28 @@ result = {
 }
 ```
 
-**输出端口**：
+或者使用自动穿透（不指定 `sourcePort`，Join 自动收集上游所有端口）：
+
+```json
+{
+  "edges": [
+    {"source": "trigger", "target": "join"},
+    {"source": "llm_task", "target": "join"}
+  ]
+}
+```
+
+**输出端口**（动态生成）：
 
 | 端口名 | 类型 | 说明 |
 |--------|------|------|
-| `output` | any | 合并后的结果 |
+| `trigger_user_id` | any | 从 trigger.user_id 透传的数据 |
+| `trigger_message` | any | 从 trigger.message 透传的数据 |
+| `llm_task_response` | any | 从 llm_task.response 透传的数据 |
 
-**合并策略**：
+当入边不指定 `sourcePort` 时，Join 自动收集上游**所有输出端口**并逐一生成 `{nodeId}_{portName}` 格式的输出端口。
+
+**可视化**：在前端 Studio 中，Join 节点**不显示输入端口**，仅显示动态生成的输出端口（`{nodeId}_{portName}` 格式），避免端口名冲突。
 
 | 策略 | 行为 |
 |------|------|
@@ -978,20 +1000,14 @@ result = {
   "id": "my_plugin_op",
   "type": "Plugin",
   "label": "自定义算子",
-  "inputs": [
-    {"name": "input", "type": "string"},
-    {"name": "options", "type": "object", "default": {}}
-  ],
-  "outputs": [
-    {"name": "result", "type": "any"},
-    {"name": "success", "type": "boolean"}
-  ],
   "config": {
     "plugin": "my_plugin",
     "function": "process"
   }
 }
 ```
+
+> **注意**：Plugin 节点的 `inputs` 和 `outputs` 端口由插件的 `agenarc.json` 清单文件声明，无需在 flow.json 中重复定义。可视化前端自动从 `agenarc.json` 读取端口信息进行渲染。
 
 **config 配置项**：
 
@@ -1180,6 +1196,7 @@ agenarc serve qq_agent.agrc --plugins qq
 | `message_type` | string | 消息类型：'private' 或 'group' |
 | `raw` | any | 原始事件数据 |
 | `timestamp` | integer | 事件时间戳 |
+| `token` | string | 事件令牌（用于鉴权） |
 
 **标准化事件格式**：
 
@@ -1689,6 +1706,26 @@ agenarc/plugins/my_plugin/
 }
 ```
 
+或者，如需声明输入/输出端口（供可视化前端展示），使用对象格式：
+
+```json
+{
+  "name": "my_plugin",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "type": "event",
+  "operators": [{
+    "name": "MyPlugin",
+    "inputs": [
+      {"name": "input", "type": "any"}
+    ],
+    "outputs": [
+      {"name": "output", "type": "any"}
+    ]
+  }]
+}
+```
+
 **3. 编写 plugin.py**
 
 ```python
@@ -1808,6 +1845,12 @@ qq_bot_agent.agrc/
       }
     },
     {
+      "id": "join",
+      "type": "Join",
+      "label": "合并数据",
+      "config": { "strategy": "merge" }
+    },
+    {
       "id": "assistant_history",
       "type": "Prompt_Builder",
       "label": "构建对话",
@@ -1830,14 +1873,18 @@ qq_bot_agent.agrc/
   ],
   "edges": [
     { "source": "trigger", "sourcePort": "message", "target": "user_history", "targetPort": "user" },
-    { "source": "trigger", "sourcePort": "user_id", "target": "send_reply", "targetPort": "user_id" },
-    { "source": "trigger", "sourcePort": "message_type", "target": "send_reply", "targetPort": "message_type" },
-    { "source": "trigger", "sourcePort": "group_id", "target": "send_reply", "targetPort": "group_id" },
     { "source": "user_history", "sourcePort": "messages", "target": "llm_task", "targetPort": "messages" },
-    { "source": "llm_task", "sourcePort": "response", "target": "send_reply", "targetPort": "message" },
+    { "source": "trigger", "sourcePort": "user_id", "target": "join", "targetPort": "user_id" },
+    { "source": "trigger", "sourcePort": "message_type", "target": "join", "targetPort": "message_type" },
+    { "source": "trigger", "sourcePort": "group_id", "target": "join", "targetPort": "group_id" },
+    { "source": "llm_task", "sourcePort": "response", "target": "join", "targetPort": "response" },
+    { "source": "join", "sourcePort": "trigger_user_id", "target": "send_reply", "targetPort": "user_id" },
+    { "source": "join", "sourcePort": "trigger_message_type", "target": "send_reply", "targetPort": "message_type" },
+    { "source": "join", "sourcePort": "trigger_group_id", "target": "send_reply", "targetPort": "group_id" },
+    { "source": "join", "sourcePort": "llm_task_response", "target": "send_reply", "targetPort": "message" },
     { "source": "llm_task", "sourcePort": "response", "target": "log_output", "targetPort": "data" },
     { "source": "llm_task", "sourcePort": "response", "target": "assistant_history", "targetPort": "assistant" },
-    { "source": "send_reply", "target": "trigger" }
+    { "source": "assistant_history", "target": "trigger" }
   ]
 }
 ```

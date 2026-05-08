@@ -3,6 +3,18 @@
   "version": "1.0.0",
   "entry": "plugin.py",
   "type": "operator",
-  "operators": ["QQ_Reply_Operator"],
-  "description": "QQ message reply operator via NapCat WebSocket"
+  "operators": [{
+    "name": "QQ_Reply_Operator",
+    "inputs": [
+      {"name": "message", "type": "string"},
+      {"name": "user_id", "type": "integer"},
+      {"name": "group_id", "type": "integer"},
+      {"name": "message_type", "type": "string"}
+    ],
+    "outputs": [
+      {"name": "success", "type": "boolean"},
+      {"name": "data", "type": "any"},
+      {"name": "error", "type": "string"}
+    ]
+  }]
 }

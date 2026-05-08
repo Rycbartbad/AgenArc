@@ -25,14 +25,29 @@ my_plugin/
 ```
 
 **agenarc.json:**
+
+`agenarc.json` 是插件的清单文件，需在此声明插件的名称、入口文件和算子列表。每个算子可以声明其输入/输出端口，可视化前端将据此渲染节点：
+
 ```json
 {
   "name": "my_plugin",
   "version": "1.0.0",
   "entry": "plugin.py",
-  "operators": ["MyOperator"]
+  "operators": [
+    {
+      "name": "MyOperator",
+      "inputs": [
+        {"name": "input", "type": "string", "description": "输入文本"}
+      ],
+      "outputs": [
+        {"name": "output", "type": "string", "description": "处理后的文本"}
+      ]
+    }
+  ]
 }
 ```
+
+> **端口声明是可选**的。若算子无输入或输出端口，可省略 `inputs`/`outputs` 字段，或使用简写格式 `"operators": ["MyOperator"]`。可视化前端在未找到端口声明时显示无端口节点。
 
 **plugin.py:**
 ```python
@@ -222,7 +237,7 @@ class IOperator(ABC):
 
 ## 在 Agent 中使用插件算子
 
-在 flow.json 中，使用 `type: "Plugin"` 节点来调用自定义插件算子：
+在 flow.json 中，使用 `type: "Plugin"` 节点来调用自定义插件算子。**Plugin 节点无需在 flow.json 中声明 `inputs`/`outputs`**——端口信息由插件的 `agenarc.json` 清单自动提供。
 
 ```json
 {
@@ -233,12 +248,6 @@ class IOperator(ABC):
       "id": "my_op_1",
       "type": "Plugin",
       "label": "自定义算子",
-      "inputs": [
-        {"name": "input", "type": "string"}
-      ],
-      "outputs": [
-        {"name": "output", "type": "string"}
-      ],
       "config": {
         "plugin": "my_plugin",
         "function": "my_operator"
@@ -268,13 +277,6 @@ class IOperator(ABC):
   "id": "text_processor",
   "type": "Plugin",
   "label": "文本处理",
-  "inputs": [
-    {"name": "text", "type": "string"},
-    {"name": "mode", "type": "string", "default": "upper"}
-  ],
-  "outputs": [
-    {"name": "result", "type": "string"}
-  ],
   "config": {
     "plugin": "text_tools",
     "function": "transform"
@@ -282,4 +284,4 @@ class IOperator(ABC):
 }
 ```
 
-这将调用 `text_tools` 插件的 `transform` 算子。
+这将调用 `text_tools` 插件的 `transform` 算子。算子的输入输出端口由该插件的 `agenarc.json` 清单文件声明。

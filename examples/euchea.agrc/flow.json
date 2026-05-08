@@ -51,6 +51,10 @@
   ],
   "edges": [
     {
+      "source": "hotkey_listener",
+      "target": "trigger_1"
+    },
+    {
       "source": "trigger_1",
       "target": "preprocessor"
     },

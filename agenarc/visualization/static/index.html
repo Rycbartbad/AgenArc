@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgenArc Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --bg-canvas: #0b0e12; --bg-panel: #13171d; --bg-node: #15191f;
+  --border: #2b313a; --border-hover: #3c4450; --border-active: #4b89e3;
+  --text: #8a939d; --text-focus: #c2cbd4; --text-dim: #545d68;
+  --dot: #1e242c;
+  --shadow: 0 8px 24px rgba(0,0,0,0.15); --shadow-lg: 0 16px 48px rgba(0,0,0,0.4);
+  --blue: #4b89e3; --green: #37a346; --purple: #9a6ade; --orange: #c78b1e; --red: #d94b4b; --cyan: #269a9a;
+  --radius: 8px; --font: 'Inter',system-ui,-apple-system,sans-serif;
+  --font-mono: 'JetBrains Mono','Cascadia Code','Consolas',monospace;
+}
+.light-mode {
+  --bg-canvas: #f2f4f7; --bg-panel: #fff; --bg-node: #fff;
+  --border: #d8dde4; --border-hover: #c0c6ce; --border-active: #326fd1;
+  --text: #5f6b7a; --text-focus: #2c333b; --text-dim: #9aa4af;
+  --dot: #e0e5eb; --shadow: 0 8px 24px rgba(0,0,0,0.05);
+  --blue: #326fd1; --green: #2d8f3a; --purple: #7c4fd4; --orange: #b07818;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg-canvas);color:var(--text);font-family:var(--font);display:flex;height:100vh;overflow:hidden;transition:background .3s}
+.sidebar{background:var(--bg-panel);border:1px solid var(--border);display:flex;flex-direction:column;z-index:10;flex-shrink:0}
+.sidebar-left{width:280px;border-width:0 1px 0 0}
+.sidebar-right{width:340px;border-width:0 0 0 1px}
+.canvas{flex:1;position:relative;background-image:radial-gradient(var(--dot) 1.5px,transparent 1.5px);background-size:32px 32px;overflow:hidden}
+.node{position:absolute;width:250px;background:var(--bg-node);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);font-size:12px;z-index:2;user-select:none;transition:border-color .2s,box-shadow .2s}
+.node:hover{border-color:var(--border-hover)}
+.node.active{border-color:var(--blue)!important;box-shadow:0 0 0 1px var(--blue),var(--shadow-lg);z-index:5!important}
+.node-header{padding:10px 14px;background:rgba(255,255,255,0.015);border-bottom:1px solid var(--border);border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:space-between;color:var(--text-focus);font-weight:500;cursor:grab}
+.port{width:8px;height:8px;background:var(--bg-canvas);border:1.5px solid var(--text-dim);border-radius:50%;position:absolute;top:50%;transform:translateY(-50%);transition:all .2s;z-index:10}
+.port:hover{border-color:var(--blue);background:var(--blue);transform:translateY(-50%) scale(1.3)}
+.port-in{left:-5px}
+.port-out{right:-5px}
+.exec-port{opacity:0;pointer-events:none}
+.exec-port.force-show{opacity:1;pointer-events:auto}
+.exec-in-place{left:-14px}
+.exec-out-place{right:-14px}
+.svg-layer{position:absolute;inset:0;pointer-events:none;z-index:1}
+.edge{fill:none;stroke-width:2px;stroke-linecap:round;transition:stroke .15s}
+.edge.active{stroke:var(--blue);stroke-dasharray:5 3}
+.edge.control-flow{stroke:var(--orange);stroke-width:2.5px}
+.edge.selected{stroke-width:3.5px!important;stroke-dasharray:none!important;filter:drop-shadow(0 0 5px rgba(255,255,255,0.3))}
+.edge.animating{animation:dash .6s linear infinite}
+.edge.animating.control-flow{stroke-dasharray:8 5}
+.edge.animating.active{stroke-dasharray:5 3}
+.node.executing{box-shadow:0 0 0 1px var(--orange),var(--shadow-lg)!important;transition:box-shadow .2s}
+.edge.edge-hover{stroke-width:4;filter:drop-shadow(0 0 4px rgba(75,137,227,0.6));transition:stroke-width .15s,filter .15s}
+@keyframes dash{to{stroke-dashoffset:-26}}
+.edge-label{font-family:var(--font-mono);font-size:9px;fill:var(--text-dim);pointer-events:none;text-anchor:middle}
+.edge-label.control-label{fill:var(--orange);font-weight:600}
+.terminal{position:absolute;bottom:20px;left:20px;right:20px;height:130px;background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:11px;line-height:1.6;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.2);opacity:.95;z-index:15}
+.terminal::-webkit-scrollbar{width:4px}
+.terminal::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.input-box{background:rgba(0,0,0,.1);border:1px solid var(--border);color:var(--text-focus);border-radius:5px;padding:7px 10px;font-size:11px;width:100%;transition:border-color .2s;font-family:var(--font-mono)}
+.light-mode .input-box{background:#f8fafc}
+.input-box:focus{outline:none;border-color:var(--blue)}
+select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
+.btn{padding:8px 16px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-panel);color:var(--text-focus);transition:all .15s;display:inline-flex;align-items:center;gap:6px;justify-content:center;font-family:var(--font)}
+.btn:hover{border-color:var(--border-hover)}
+.btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-sm{padding:5px 10px;font-size:10px}
+.btn-block{width:100%}
+.toast-container{position:fixed;top:50px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast{padding:8px 14px;border-radius:5px;font-size:11px;font-weight:500;color:#fff;box-shadow:var(--shadow-lg);animation:si .25s ease-out;pointer-events:auto;max-width:300px}
+.toast.success{background:#238636;border-left:3px solid #3fb950}
+.toast.info{background:#1f6feb;border-left:3px solid #58a6ff}
+.toast.warn{background:#9e6a03;border-left:3px solid #d29922}
+@keyframes si{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+.no-sel{display:flex;flex-direction:column;align-items:center;justify-content:center;height:160px;color:var(--text-dim);text-align:center;font-size:12px;gap:10px}
+.no-sel svg{opacity:.3}
+</style>
+</head>
+<body id="app">
+
+<div class="toast-container" id="tc"></div>
+
+<div style="display:flex;flex:1;min-height:0">
+  <!-- Left -->
+  <aside class="sidebar sidebar-left">
+    <div class="p-5 border-b" style="border-color:var(--border);">
+      <h1 class="text-xl font-black tracking-tight" style="color:var(--blue);">AgenArc <span class="text-xs font-normal opacity-50 ml-1">STUDIO</span></h1>
+      <p class="text-[10px] mt-1" style="color:var(--text-dim);">v0.5 Directed-graph Engine</p>
+    </div>
+    <div class="flex-grow overflow-y-auto p-5 space-y-6">
+      <div>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-circle-arrow-right text-[9px] mr-1"></i> Input / Sources</h3>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Trigger')"><i class="fas fa-bolt w-5" style="color:var(--orange);"></i> Trigger</div>
+      </div>
+      <div>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-microchip text-[9px] mr-1"></i> Compute / AI</h3>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('LLM_Task')"><i class="fas fa-brain w-5" style="color:var(--purple);"></i> LLM_Task</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Script_Node')"><i class="fas fa-code w-5" style="color:var(--blue);"></i> Script_Node</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Prompt_Builder')"><i class="fas fa-message w-5" style="color:var(--cyan);"></i> Prompt_Builder</div>
+      </div>
+      <div>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-code-branch text-[9px] mr-1"></i> Control Flow</h3>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Router')"><i class="fas fa-random w-5" style="color:var(--cyan);"></i> Router</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Join')"><i class="fas fa-circle-nodes w-5" style="color:var(--green);"></i> Join</div>
+      </div>
+      <div>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-database text-[9px] mr-1"></i> Data</h3>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Memory_IO')"><i class="fas fa-hard-drive w-5" style="color:var(--green);"></i> Memory_I/O</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Set')"><i class="fas fa-arrow-right-to-bracket w-5" style="color:var(--blue);"></i> Context_Set</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Get')"><i class="fas fa-arrow-right-from-bracket w-5" style="color:var(--blue);"></i> Context_Get</div>
+      </div>
+      <div>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-plug text-[9px] mr-1"></i> Output / Evolution</h3>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Log')"><i class="fas fa-terminal w-5" style="color:var(--text-dim);"></i> Log</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-sync w-5" style="color:var(--green);"></i> Asset_Writer</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Plugin')"><i class="fas fa-puzzle-piece w-5" style="color:var(--orange);"></i> Plugin</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Reader')"><i class="fas fa-file-import w-5" style="color:var(--blue);"></i> Asset_Reader</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Runtime_Reload')"><i class="fas fa-rotate w-5" style="color:var(--green);"></i> Runtime_Reload</div>
+      </div>
+    </div>
+    <div class="p-5 border-t" style="border-color:var(--border);background:rgba(255,255,255,0.015);">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-[10px] font-bold tracking-wider" style="color:var(--text-dim);">VFS MOUNT</span>
+        <span class="text-[9px] px-1.5 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
+      </div>
+      <div class="text-[11px] font-mono truncate" style="color:var(--text);"><span id="vfsPath">—</span></div>
+      <div class="text-[10px] mt-2 flex gap-3" style="color:var(--text-dim);"><span>Nodes: <b id="statN" style="color:var(--text-focus);">0</b></span><span>Edges: <b id="statE" style="color:var(--text-focus);">0</b></span></div>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <main class="canvas" id="ca">
+    <svg class="svg-layer" id="svgL" width="100%" height="100%">
+      <defs>
+        <marker id="ad" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0 7 2.5 0 5" fill="#545d68"/></marker>
+        <marker id="aa" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0 7 2.5 0 5" fill="#4b89e3"/></marker>
+        <marker id="ao" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0 7 2.5 0 5" fill="#c78b1e"/></marker>
+      </defs>
+      <g id="eg" style="transform-origin:0 0"></g>
+    </svg>
+    <div id="nc"></div>
+    <div style="position:absolute;top:12px;right:20px;z-index:15;display:flex;gap:14px;font-size:9px;color:var(--text-dim);background:var(--bg-panel);padding:4px 10px;border-radius:6px;border:1px solid var(--border);">
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--orange)" stroke-width="2.5"/></svg> Control</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--blue)" stroke-width="2" stroke-dasharray="5 3"/></svg> Data</span>
+    </div>
+    <div class="terminal" id="term" style="display:flex;flex-direction:column;height:180px;">
+      <div class="flex justify-between items-center pb-1 border-b flex-shrink-0" style="border-color:var(--border);color:var(--text-dim);">
+        <span><i class="fas fa-terminal mr-2"></i>AgenArc Shell</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" id="termDot" style="background:var(--text-dim);"></span><span id="termTxt">disconnected</span></span>
+      </div>
+      <div id="logB" style="flex:1;overflow-y:auto;margin:4px 0;"></div>
+      <div class="flex items-center gap-2 pt-1 border-t flex-shrink-0" style="border-color:var(--border);">
+        <span style="color:var(--green);font-size:12px;">❯</span>
+        <input id="termInput" type="text" placeholder="Type text or /command — /help for list" class="flex-1 bg-transparent border-none outline-none text-[11px]" style="color:var(--text-focus);font-family:var(--font-mono);caret-color:var(--green);"
+          onkeydown="if(event.key==='Enter'&&this.value.trim()){termSend(this.value);this.value='';}">
+      </div>
+    </div>
+  </main>
+
+  <!-- Right -->
+  <aside class="sidebar sidebar-right" id="rightPanel">
+    <div class="p-5 border-b" style="border-color:var(--border);">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold flex items-center" style="color:var(--text-focus);"><i class="fas fa-sliders-h mr-2" style="color:var(--text-dim);"></i> Inspector</h2>
+        <span id="insBadge" class="text-[11px] px-2 py-0.5 rounded border font-mono" style="border-color:var(--border);color:var(--text-dim);">none</span>
+      </div>
+    </div>
+    <div class="flex-grow overflow-y-auto p-5 space-y-6" id="ic">
+      <div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="2"/></svg><span>Click a node to inspect</span></div>
+    </div>
+    <div class="p-4 border-t" style="border-color:var(--border);background:rgba(255,255,255,0.015);display:flex;flex-direction:column;gap:8px;">
+      <div class="text-[9px] text-center" style="color:var(--text-dim);">
+        <span id="apiStatus">/help for commands</span>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  AgenArc Studio — Visualization Frontend
+//  Connects to the backend at {host}:8765 via REST API.
+//  Falls back to standalone mode when backend is offline.
+// ═══════════════════════════════════════════════════════════
+
+const API_BASE = `http://${location.hostname}:8765`;
+
+// ─── Node Type Registry ───
+const TYPES = {
+  Trigger:{ic:'fa-bolt',cl:'var(--orange)',bd:'Trigger',inp:[],out:['payload','source','user_id','group_id','message','message_type','raw','timestamp','token']},
+  LLM_Task:{ic:'fa-brain',cl:'var(--purple)',bd:'LLM',inp:['messages'],out:['response','usage']},
+  Prompt_Builder:{ic:'fa-message',cl:'var(--cyan)',bd:'Prompt',inp:['user','assistant'],out:['messages']},
+  Script_Node:{ic:'fa-code',cl:'var(--blue)',bd:'Script',inp:['context'],out:['result','success','error']},
+  Router:{ic:'fa-random',cl:'var(--cyan)',bd:'Router',inp:['input'],out:[],dynamic:true},
+  Join:{ic:'fa-circle-nodes',cl:'var(--green)',bd:'Join',inp:[],out:['output']},
+  Memory_IO:{ic:'fa-hard-drive',cl:'var(--green)',bd:'Memory',inp:['key','value'],out:['value','success']},
+  Context_Set:{ic:'fa-arrow-right-to-bracket',cl:'var(--blue)',bd:'CtxSet',inp:['key','value'],out:['success']},
+  Context_Get:{ic:'fa-arrow-right-from-bracket',cl:'var(--blue)',bd:'CtxGet',inp:['key','default'],out:['value']},
+  Log:{ic:'fa-terminal',cl:'var(--text-dim)',bd:'Log',inp:['message','data'],out:['message','data']},
+  Asset_Writer:{ic:'fa-sync',cl:'var(--green)',bd:'Evolve',inp:['path','content','operation'],out:['success','path']},
+  Plugin:{ic:'fa-puzzle-piece',cl:'var(--orange)',bd:'Plugin',inp:[],out:[]},
+  Asset_Reader:{ic:'fa-file-import',cl:'var(--blue)',bd:'Reader',inp:['path'],out:['content','metadata']},
+  Runtime_Reload:{ic:'fa-rotate',cl:'var(--green)',bd:'Reload',inp:[],out:['reloaded_scripts','success']},
+};
+
+// ─── State ───
+let nodes=[], edges=[], nidGen=1, selId=null, selEdge=-1, hoverEdge=-1;
+let panX=40, panY=40, zoom=1;
+let isPan=false, pS={x:0,y:0};
+let dragId=null, dOffX=0, dOffY=0, edgeSrc=null;
+let apiOnline=false;
+
+async function api(method,path,body){
+  const opt={method,headers:{'Content-Type':'application/json'}};
+  if(body)opt.body=JSON.stringify(body);
+  const r=await fetch(API_BASE+path,opt);
+  if(!r.ok){
+    let msg=r.statusText;
+    try{const e=await r.json();if(e.error)msg=e.error;}catch(e){}
+    throw new Error(msg);
+  }
+  return await r.json();
+}
+
+const CA=document.getElementById('ca'), NC=document.getElementById('nc');
+const EG=document.getElementById('eg'), LB=document.getElementById('logB');
+const IC=document.getElementById('ic'), TC=document.getElementById('tc');
+const IB=document.getElementById('insBadge');
+
+function $(id){return nodes.find(n=>n.id===id)}
+function T(t){return TYPES[t]||TYPES.Log}
+function gId(t){return `${t.toLowerCase().replace(/[^a-z0-9]/g,'_')}_${nidGen++}`}
+// Get effective output ports for a node
+// Priority: node-specific (from JSON) > TYPES registry > empty
+function outPorts(node){
+  // Node-specific outputs from JSON (Plugin nodes declare ports here)
+  if(node.out&&node.out.length) return node.out;
+  const d=T(node.type);
+  if(d&&d.dynamic){
+    // Router: ports come from conditions
+    if(node.config&&Array.isArray(node.config.conditions))
+      return node.config.conditions.map(c=>c.output).filter(Boolean);
+    return [];
+  }
+  return d?d.out:[];
+}
+// Same for input ports
+function inpPorts(node){
+  if(node.inp&&node.inp.length) return node.inp;
+  const d=T(node.type);
+  return d?d.inp:[];
+}
+function cPos(e){const r=CA.getBoundingClientRect();return{x:(e.clientX-r.left-panX)/zoom,y:(e.clientY-r.top-panY)/zoom}}
+async function checkApi(){
+  try{
+    const r=await fetch(API_BASE+'/health',{signal:AbortSignal.timeout(2000)});
+    if(r.ok){
+      const info=await r.json();
+      apiOnline=true;
+      updateApiStatus();
+      // Update VFS path from backend
+      if(info.vfs) document.getElementById('vfsPath').textContent=info.vfs;
+      else if(info.bundlePath) document.getElementById('vfsPath').textContent='agrc://  '+info.bundlePath;
+      return true;
+    }
+  }catch(e){}
+  apiOnline=false;updateApiStatus();return false;
+}
+
+function updateApiStatus(){
+  document.getElementById('apiStatus').textContent=apiOnline?'Connected':'Disconnected';
+  const dot=document.getElementById('termDot');
+  const txt=document.getElementById('termTxt');
+  dot.style.background=apiOnline?'var(--green)':'var(--text-dim)';
+  txt.textContent=apiOnline?'connected':'disconnected';
+}
+
+// Serialize frontend edges back to flow.json format (reversible)
+function serializeEdges(){
+  const byPair={};
+  edges.forEach(e=>{
+    const key=e.s+'\t'+e.t;
+    if(!byPair[key])byPair[key]=[];
+    byPair[key].push(e);
+  });
+  return Object.values(byPair).map(pair=>{
+    const data=pair.find(e=>e.flowType==='data');
+    if(data) return {source:data.s,sourcePort:data.sp,target:data.t,targetPort:data.tp};
+    const ctrl=pair.find(e=>e.flowType==='control');
+    if(!ctrl) return null;
+    return ctrl.sp?{source:ctrl.s,sourcePort:ctrl.sp,target:ctrl.t}:{source:ctrl.s,target:ctrl.t};
+  }).filter(Boolean);
+}
+
+async function syncWithBackend(){
+  log('[API] Connecting to backend...','var(--blue)');
+  const online=await checkApi();
+  if(!online){
+    log('[API] Backend not reachable at '+API_BASE,'var(--orange)');
+    toast('Backend offline — working standalone','warn');
+    return;
+  }
+  log('[API] Connected to '+API_BASE,'var(--green)');
+  document.getElementById('apiStatus').textContent='Connected to backend';
+  try{
+    const data=await api('GET','/api/graph');
+    if(data.nodes&&data.nodes.length){
+      // BFS layering from Trigger/source nodes
+      const rawEdges=data.edges||[];
+      // Estimate node height from actual port count (from backend, not TYPES)
+      const nodeH=n=>{
+        const t=TYPES[n.type];
+        const conds=t?.dynamic?(n.config?.conditions?.length||0):0;
+        const inpN=n.inputs?.length||t?.inp?.length||0;
+        const outPs=t?.dynamic?conds:(n.outputs?.length||t?.out?.length||0);
+        const pCount=Math.max(inpN+outPs,1);
+        return 42+pCount*26;
+      };
+      // Build adjacency (skip edges to Trigger — they're session persistence, not dependencies)
+      const adj={};data.nodes.forEach(n=>adj[n.id]=[]);
+      rawEdges.forEach(e=>{
+        const tgtNode=data.nodes.find(n=>n.id===e.target);
+        if(e.source&&e.target&&e.source!==e.target&&tgtNode?.type!=='Trigger')
+          if(!adj[e.source].includes(e.target))adj[e.source].push(e.target);
+      });
+      // Layer via longest-path from source nodes
+      const hasIn={};data.nodes.forEach(n=>hasIn[n.id]=false);
+      Object.values(adj).forEach(tgts=>tgts.forEach(t=>hasIn[t]=true));
+      const seeds=data.nodes.filter(n=>n.type==='Trigger'||!hasIn[n.id]);
+      const layerOf={};data.nodes.forEach(n=>layerOf[n.id]=0);
+      // Topological order with longest-path layering: layer = max(parent_layer) + 1
+      const indeg={};data.nodes.forEach(n=>indeg[n.id]=0);
+      Object.values(adj).forEach(tgts=>tgts.forEach(t=>indeg[t]++));
+      const q=seeds.map(n=>n.id);
+      const seen=new Set(q);
+      while(q.length){
+        const id=q.shift();
+        (adj[id]||[]).forEach(tid=>{
+          const cand=(layerOf[id]||0)+1;
+          if(cand>layerOf[tid])layerOf[tid]=cand;
+          indeg[tid]--;
+          if(indeg[tid]===0&&!seen.has(tid)){
+            seen.add(tid);q.push(tid);
+          }
+        });
+      }
+      // Group by layer
+      const maxL=Math.max(...data.nodes.map(n=>layerOf[n.id]||0));
+      const layers=[];for(let i=0;i<=maxL;i++)layers.push([]);
+      data.nodes.forEach(n=>{layers[layerOf[n.id]||0].push(n);});
+      // Position: each column independently vertically centered
+      const gapX=320,gapY=30,startX=30;
+      const colHs=layers.map(l=>l.reduce((s,n)=>s+nodeH(n)+gapY,0)-gapY);
+      const canvH=CA.clientHeight||window.innerHeight||600;
+      const avail=canvH-200; // reserve space for terminal
+      nodes=[];
+      layers.forEach((layer,li)=>{
+        const colH=colHs[li];
+        let y=Math.max(20,(avail-colH)/2);
+        layer.forEach(n=>{
+          nodes.push({id:n.id,type:n.type,label:n.label||n.id,
+            x:startX+li*gapX,
+            y:y,
+            config:n.config||{},
+            inp:n.inputs?n.inputs.map(p=>p.name):undefined,
+            out:n.outputs?n.outputs.map(p=>p.name):undefined,
+          });
+          y+=nodeH(n)+gapY;
+        });
+      });
+      edges=(data.edges||[]).flatMap(e=>{
+        const srcNode=data.nodes.find(n=>n.id===e.source);
+        const isRouter=srcNode?.type==='Router';
+        const hasPorts=e.sourcePort&&e.targetPort;
+        const result=[];
+        // Every edge implies a control flow (exec→exec)
+        if(isRouter){
+          // Router: condition label becomes control flow port name
+          result.push({s:e.source,sp:e.sourcePort,t:e.target,flowType:'control'});
+        }else if(hasPorts){
+          // Data edge: split into control + data
+          result.push({s:e.source,t:e.target,flowType:'control'});      // control flow
+          result.push({s:e.source,sp:e.sourcePort,t:e.target,tp:e.targetPort,flowType:'data'}); // data flow
+        }else{
+          // Plain control-only edge (no ports)
+          result.push({s:e.source,t:e.target,flowType:'control'});
+        }
+        return result;
+      });
+      // Deduplicate control flow edges (one per source→target pair)
+      const seenCtrl=new Set();
+      edges=edges.filter(e=>{
+        if(e.flowType==='control'){
+          const key=e.s+'\t'+e.t;
+          if(seenCtrl.has(key))return false;
+          seenCtrl.add(key);
+        }
+        return true;
+      });
+      panX=0;panY=0;zoom=1;nidGen=nodes.length+1;selId=null;
+      render();
+      // Update VFS path from backend
+      if(data.bundlePath) document.getElementById('vfsPath').textContent='agrc://  '+data.bundlePath;
+      log('[API] Graph synced from backend ('+nodes.length+' nodes)','var(--green)');
+      toast('Graph synced from backend','success');
+    } else {
+      log('[API] Backend has no graph data','var(--text-dim)');
+    }
+  }catch(e){
+    log('[API] Sync failed: '+e.message,'var(--orange)');
+    toast('Sync failed','warn');
+  }
+}
+
+
+// ─── Serve mode ───
+let servePollTimer=null;
+let serveStatusTimer=null;
+let lastEventId=0;
+async function startServe(){
+  if(!apiOnline){log('[API] Backend offline','var(--orange)');toast('Backend offline','warn');return;}
+  // Prevent duplicate serve mode
+  if(servePollTimer){log('[API] Already serving','var(--text-dim)');return;}
+  log('[API] Starting service mode...','var(--blue)');
+  try{
+    const res=await api('POST','/api/serve');
+    if(res.status==='running'){
+      log('[API] Service started — plugins: '+res.plugins.join(', '),'var(--green)');
+      logLine('Events will trigger graph execution automatically','var(--text-dim)');
+      toast('Service running','success');
+      // Start polling for execution results (only show new events)
+      lastEventId=0;
+      servePollTimer=setInterval(async()=>{
+        try{
+          const r=await api('GET','/api/execution/last');
+          if(r&&r.status==='executed'&&r.id>lastEventId){
+            lastEventId=r.id;
+            // Show captured log output
+            if(r.log){
+              r.log.split('\n').filter(l=>l.trim()).forEach(line=>{
+                const isErr=line.includes('Error')||line.includes('失败');
+                logLine(line,isErr?'var(--red)':'var(--text)');
+              });
+            }
+            if(r.errors&&r.errors.length){
+              r.errors.forEach(e=>logLine('✗ '+e,'var(--red)'));
+              toast('Execution had errors','warn');
+            }else{
+              toast('Execution completed','success');
+            }
+          }
+        }catch(e){}
+      },2000);
+      // Start node status polling for live execution progress
+      let wasRunning=false;
+      let logIdx=0;
+      let polling=false;
+      setInterval(async()=>{
+        if(polling)return;
+        polling=true;
+        try{
+          const st=await api('GET','/api/execution/status');
+          const isRunning=st&&st.status==='running';
+          if(isRunning&&!wasRunning){
+            EG.querySelectorAll('.edge').forEach(el=>el.classList.add('animating'));
+          }else if(!isRunning&&wasRunning){
+            EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
+          }
+          wasRunning=isRunning;
+          // Live log output
+          const logRes=await api('GET','/api/execution/log?since='+logIdx);
+          if(logRes&&logRes.lines&&logRes.lines.length){
+            logRes.lines.forEach(line=>{
+              const isErr=line.includes('Error')||line.includes('失败')||line.includes('错误');
+              logLine(line.replace(/\n$/,''),isErr?'var(--red)':'var(--text)');
+            });
+            logIdx=logRes.next;
+          }
+          if(st&&st.nodeStatuses){
+            NC.querySelectorAll('.node.executing').forEach(el=>{
+              el.classList.remove('executing');
+              el.style.borderColor='';
+            });
+            Object.entries(st.nodeStatuses).forEach(([nid,status])=>{
+              if(status==='running'){
+                const el=NC.querySelector(`[data-nid="${nid}"]`)?.closest('.node');
+                if(el){el.classList.add('executing');el.style.borderColor='var(--orange)';}
+              }
+            });
+          }
+        }catch(e){}
+        finally{polling=false;}
+      },50);
+    }else if(res.status==='idle'){
+      log('[API] No event plugins found in graph','var(--orange)');
+      logLine('Add a Plugin source node (event type) to the graph','var(--text-dim)');
+    }else{
+      log('[API] Service failed: '+(res.error||'unknown'),'var(--red)');
+      toast('Service failed','warn');
+    }
+  }catch(e){
+    log('[API] Serve error: '+e.message,'var(--orange)');
+  }
+}
+
+
+// ─── Terminal commands ───
+window.termSend=async function(text){
+  const t=text.trim();
+  if(t.startsWith('/')){
+    const parts=t.split(/\s+/);const cmd=parts[0].slice(1);const arg=parts.slice(1).join(' ');
+    log('❯ '+t,'var(--green)');
+    if(cmd==='help'||cmd==='h'){logLine('/serve — Start service mode (event plugins trigger execution)','var(--text-dim)');logLine('/sync — Load graph from backend','var(--text-dim)');logLine('/validate — Validate graph','var(--text-dim)');logLine('/info — Show graph info','var(--text-dim)');logLine('/reset — Clear canvas','var(--text-dim)');logLine('/clear — Clear terminal','var(--text-dim)');logLine('/nodes — Show node/edge count','var(--text-dim)');logLine('Type any text to send as payload and execute','var(--text-dim)');return;}
+    if(cmd==='clear'){LB.innerHTML='';return;}
+    if(cmd==='sync'){syncWithBackend();return;}
+    if(cmd==='reset'){resetCanvas();return;}
+    if(cmd==='nodes'){logLine(nodes.length+' nodes, '+edges.length+' edges','var(--text-dim)');return;}
+    if(cmd==='validate'){logLine('Validation: '+(nodes.length?'OK — '+nodes.length+' nodes':'empty canvas'),'var(--green)');return;}
+    if(cmd==='info'){logLine('Graph: '+nodes.length+' nodes, '+edges.length+' edges, '+(apiOnline?'API connected':'standalone'),'var(--text-dim)');return;}
+    if(cmd==='serve'){startServe();return;}
+    logLine('Unknown command. Try /help','var(--orange)');return;
+  }else{
+    if(!t)return;
+    log('❯ '+t,'var(--green)');
+  }
+
+  if(!nodes.length){toast('Canvas empty — /sync first','warn');return;}
+  let input;
+  try{input=JSON.parse(text)}catch(e){input={payload:text}}
+
+  if(!apiOnline){
+    log('[API] Backend offline — start server with: uv run agenarc visualize <agent>','var(--orange)');
+    return;
+  }
+
+  // Show running status
+  const termDot=document.getElementById('termDot');
+  const termTxt=document.getElementById('termTxt');
+  termDot.style.background='var(--orange)';
+  termTxt.textContent='running';
+  EG.querySelectorAll('.edge').forEach(el=>el.classList.add('animating'));
+
+  // Live node status polling
+  const statusTimer=setInterval(async()=>{
+    try{
+      const st=await api('GET','/api/execution/status');
+      if(st&&st.nodeStatuses){
+        // Remove all highlights (class + inline style)
+        NC.querySelectorAll('.node.executing').forEach(el=>{
+          el.classList.remove('executing');
+          el.style.borderColor='';
+        });
+        // Highlight the currently running node
+        Object.entries(st.nodeStatuses).forEach(([nid,status])=>{
+          if(status==='running'){
+            const el=NC.querySelector(`[data-nid="${nid}"]`)?.closest('.node');
+            if(el){el.classList.add('executing');el.style.borderColor='var(--orange)';}
+          }
+        });
+      }
+    }catch(e){}
+  },50);
+
+  try{
+    const result=await api('POST','/api/execute',{initialInputs:input});
+
+    if(result.error){
+      log('✗ Error: '+result.error,'var(--red)');
+      toast('Execution failed','warn');
+      return;
+    }
+
+    // Update canvas: show which nodes executed
+    if(result.nodeResults){
+      Object.entries(result.nodeResults).forEach(([id,er])=>{
+        const el=NC.querySelector(`[data-nid="${id}"]`)?.closest('.node');
+        if(!el)return;
+        if(er.status==='completed'){
+          el.style.borderColor='var(--green)';
+          el.style.boxShadow='0 0 0 1px var(--green),var(--shadow-lg)';
+          setTimeout(()=>{el.style.borderColor='';el.style.boxShadow='';},1500);
+        }else if(er.status==='failed'){
+          el.style.borderColor='var(--red)';
+          el.style.boxShadow='0 0 0 1px var(--red),var(--shadow-lg)';
+        }
+      });
+    }
+
+    // Display outputs in terminal
+    if(result.finalOutputs&&Object.keys(result.finalOutputs).length>0){
+      Object.entries(result.finalOutputs).forEach(([nodeId,outs])=>{
+        if(typeof outs==='object'&&outs!==null){
+          Object.entries(outs).forEach(([port,val])=>{
+            const display=typeof val==='string'?val:JSON.stringify(val);
+            if(display&&display!=='null') log(display,'var(--text-focus)');
+          });
+        }
+      });
+    }
+
+    EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
+    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';});
+    clearInterval(statusTimer);
+
+    // Restore status
+    termDot.style.background='var(--green)';
+    termTxt.textContent='connected';
+
+    if(result.status==='success'){
+      log('✓ Done ('+(result.durationMs|0)+'ms)','var(--green)');
+    }else if(result.status==='failed'){
+      log('✗ Failed','var(--red)');
+    }
+  }catch(e){
+    EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
+    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';});
+    termDot.style.background='var(--green)';
+    termTxt.textContent='connected';
+    log('✗ Request failed: '+e.message,'var(--red)');
+    toast('Execution error','warn');
+  }
+}
+// Edge hit-test by bezier sampling
+function hitEdge(mx,my,thr){
+  for(let i=0;i<edges.length;i++){
+    const e=edges[i],s=$(e.s),t=$(e.t);if(!s||!t)continue;
+    const isCtrl=e.flowType==='control';
+    let sx,sy,tx,ty;
+    if(isCtrl){sx=s.x+250;sy=T(s.type).dynamic?portY(s,e.sp||'','',false):s.y+20;tx=t.x;ty=t.y+20;}
+    else{
+      const sp=e.sp||(outPorts(s)[0]||'payload'),tp=e.tp||(T(t.type).inp[0]||'input');
+      sx=s.x+250;sy=portY(s,sp,false);tx=t.x;ty=portY(t,tp,true);
+    }
+    const dx=tx-sx,cp=Math.max(Math.abs(dx)*0.45,50);
+    const estLen=Math.abs(dx)+2*cp;
+    const steps=Math.max(10,Math.ceil(estLen/4));
+    for(let k=0;k<=steps;k++){
+      const t=k/steps,u=1-t;
+      const x=u*u*u*sx+3*u*u*t*(sx+cp)+3*u*t*t*(tx-cp)+t*t*t*tx;
+      const y=u*u*u*sy+3*u*u*t*sy+3*u*t*t*ty+t*t*t*ty;
+      if(Math.abs(mx-x)<thr&&Math.abs(my-y)<thr)return i;
+    }
+  }
+  return -1;
+}
+
+// ─── Render ───
+function xf(){
+  const t=`translate(${panX}px,${panY}px) scale(${zoom})`;
+  NC.style.transform=t;
+  NC.style.transformOrigin='0 0';
+  EG.style.transform=t;
+}
+
+function portY(node,port,isIn){
+  // Measure actual port position from DOM for perfect alignment
+  const sel=`[data-nid="${node.id}"][data-port="${port}"]`;
+  const el=document.querySelector(sel);
+  if(el){
+    const r=el.getBoundingClientRect(),cr=CA.getBoundingClientRect();
+    return (r.top+r.height/2-cr.top)/zoom-panY;
+  }
+  // Estimation fallback (when node not yet rendered)
+  const d=T(node.type);
+  const ps=isIn?d.inp:outPorts(node);
+  const idx=ps.indexOf(port);if(idx<0)return node.y+58;
+  // For input ports: idx is directly the position
+  // For output ports: position = inp_count + idx
+  const inpCount=isIn?0:inpPorts(node).length;
+  const nBefore=isIn?idx:inpCount+idx;
+  return node.y+50+nBefore*26+9;
+}
+
+function drawE(){
+  EG.innerHTML='';
+  edges.forEach((e,idx)=>{
+    const s=$(e.s),t=$(e.t);if(!s||!t)return;
+    const isControl=e.flowType==='control';
+    if(isControl){
+      // Control flow: Y aligns with port for Router, header center for others
+      const sY=T(s.type).dynamic?portY(s,e.sp||'','',false):s.y+20;
+      const tY=t.y+20;
+      const src={x:s.x+250,y:sY};
+      const tgt={x:t.x,y:tY};
+      const dx=tgt.x-src.x,cp=Math.max(Math.abs(dx)*0.4,40);
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x+cp} ${src.y}, ${tgt.x-cp} ${tgt.y}, ${tgt.x} ${tgt.y}`);
+      let cls='edge control-flow';
+      if(idx===selEdge)cls+=' selected';
+      p.setAttribute('class',cls);
+      p.setAttribute('marker-end','url(#ao)');
+      p.setAttribute('data-idx',idx);
+      p.addEventListener('click',ev=>{ev.stopPropagation();selEdge=idx;selId=null;render();});
+      EG.appendChild(p);
+    }else{
+      // Data flow: body port to body port
+      const sp=e.sp||(outPorts(s)[0]||'payload');
+      const tp=e.tp||(T(t.type).inp[0]||'input');
+      const src={x:s.x+250,y:portY(s,sp,false)};
+      const tgt={x:t.x,y:portY(t,tp,true)};
+      const dx=tgt.x-src.x,cp=Math.max(Math.abs(dx)*0.45,50);
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x+cp} ${src.y}, ${tgt.x-cp} ${tgt.y}, ${tgt.x} ${tgt.y}`);
+      let cls='edge active';
+      if(idx===selEdge)cls+=' selected';
+      p.setAttribute('class',cls);
+      p.setAttribute('marker-end','url(#aa)');
+      p.setAttribute('data-idx',idx);
+      p.addEventListener('click',ev=>{ev.stopPropagation();selEdge=idx;selId=null;render();});
+      EG.appendChild(p);
+    }
+  });
+}
+
+function render(){
+  NC.innerHTML='';
+  nodes.forEach(n=>{
+    const d=T(n.type);
+    const el=document.createElement('div');
+    el.className='node'+(n.id===selId?' active':'');
+    el.style.left=n.x+'px';el.style.top=n.y+'px';el.style.position='absolute';
+    const ops=outPorts(n);
+    const ips=inpPorts(n);
+    const isCtrl=T(n.type).dynamic;
+    // Body: input ports only for Router; inputs + outputs for others
+    // Router gets spacer rows matching condition count to expand node height
+    const bodyHtml=ips.map(p=>`<div class="flex items-center relative"><div class="port port-in" data-nid="${n.id}" data-port="${p}" data-dir="in"></div><span style="margin-left:10px;color:var(--text-dim);">${p}</span></div>`).join('')+(!isCtrl?ops.map(p=>`<div class="flex items-center justify-end relative"><span style="margin-right:10px;color:var(--text-focus);">${p}</span><div class="port port-out" data-nid="${n.id}" data-port="${p}" data-dir="out"></div></div>`).join(''):(isCtrl?ops.map(()=>'<div style="height:18px;"></div>').join(''):''));
+    // Router: condition ports absolutely positioned outside node, right side
+    const ctrlPorts=isCtrl?ops.map((p,i)=>`<div class="port port-out exec-out-place" data-nid="${n.id}" data-port="${p}" data-dir="exec-out" style="top:${59+i*26}px;"></div>`).join(''):'';
+    el.innerHTML=`<div class="node-header" data-nid="${n.id}" style="position:relative;">
+      <div class="port exec-port exec-in-place" data-nid="${n.id}" data-port="__exec__" data-dir="exec-in"></div>
+      <div style="flex:1;text-align:left;margin-left:4px;"><i class="${d.ic} mr-2" style="color:${d.cl};"></i>${n.label}</div>
+      <span class="text-[9px] uppercase px-1 rounded border" style="border-color:var(--border);color:${d.cl};">${d.bd}</span>
+      ${isCtrl?'':`<div class="port exec-port exec-out-place" data-nid="${n.id}" data-port="__exec__" data-dir="exec-out"></div>`}
+    </div>${bodyHtml||ctrlPorts?`<div class="p-3 space-y-2" style="font-size:10px;">${bodyHtml}</div>${ctrlPorts}`:''}`;
+    NC.appendChild(el);
+    el.querySelector('.node-header')?.addEventListener('mousedown',onHead);
+    el.querySelectorAll('.port').forEach(p=>p.addEventListener('mousedown',onPort));
+  });
+  xf();
+  // Defer edge drawing to next frame for accurate DOM measurements
+  requestAnimationFrame(()=>drawE());
+  updIns();updStat();
+}
+
+function sel(id){
+  selId=id;
+  document.querySelectorAll('.node').forEach(el=>el.classList.toggle('active',el.querySelector('.node-header')?.dataset.nid===id));
+  updIns();
+}
+
+function updStat(){
+  document.getElementById('statN').textContent=nodes.length;
+  document.getElementById('statE').textContent=edges.length;
+}
+
+function updIns(){
+  // Edge selected — show edge inspector
+  if(selEdge>=0){
+    const e=edges[selEdge];
+    if(!e){selEdge=-1;updIns();return;}
+    IB.innerHTML=`<span style="color:var(--orange);">edge #${selEdge}</span>`;
+    IC.innerHTML=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Edge</label>
+      <div class="space-y-3">
+        <div><span class="text-[11px] block mb-1" style="color:var(--text);">Source</span><input class="input-box" value="${e.s}" readonly style="opacity:.6"></div>
+        <div><span class="text-[11px] block mb-1" style="color:var(--text);">Target</span><input class="input-box" value="${e.t}" readonly style="opacity:.6"></div>
+        <div><span class="text-[11px] block mb-1" style="color:var(--text);">Type</span><input class="input-box" value="${e.flowType||'control'}" readonly style="opacity:.6"></div>
+        ${e.sp?`<div><span class="text-[11px] block mb-1" style="color:var(--text);">Source Port</span><input class="input-box" value="${e.sp}" readonly style="opacity:.6"></div>`:''}
+        ${e.tp?`<div><span class="text-[11px] block mb-1" style="color:var(--text);">Target Port</span><input class="input-box" value="${e.tp}" readonly style="opacity:.6"></div>`:''}
+      </div></section>
+      <button class="btn btn-block" style="margin-top:8px;border-color:var(--red);color:var(--red);" onclick="edges.splice(${selEdge},1);selEdge=-1;render();toast('Edge deleted','warn');"><i class="fas fa-trash-can mr-1"></i> Delete Edge</button>`;
+    return;
+  }
+  const n=$(selId);
+  if(!n){
+    IB.innerHTML='none';
+    IC.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="2"/></svg><span>Click a node to inspect</span></div>`;
+    return;
+  }
+  const d=T(n.type);
+  IB.innerHTML=`<span style="color:${d.cl};">${n.id}</span>`;
+  let h=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Node Parameters</label>
+    <div class="space-y-3">
+      <div><span class="text-[11px] block mb-1" style="color:var(--text);">Node ID</span><input class="input-box" value="${n.id}" onchange="updId('${n.id}',this.value)"></div>
+      <div><span class="text-[11px] block mb-1" style="color:var(--text);">Label</span><input class="input-box" value="${n.label}" onchange="updLbl('${n.id}',this.value)"></div>
+      <div><span class="text-[11px] block mb-1" style="color:var(--text);">Type</span><input class="input-box" value="${n.type}" readonly style="opacity:.6"></div>
+    </div></section>`;
+  if(n.config&&Object.keys(n.config).length>0){
+    h+=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Configuration</label>`;
+    if(n.type==='Router'&&Array.isArray(n.config.conditions)){
+      // Router: structured conditions display
+      // Ensure all conditions have auto-generated output names
+      n.config.conditions.forEach((c,i)=>{if(!c.output)c.output='out_'+i;});
+      n.config.conditions.forEach((c,i)=>{
+        const portName=c.output||('out_'+i);
+        h+=`<div class="p-2 rounded border mb-2" style="border-color:var(--border);font-size:10px;font-family:var(--font-mono);">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="color:var(--text-dim);font-size:9px;">#${i}</span>
+            <span style="color:var(--orange);font-weight:600;font-size:9px;">[${portName}]</span>
+            <span style="color:var(--cyan);margin-left:4px;">${c.operator||'?'}</span>
+            <span style="color:var(--text-focus);"> <b>${c.value||''}</b></span>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <select class="input-box" style="flex:1;font-size:9px;padding:2px 5px;" onchange="var c=$('${n.id}').config.conditions[${i}];c.operator=this.value;render();">
+              <option value="eq" ${c.operator==='eq'?'selected':''}>eq =</option>
+              <option value="ne" ${c.operator==='ne'?'selected':''}>ne ≠</option>
+              <option value="gt" ${c.operator==='gt'?'selected':''}>gt &gt;</option>
+              <option value="gte" ${c.operator==='gte'?'selected':''}>gte ≥</option>
+              <option value="lt" ${c.operator==='lt'?'selected':''}>lt &lt;</option>
+              <option value="lte" ${c.operator==='lte'?'selected':''}>lte ≤</option>
+              <option value="contains" ${c.operator==='contains'?'selected':''}>contains</option>
+              <option value="notContains" ${c.operator==='notContains'?'selected':''}>notContains</option>
+              <option value="startsWith" ${c.operator==='startsWith'?'selected':''}>startsWith</option>
+              <option value="endsWith" ${c.operator==='endsWith'?'selected':''}>endsWith</option>
+              <option value="in" ${c.operator==='in'?'selected':''}>in</option>
+              <option value="notIn" ${c.operator==='notIn'?'selected':''}>notIn</option>
+              <option value="exists" ${c.operator==='exists'?'selected':''}>exists</option>
+              <option value="notExists" ${c.operator==='notExists'?'selected':''}>notExists</option>
+              <option value="matchRegex" ${c.operator==='matchRegex'?'selected':''}>matchRegex</option>
+              <option value="notMatchRegex" ${c.operator==='notMatchRegex'?'selected':''}>notMatchRegex</option>
+            </select>
+            <input class="input-box" value="${c.value||''}" placeholder="value" style="flex:1;font-size:9px;padding:2px 5px;" onchange="var c=$('${n.id}').config;if(!c.conditions[${i}])c.conditions[${i}]={};c.conditions[${i}].value=this.value;render();">
+            <button class="btn btn-sm" style="padding:2px 6px;font-size:9px;border-color:var(--red);color:var(--red);" onclick="$('${n.id}').config.conditions.splice(${i},1);$('${n.id}').config.conditions.forEach((cc,ii)=>cc.output='out_'+ii);render();"><i class="fas fa-times"></i></button>
+          </div>
+        </div>`;
+      });
+      h+=`<div style="display:flex;gap:4px;margin-bottom:8px;"><button class="btn btn-sm" style="font-size:9px;" onclick="var ca=$('${n.id}').config.conditions;ca.push({ref:'input',operator:'contains',value:'',output:'out_'+ca.length});render();"><i class="fas fa-plus"></i> Condition</button></div>`;
+      h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">Default</span><input class="input-box" value="${n.config.default||''}" onchange="$('${n.id}').config.default=this.value;render();"></div>`;
+    }else{
+      // Generic config
+      h+=`<div class="space-y-3">`;
+      for(const[k,v]of Object.entries(n.config)){
+        const dv=typeof v==='string'?v:JSON.stringify(v);
+        h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><input class="input-box" value="${dv.replace(/"/g,'&quot;')}" onchange="updCfg('${n.id}','${k}',this.value)"></div>`;
+      }
+      h+=`</div>`;
+    }
+    h+=`</section>`;
+  }
+  const ops=outPorts(n);const ips=inpPorts(n);
+  h+=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Ports</label><div style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono);">In: ${ips.length?ips.join(', '):'—'}<br>Out: ${ops.length?ops.join(', '):'—'}</div></section>`;
+  h+=`<section class="p-3 rounded border" style="border-color:rgba(75,137,227,0.3);background:rgba(75,137,227,0.05);">
+    <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--blue);">Execution Guard</span><i class="fas fa-shield-alt text-[10px]" style="color:var(--blue);"></i></div>
+    <div class="text-[11px] space-y-1" style="color:var(--text);"><div class="flex justify-between"><span>Status</span><span class="font-bold" style="color:var(--text-focus);">${apiOnline?'Connected':'Standalone'}</span></div></div></section>`;
+  IC.innerHTML=h;
+}
+
+window.updId=(oldId,newId)=>{
+  if(!newId||newId===oldId)return;
+  const n=$(oldId);if(!n)return;
+  n.id=newId;edges.forEach(e=>{if(e.s===oldId)e.s=newId;if(e.t===oldId)e.t=newId;});
+  if(selId===oldId)selId=newId;
+  render();
+};
+window.updLbl=(id,v)=>{const n=$(id);if(n){n.label=v;render();}};
+window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){n.config[k]=v;}};
+
+// ─── Drag ───
+function onHead(e){
+  if(e.button!==0)return;
+  const id=e.currentTarget.dataset.nid;if(!id)return;
+  e.stopPropagation();e.preventDefault();
+  const n=$(id);if(!n)return;
+  sel(id);dragId=id;const cp=cPos(e);dOffX=cp.x-n.x;dOffY=cp.y-n.y;
+  document.addEventListener('mousemove',onDrag);document.addEventListener('mouseup',onDragEnd);
+}
+function onDrag(e){
+  if(!dragId)return;const n=$(dragId);if(!n)return;const cp=cPos(e);
+  n.x=cp.x-dOffX;n.y=cp.y-dOffY;
+  const el=NC.querySelector(`[data-nid="${dragId}"]`)?.closest('.node');
+  if(el){el.style.left=n.x+'px';el.style.top=n.y+'px';}
+  drawE();xf();
+}
+function onDragEnd(){dragId=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',onDragEnd);render();}
+
+// ─── Edge drawing ───
+function onPort(e){
+  e.stopPropagation();e.preventDefault();
+  const el=e.currentTarget;
+  const dir=el.dataset.dir;
+  if(dir!=='out'&&dir!=='exec-out')return;
+  edgeSrc={nid:el.dataset.nid,port:el.dataset.port,isExec:dir==='exec-out'};
+  // Create temp edge at mouse position
+  const n=$(edgeSrc.nid);
+  if(n){
+    const cp=cPos(e);
+    const isCtrl=edgeSrc.isExec;
+    const sx=n.x+250;
+    const sy=isCtrl&&!T(n.type).dynamic?n.y+20:portY(n,edgeSrc.port||'','',false);
+    const dx=cp.x-sx,cpOff=Math.max(Math.abs(dx)*0.45,50);
+    const temp=document.createElementNS('http://www.w3.org/2000/svg','path');
+    temp.setAttribute('class','edge'+(isCtrl?' control-flow':' active'));
+    temp.setAttribute('id','tempEdge');
+    temp.setAttribute('marker-end','url(#a'+(isCtrl?'o':'a')+')');
+    temp.setAttribute('d',`M ${sx} ${sy} C ${sx+cpOff} ${sy}, ${cp.x-cpOff} ${cp.y}, ${cp.x} ${cp.y}`);
+    EG.appendChild(temp);
+  }
+  document.addEventListener('mousemove',onEdgeMove);
+  document.addEventListener('mouseup',onEdgeUp);
+}
+function onEdgeMove(e){
+  if(!edgeSrc)return;
+  const temp=document.getElementById('tempEdge');
+  if(!temp)return;
+  const n=$(edgeSrc.nid);if(!n)return;
+  const isCtrl=edgeSrc.isExec;
+  const sx=n.x+250;
+  const sy=isCtrl&&!T(n.type).dynamic?n.y+20:portY(n,edgeSrc.port||'','',false);
+  const r=CA.getBoundingClientRect();
+  const mx=(e.clientX-r.left-panX)/zoom,my=(e.clientY-r.top-panY)/zoom;
+  const dx=mx-sx,cp=Math.max(Math.abs(dx)*0.45,50);
+  temp.setAttribute('d',`M ${sx} ${sy} C ${sx+cp} ${sy}, ${mx-cp} ${my}, ${mx} ${my}`);
+}
+function onEdgeUp(e){
+  document.removeEventListener('mousemove',onEdgeMove);
+  document.removeEventListener('mouseup',onEdgeUp);
+  const temp=document.getElementById('tempEdge');
+  if(temp)temp.remove();
+  if(!edgeSrc)return;
+  const tgt=document.elementFromPoint(e.clientX,e.clientY);
+  if(tgt&&(tgt.classList.contains('port')||tgt.classList.contains('exec-port'))){
+    const tDir=tgt.dataset.dir;
+    const tid=tgt.dataset.nid,tp=tgt.dataset.port;
+    if(!tid||!tp||tid===edgeSrc.nid)return;
+    if(edgeSrc.isExec&&tDir==='exec-in'){
+      // Control flow edge (sp may be undefined for plain exec)
+      const ex=edges.some(ed=>ed.s===edgeSrc.nid&&ed.t===tid&&ed.flowType==='control'&&(edgeSrc.port==='__exec__'?!ed.sp:ed.sp===edgeSrc.port));
+      if(!ex){const sp=edgeSrc.port==='__exec__'?undefined:edgeSrc.port;edges.push({s:edgeSrc.nid,sp,t:tid,flowType:'control'});render();log(`Control: ${edgeSrc.nid} → ${tid}`,'var(--orange)');toast('Control edge created','success');}
+      else toast('Already exists','warn');
+    }else if(!edgeSrc.isExec&&tDir==='in'){
+      // Data flow edge
+      const ex=edges.some(ed=>ed.s===edgeSrc.nid&&ed.sp===edgeSrc.port&&ed.t===tid&&ed.tp===tp);
+      if(!ex){edges.push({s:edgeSrc.nid,sp:edgeSrc.port,t:tid,tp,flowType:'data'});render();log(`Data: ${edgeSrc.nid}.${edgeSrc.port} → ${tid}.${tp}`,'var(--blue)');toast('Data edge created','success');}
+      else toast('Already exists','warn');
+    }
+  }
+  edgeSrc=null;
+}
+
+// ─── Pan ───
+CA.addEventListener('mousedown',e=>{
+  if(e.target===CA||e.target.tagName==='svg'||e.target.closest('.svg-layer')){
+    if(dragId||edgeSrc)return;
+    // Check edge hit first
+    const r=CA.getBoundingClientRect();
+    const mx=(e.clientX-r.left-panX)/zoom,my=(e.clientY-r.top-panY)/zoom;
+    const ei=hitEdge(mx,my,8);
+    if(ei>=0){selEdge=ei;selId=null;render();e.preventDefault();return;}
+    selEdge=-1;selId=null;isPan=true;pS={x:e.clientX-panX,y:e.clientY-panY};CA.style.cursor='grabbing';e.preventDefault();
+  }
+});
+document.addEventListener('mousemove',e=>{
+  if(isPan){panX=e.clientX-pS.x;panY=e.clientY-pS.y;xf();return;}
+  // Edge hover animation
+  const rect=CA.getBoundingClientRect();
+  const mx=(e.clientX-rect.left-panX)/zoom,my=(e.clientY-rect.top-panY)/zoom;
+  const newHover=hitEdge(mx,my,10);
+  if(newHover!==hoverEdge){
+    if(hoverEdge>=0)EG.querySelectorAll('[data-idx="'+hoverEdge+'"]').forEach(p=>p.classList.remove('edge-hover'));
+    hoverEdge=newHover;
+    if(hoverEdge>=0)EG.querySelectorAll('[data-idx="'+hoverEdge+'"]').forEach(p=>p.classList.add('edge-hover'));
+  }
+  // Proximity show exec ports (each port independently)
+  const isDragging=edgeSrc!==null;
+  const thr=18;
+  document.querySelectorAll('.node').forEach(el=>{
+    const nid=el.querySelector('.node-header')?.getAttribute('data-nid');
+    const n=nodes.find(x=>x.id===nid);if(!n)return;
+    el.querySelectorAll('.exec-port').forEach(p=>{
+      // Calculate each port's absolute X based on its CSS position
+      const isIn=p.classList.contains('exec-in-place');
+      const rightVal=parseInt(p.style.right);
+      const portX=isIn?n.x:n.x+250-(isNaN(rightVal)?-14:rightVal);
+      const near=Math.abs(mx-portX)<thr&&my>n.y-2&&my<n.y+42;
+      p.classList.toggle('force-show',isDragging||near);
+    });
+  });
+});
+document.addEventListener('mouseup',()=>{if(isPan){isPan=false;CA.style.cursor='';}});
+CA.addEventListener('mouseleave',()=>{
+  document.querySelectorAll('.exec-port.force-show').forEach(p=>p.classList.remove('force-show'));
+  if(hoverEdge>=0){EG.querySelectorAll('[data-idx="'+hoverEdge+'"]').forEach(p=>p.classList.remove('edge-hover'));hoverEdge=-1;}
+});
+CA.addEventListener('wheel',e=>{
+  if(e.ctrlKey||e.metaKey){e.preventDefault();const d=e.deltaY>0?-0.08:0.08,nz=Math.max(0.25,Math.min(3,zoom+d)),r=CA.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,sc=nz/zoom;panX=mx-sc*(mx-panX);panY=my-sc*(my-panY);zoom=nz;xf();}
+},{passive:false});
+
+// ─── Keyboard ───
+document.addEventListener('keydown',e=>{
+  if((e.key==='Delete'||e.key==='Backspace')&&!e.target.closest('input,select')){
+    if(selEdge>=0){edges.splice(selEdge,1);selEdge=-1;render();e.preventDefault();}
+    else if(selId){delNode();e.preventDefault();}
+  }
+  if(e.key==='Escape'){selId=null;selEdge=-1;edgeSrc=null;render();}
+  if(e.key==='F'&&selId){const n=$(selId);if(n){const r=CA.getBoundingClientRect();panX=r.width/2-n.x*zoom-125*zoom;panY=r.height/2-n.y*zoom-50;xf();}}
+  if(e.key==='0'&&!e.ctrlKey){zoom=1;panX=40;panY=40;xf();}
+  if(e.key==='r'&&!e.ctrlKey&&!e.target.closest('input')){e.preventDefault();runGraph();}
+});
+
+function delNode(){
+  if(!selId)return;const id=selId;
+  nodes=nodes.filter(n=>n.id!==id);edges=edges.filter(e=>e.s!==id&&e.t!==id);
+  selId=null;log(`Deleted: ${id}`,'var(--orange)');render();toast(`Deleted ${id}`,'warn');
+}
+
+// ─── Add / Reset ───
+window.addNode=function(type){
+  const d=TYPES[type];if(!d)return;
+  const id=gId(type),r=CA.getBoundingClientRect(),cx=(r.width/2-panX)/zoom,cy=(r.height/2-panY)/zoom;
+  const conf=type==='LLM_Task'?{provider:'deepseek',model:'deepseek-chat',temperature:'0.7',system_prompt:'You are helpful.'}:type==='Prompt_Builder'?{history:'chat_history'}:type==='Script_Node'?{script_trust_level:'developer'}:type==='Asset_Writer'?{target_path:'agrc://manifest.json'}:type==='Memory_IO'?{mode:'read'}:type==='Plugin'?{plugin:'my_plugin',function:'process'}:type==='Router'?{conditions:[{ref:'input',operator:'contains',value:'keyword',output:'out_0'}],default:'fallback'}:{};
+  nodes.push({id,type,label:type,x:cx+(Math.random()-.5)*160-125,y:cy+(Math.random()-.5)*100-30,config:conf});
+  sel(id);log(`Added: ${type}`,'var(--blue)');render();toast(`Added ${type}`,'success');
+};
+
+window.resetCanvas=function(){
+  nodes=[];edges=[];nidGen=1;selId=null;panX=40;panY=40;zoom=1;
+  render();xf();log('Canvas reset','var(--orange)');toast('Canvas reset','info');
+};
+
+// ─── Util ───
+function log(msg,color='var(--text)'){
+  const t=new Date().toTimeString().slice(0,8),d=document.createElement('div');
+  d.innerHTML=`[${t}] <span style="color:${color};">${msg}</span>`;
+  LB.appendChild(d);LB.scrollTop=LB.scrollHeight;
+}
+function logLine(msg,color='var(--text)'){
+  const d=document.createElement('div');
+  d.innerHTML=`<span style="color:${color};">${msg}</span>`;
+  d.style.paddingLeft='70px';
+  LB.appendChild(d);LB.scrollTop=LB.scrollHeight;
+}
+function toast(msg,type='info'){
+  const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;
+  TC.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(24px)';t.style.transition='all .3s';setTimeout(()=>t.remove(),300);},2800);
+}
+
+// ─── Init ───
+window.addEventListener('resize',()=>xf());
+render();
+log('AgenArc Studio v0.5 loading...','var(--text-dim)');
+
+// Auto-connect to backend
+checkApi().then(online=>{
+  if(online){
+    log('[API] Backend connected — loading graph...','var(--green)');
+    syncWithBackend();
+  }else{
+    log('[API] No backend found — start server to load agents','var(--orange)');
+    log('  uv run agenarc visualize <agent>.agrc --port 8765','var(--text-dim)');
+  }
+});
+</script>
+</body>
+</html>

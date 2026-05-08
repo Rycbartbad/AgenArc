@@ -154,6 +154,28 @@ class PluginManager:
         """
         return list(self._plugins.values())
 
+    def get_plugin_manifest(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the full agenarc.json manifest for a plugin.
+
+        Args:
+            plugin_name: Name of the plugin
+
+        Returns:
+            Dict of the full agenarc.json contents, or None if not found
+        """
+        import json as _json
+        info = self._plugins.get(plugin_name)
+        if not info:
+            return None
+        manifest_path = info.path if info.path.name == "agenarc.json" else info.path.parent / "agenarc.json"
+        if not manifest_path.exists():
+            return None
+        try:
+            return _json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
     def discover_plugins(self) -> None:
         """
         Discover plugins in configured directories.

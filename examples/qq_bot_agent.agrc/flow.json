@@ -2,6 +2,15 @@
   "version": "1.0.0",
   "nodes": [
     {
+      "id": "qq_listener",
+      "type": "Plugin",
+      "label": "QQ事件监听",
+      "config": {
+        "plugin": "qq",
+        "function": "QQ_Event_Plugin"
+      }
+    },
+    {
       "id": "trigger",
       "type": "Trigger",
       "label": "接收事件"
@@ -27,12 +36,11 @@
       }
     },
     {
-      "id": "assistant_history",
-      "type": "Prompt_Builder",
-      "label": "构建对话",
+      "id": "join",
+      "type": "Join",
+      "label": "合并数据",
       "config": {
-        "history": "qq_history",
-        "max_history": 100
+        "strategy": "merge"
       }
     },
     {
@@ -48,32 +56,27 @@
       "id": "log_output",
       "type": "Log",
       "label": "输出日志"
+    },
+    {
+      "id": "assistant_history",
+      "type": "Prompt_Builder",
+      "label": "构建对话",
+      "config": {
+        "history": "qq_history",
+        "max_history": 100
+      }
     }
   ],
   "edges": [
+    {
+      "source": "qq_listener",
+      "target": "trigger"
+    },
     {
       "source": "trigger",
       "sourcePort": "message",
       "target": "user_history",
       "targetPort": "user"
-    },
-    {
-      "source": "trigger",
-      "sourcePort": "user_id",
-      "target": "send_reply",
-      "targetPort": "user_id"
-    },
-    {
-      "source": "trigger",
-      "sourcePort": "message_type",
-      "target": "send_reply",
-      "targetPort": "message_type"
-    },
-    {
-      "source": "trigger",
-      "sourcePort": "group_id",
-      "target": "send_reply",
-      "targetPort": "group_id"
     },
     {
       "source": "user_history",
@@ -82,8 +85,34 @@
       "targetPort": "messages"
     },
     {
+      "source": "trigger",
+      "target": "join"
+    },
+    {
       "source": "llm_task",
-      "sourcePort": "response",
+      "target": "join"
+    },
+    {
+      "source": "join",
+      "sourcePort": "trigger_user_id",
+      "target": "send_reply",
+      "targetPort": "user_id"
+    },
+    {
+      "source": "join",
+      "sourcePort": "trigger_message_type",
+      "target": "send_reply",
+      "targetPort": "message_type"
+    },
+    {
+      "source": "join",
+      "sourcePort": "trigger_group_id",
+      "target": "send_reply",
+      "targetPort": "group_id"
+    },
+    {
+      "source": "join",
+      "sourcePort": "llm_task_response",
       "target": "send_reply",
       "targetPort": "message"
     },
@@ -99,7 +128,7 @@
       "target": "assistant_history",
       "targetPort": "assistant"
     },
-     {
+    {
       "source": "assistant_history",
       "target": "trigger"
     }

@@ -832,8 +832,13 @@ class ExecutionEngine:
         incoming = self._graph.get_incoming_edges(node.id)
 
         for edge in incoming:
-            # Skip edges without sourcePort - they exist for control flow only (e.g., edges to trigger)
+            # For Join nodes: edges without sourcePort auto-collect ALL outputs from source node
             if not edge.sourcePort:
+                if node.type.value == "Join":
+                    source_outputs = self._state.get_global(f"nodes.{edge.source}.outputs", {})
+                    if isinstance(source_outputs, dict):
+                        for port_name, value in source_outputs.items():
+                            inputs[port_name] = value
                 continue
 
             # Read from context using namespaced key

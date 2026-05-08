@@ -297,33 +297,88 @@ class GraphTraversal:
         """
         errors = []
 
+        # Check for duplicate node IDs
+        seen_ids = {}
+        for node in self.graph.nodes:
+            if node.id in seen_ids:
+                errors.append(f"Duplicate node ID '{node.id}' (appears at least twice)")
+            seen_ids[node.id] = True
+
         # Check for source nodes (entry points)
         source_nodes = self._find_source_nodes()
         if not source_nodes and self.graph.nodes:
             errors.append("No source nodes found. Graph may have cycles but must have at least one source node.")
 
-        # Check all nodes are referenced (unless they are source nodes)
+        # Build node lookup
+        node_map = {n.id: n for n in self.graph.nodes}
+
+        # Check edges for orphan references and port validity
         for edge in self.graph.edges:
-            # Check for orphan edges
-            source_exists = any(n.id == edge.source for n in self.graph.nodes)
-            target_exists = any(n.id == edge.target for n in self.graph.nodes)
-            if not source_exists:
+            src_node = node_map.get(edge.source)
+            tgt_node = node_map.get(edge.target)
+
+            # Orphan edge checks
+            if not src_node:
                 errors.append(f"Edge references non-existent source node '{edge.source}'")
-            if not target_exists:
+            if not tgt_node:
                 errors.append(f"Edge references non-existent target node '{edge.target}'")
 
-        # Check for disconnected nodes (warning, not error)
-        # A node is disconnected if it's not a source and not reachable from any source
+            # Port existence validation
+            if src_node and edge.sourcePort:
+                valid_ports = [p.name for p in src_node.outputs]
+                if valid_ports and edge.sourcePort not in valid_ports:
+                    errors.append(
+                        f"Edge from '{edge.source}' uses sourcePort '{edge.sourcePort}' "
+                        f"but node has outputs: {valid_ports}"
+                    )
+            if tgt_node and edge.targetPort:
+                valid_ports = [p.name for p in tgt_node.inputs]
+                if valid_ports and edge.targetPort not in valid_ports:
+                    errors.append(
+                        f"Edge to '{edge.target}' uses targetPort '{edge.targetPort}' "
+                        f"but node has inputs: {valid_ports}"
+                    )
+
+            # Router condition-output matching
+            if src_node and src_node.type.name == "ROUTER" and edge.sourcePort:
+                conditions = src_node.config.get("conditions", []) if hasattr(src_node.config, 'get') else []
+                cond_outputs = [c.get("output") for c in conditions if isinstance(c, dict)]
+                if cond_outputs and edge.sourcePort not in cond_outputs:
+                    errors.append(
+                        f"Router '{edge.source}' edge uses sourcePort '{edge.sourcePort}' "
+                        f"but conditions define outputs: {cond_outputs}"
+                    )
+
+        # Check for disconnected nodes: nodes that are not source, not reachable,
+        # and not part of a loop region. Plugin source nodes in serve mode are exempt.
         reachable = set()
         for source in source_nodes:
             reachable.update(self.get_execution_order(source.id))
 
+        loop_regions = self.find_loop_regions()
         for node in self.graph.nodes:
-            if node.id not in reachable:
-                # Check if node is part of a loop region
-                loop_regions = self.find_loop_regions()
-                is_in_loop = any(node.id in loop_set for loop_set in loop_regions.values())
-                if not is_in_loop:
-                    errors.append(f"Node '{node.id}' is not reachable from any source node")
+            if node.id in reachable:
+                continue
+            # Skip nodes in loop regions
+            is_in_loop = any(node.id in loop_set for loop_set in loop_regions.values())
+            if is_in_loop:
+                continue
+            if node.type.name == "PLUGIN":
+                # Plugin must have outgoing edges to be a valid event source
+                has_outgoing = any(e.source == node.id for e in self.graph.edges)
+                if not has_outgoing:
+                    errors.append(
+                        f"Plugin node '{node.id}' has no outgoing edges. "
+                        "A Plugin must connect to Trigger to be a valid event source."
+                    )
+                else:
+                    errors.append(
+                        f"Plugin node '{node.id}' is not reachable from any source node "
+                        "(valid if triggered externally in serve mode)"
+                    )
+            elif node.type.name == "TRIGGER":
+                errors.append(f"Trigger node '{node.id}' is disconnected from the graph")
+            else:
+                errors.append(f"Node '{node.id}' is not reachable from any source node")
 
         return errors

@@ -334,8 +334,8 @@ def create_parser() -> argparse.ArgumentParser:
     )
     visualize_parser.add_argument(
         "--host",
-        default="localhost",
-        help="Host to bind the visualization server"
+        default="127.0.0.1",
+        help="Host to bind the visualization server (default: 127.0.0.1)"
     )
     visualize_parser.add_argument(
         "--port",
@@ -838,7 +838,7 @@ async def _start_event_plugins(
 
     # Built-in event plugins
     built_in_plugins = {
-        "qq": "agenarc.plugins.qq_plugin.plugin.QQPlugin",
+        "qq": "agenarc.plugins.qq_plugin.plugin.QQ_Event_Plugin",
     }
 
     # Auto-detect source nodes (nodes with no incoming edges)
@@ -910,7 +910,13 @@ async def _start_event_plugins(
                         break
                     module = _util.module_from_spec(spec)
                     spec.loader.exec_module(module)
-                    plugin_class = getattr(module, ops[0])
+                    # operators can be strings or dicts (dict has "name" field)
+                    first_op = ops[0]
+                    op_name = first_op if isinstance(first_op, str) else first_op.get("name")
+                    if not op_name:
+                        print(f"[CLI] Plugin '{plugin_name}' has no valid operator name")
+                        break
+                    plugin_class = getattr(module, op_name)
                     plugin_instance = plugin_class()
                     break
                 if not found:
@@ -1101,7 +1107,7 @@ def command_serve(
 
 def command_visualize(
     file: Path,
-    host: str = "localhost",
+    host: str = "127.0.0.1",
     port: int = 8765,
     mode: str = "async",
     verbose: bool = False
@@ -1130,9 +1136,12 @@ def command_visualize(
         bundle_path = protocol_path
         _install_bundle_plugins(bundle_path, verbose)
 
-    # Create engine
+    # Create engine with global + package plugin directories
+    import agenarc
+    package_plugins_dir = str(Path(agenarc.__file__).parent / "plugins")
+    global_plugins_dir = str(Path("~/.agenarc/plugins").expanduser())
     plugin_manager = PluginManager(
-        plugin_dirs=[],
+        plugin_dirs=[global_plugins_dir, package_plugins_dir],
         bundle_paths=[bundle_path] if bundle_path else []
     )
     engine = ExecutionEngine(plugin_manager=plugin_manager)
@@ -1155,20 +1164,42 @@ def command_visualize(
         print_error(f"Invalid protocol: {e}")
         return 1
 
-    # Create and start visualization server
-    server = VisualizationServer(engine=engine, host=host, port=port)
+    # Set bundle path for VFS resolution
+    if bundle_path:
+        engine.set_bundle_path(bundle_path)
+
+    # Initialize plugin manager and create visualization server
+    try:
+        asyncio.run(plugin_manager.initialize())
+    except Exception:
+        if verbose:
+            print("Warning: Plugin initialization failed, some plugins may not be available")
+
+    bundle_path_str = str(bundle_path) if bundle_path else None
+    server = VisualizationServer(
+        engine=engine,
+        host=host,
+        port=port,
+        bundle_path=bundle_path_str,
+    )
 
     if verbose:
         print(f"Starting visualization server at http://{host}:{port}")
-        print("Open http://localhost:8765 in your browser")
+        print(f"Open http://{host}:{port} in your browser")
 
-    # Run server
+    # Run server — single event loop for both start and stop
+    async def _run_visualize():
+        try:
+            await server.start()
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await server.stop()
+
     try:
-        asyncio.run(server.start())
+        asyncio.run(_run_visualize())
     except KeyboardInterrupt:
         pass
-    finally:
-        asyncio.run(server.stop())
 
     return 0
 

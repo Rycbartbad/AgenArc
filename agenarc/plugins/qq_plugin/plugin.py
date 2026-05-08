@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-class QQPlugin:
+class QQ_Event_Plugin:
     """
     QQ Event Plugin
 

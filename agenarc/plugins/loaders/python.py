@@ -135,15 +135,18 @@ class PythonPluginLoader:
         operators = {}
         operator_names = manifest.get("operators", [])
 
-        for op_name in operator_names:
-            if hasattr(module, op_name):
-                op_class = getattr(module, op_name)
-                try:
-                    # Instantiate operator
-                    operator = op_class()
-                    operators[op_name] = operator
-                except Exception as e:
-                    logger.error(f"Failed to instantiate operator {op_name}: {e}")
+        for op_entry in operator_names:
+            # Support both string "OperatorName" and dict {"name":"OperatorName", "inputs":[...]}
+            op_name = op_entry if isinstance(op_entry, str) else op_entry.get("name", "")
+            if not op_name or not hasattr(module, op_name):
+                continue
+            op_class = getattr(module, op_name)
+            try:
+                # Instantiate operator
+                operator = op_class()
+                operators[op_name] = operator
+            except Exception as e:
+                logger.error(f"Failed to instantiate operator {op_name}: {e}")
 
         # Also look for any IOperator subclasses in the module
         from agenarc.operators.operator import IOperator
