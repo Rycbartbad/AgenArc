@@ -1175,11 +1175,8 @@ Event Source (NapCat/Webhook/Timer)
 事件插件通过 `agenarc serve` 命令启动，而不是作为节点：
 
 ```bash
-# 启动事件服务
+# 启动事件服务（插件自动检测）
 agenarc serve qq_agent.agrc
-
-# 指定插件
-agenarc serve qq_agent.agrc --plugins qq
 
 # 停止服务：Ctrl+C
 ```
@@ -1267,12 +1264,6 @@ Token usage: {{nodes.llm_1.usage.total_tokens}}
 | `{{loop.current_item}}` | 当前迭代项 |
 | `{{loop.iteration}}` | 当前迭代数 |
 | `{{loop.accumulator}}` | 累积值 |
-
-### 7.5 环境变量
-
-| 语法 | 说明 |
-|------|------|
-| `{{env.VAR_NAME}}` | 系统环境变量 |
 
 ### 7.6 条件模板
 
@@ -1507,12 +1498,14 @@ Shell 根据 flow.json 的结构决定会话行为：
 | `:reset` | 重置会话，开启新对话（清空 context） |
 | `:quit` / `:exit` | 退出 Shell |
 
-**`_session_first_run` 标志**：
+**`_session_first_run` 模板变量**：
 
-| 标志值 | 含义 | 用途 |
+`_session_first_run` 在 Shell/Visualize 模式中设置，可作为模板变量在 `.pt` 文件中引用：
+
+| 值 | 含义 | 模板用法 |
 |--------|------|------|
-| `{{context._session_first_run}} == true` | 会话首次执行 | 初始化、欢迎语、加载历史 |
-| `{{context._session_first_run}} == false` | 会话后续执行 | 直接对话、读取 Memory_I/O |
+| `true` | 会话首次执行 | `{% if context._session_first_run %}欢迎！{% endif %}` |
+| `false` | 会话后续执行 | 直接对话、读取 Memory_I/O |
 
 **示例会话**：
 
@@ -1588,11 +1581,11 @@ while True:
 
 **核心原理**：每次 `execute()` 会创建新的 `StateManager`，通过手动绑定 `engine._state`，实现跨执行的 context 持久化。
 
-**`_session_first_run` 标志**：
+**`_session_first_run` 模板变量**：
 
 ```python
-session_state.set_global("_session_first_run", True)  # 首次执行
-session_state.set_global("_session_first_run", False) # 后续执行
+session_state.set_global("_session_first_run", True)  # 由 Shell/Visualize 模式自动设置
+session_state.set_global("_session_first_run", False) # 可通过模板读取
 ```
 
 ---
@@ -1613,11 +1606,8 @@ session_state.set_global("_session_first_run", False) # 后续执行
 使用 `agenarc serve` 命令启动后台服务，事件插件会在收到事件时触发图执行：
 
 ```bash
-# 启动事件服务
+# 启动事件服务（插件自动检测）
 agenarc serve <agent.agrc>
-
-# 指定插件（逗号分隔）
-agenarc serve <agent.agrc> --plugins qq
 
 # 停止服务：Ctrl+C
 ```

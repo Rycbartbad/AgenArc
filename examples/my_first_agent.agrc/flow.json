@@ -4,7 +4,8 @@
     {
       "id": "trigger_1",
       "type": "Trigger",
-      "label": "启动"
+      "label": "启动",
+      "config": {}
     },
     {
       "id": "pb_user",
@@ -36,7 +37,8 @@
     {
       "id": "log_1",
       "type": "Log",
-      "label": "日志"
+      "label": "日志",
+      "config": {}
     }
   ],
   "edges": [
@@ -66,7 +68,9 @@
     },
     {
       "source": "pb_assistant",
-      "target": "trigger_1"
+      "sourcePort": "",
+      "target": "trigger_1",
+      "targetPort": ""
     }
   ]
 }

@@ -80,9 +80,9 @@ pip install agenarc
 
 ```bash
 # Run an .agrc agent bundle
-PYTHONIOENCODING=utf-8 uv run agenarc run examples/chat_agent.agrc --input '{"payload":"Hello"}'
+PYTHONIOENCODING=utf-8 uv run agenarc run examples/my_first_agent.agrc --input '{"payload":"Hello"}'
 # Or without uv:
-# PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/chat_agent.agrc --input '{"payload":"Hello"}'
+# PYTHONIOENCODING=utf-8 python -m agenarc.cli run examples/my_first_agent.agrc --input '{"payload":"Hello"}'
 ```
 
 ## Examples
@@ -247,9 +247,9 @@ Environment variables override config file:
 - `AGENARC_OPENAI_API_KEY`
 - `AGENARC_OPENAI_BASE_URL`
 - `AGENARC_OPENAI_MODEL`
-- `AGENARC_DEEPSEEK_API_KEY`
-- `AGENARC_DEEPSEEK_BASE_URL`
-- `AGENARC_DEEPSEEK_MODEL`
+- `AGENARC_ANTHROPIC_API_KEY`
+- `AGENARC_ANTHROPIC_MODEL`
+- `AGENARC_CHECKPOINT_DIR`
 
 ## Development
 
@@ -263,9 +263,12 @@ agenarc/
 │   ├── state.py     # State management + CheckpointManager
 │   └── evaluator.py # AST safe expression evaluator
 ├── operators/        # Built-in operators
-│   ├── builtin.py   # Core operators
+│   ├── builtin.py   # Core operators (Trigger, Memory_I/O, Script_Node, Log, Context_Set, Context_Get)
 │   ├── router.py    # Router operator
-│   └── llm.py      # LLM operators
+│   ├── join.py      # Join operator
+│   ├── llm.py      # LLM operators
+│   ├── evolution.py # Asset_Reader, Asset_Writer, Runtime_Reload
+│   └── prompt_builder.py # Prompt_Builder
 ├── vfs/             # Virtual filesystem (agrc://)
 ├── plugins/         # Plugin system
 ├── graph/           # Graph data structures

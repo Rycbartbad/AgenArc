@@ -1,9 +1,12 @@
 """
 Template Resolver
 
-Resolves {{key}} placeholders in strings with values from context.
+Resolves {{key}} placeholders and {% %} control flow in strings with values from context.
 Supports nested attribute access ({{user.name}}), recursive resolution,
-and VFS path resolution (agrc://...).
+VFS path resolution (agrc://...), and Jinja2-style control flow:
+
+- {% if key %}...{% else %}...{% endif %}
+- {% for var in list_key %}...{{ var }}...{% endfor %}
 """
 
 import re
@@ -13,6 +16,120 @@ from typing import Any, Callable, Dict, List, Optional, Union
 class TemplateError(Exception):
     """Raised when template resolution fails."""
     pass
+
+
+# ============================================================
+# Control Flow Resolution ({% if %}, {% for %})
+# ============================================================
+
+def _get_context_value(key: str, context_getter: Callable[[str], Any]) -> Any:
+    """Get value from context, handling dot access (shared helper)."""
+    key = key.strip()
+    if '.' in key:
+        parts = key.split('.')
+        obj = context_getter(parts[0])
+        for part in parts[1:]:
+            if obj is None:
+                return None
+            if isinstance(obj, dict):
+                obj = obj.get(part)
+            else:
+                obj = getattr(obj, part, None)
+        return obj
+    return context_getter(key)
+
+
+def resolve_control_flow(
+    text: str,
+    context_getter: Callable[[str], Any],
+) -> str:
+    """
+    Resolve {% if %}...{% endif %} and {% for %}...{% endfor %} control blocks.
+
+    This runs BEFORE {{key}} template resolution. Supports:
+    - {% if key %}content{% else %}alt{% endif %}
+    - {% if key %}content{% endif %}
+    - {% for var in list_key %}...{{ var }}...{% endfor %}
+
+    Args:
+        text: String with control flow tags
+        context_getter: Callable to get context values
+
+    Returns:
+        String with control flow blocks resolved to their rendered content.
+    """
+    if not isinstance(text, str) or ('{%' not in text):
+        return text
+
+    # Process for loops first (they may contain if blocks inside)
+    text = _resolve_for_loops(text, context_getter)
+    # Process if/else blocks
+    text = _resolve_if_blocks(text, context_getter)
+
+    return text
+
+
+def _resolve_if_blocks(text: str, context_getter: Callable[[str], Any]) -> str:
+    """Process {% if KEY %}...{% else %}...{% endif %} blocks iteratively."""
+    pattern = re.compile(
+        r'\{%\s*if\s+(.+?)\s*%\}(.*?)(?:\{%\s*else\s*%\}(.*?))?\{%\s*endif\s*%\}',
+        re.DOTALL
+    )
+
+    while pattern.search(text):
+        def _replace_if(m):
+            condition_key = m.group(1).strip()
+            true_content = m.group(2)
+            false_content = m.group(3) or ''
+            value = _get_context_value(condition_key, context_getter)
+            return true_content if value else false_content
+
+        text = pattern.sub(_replace_if, text, count=1)
+
+    return text
+
+
+def _resolve_for_loops(text: str, context_getter: Callable[[str], Any]) -> str:
+    """Process {% for VAR in LIST_KEY %}...{% endfor %} blocks iteratively."""
+    pattern = re.compile(
+        r'\{%\s+for\s+(\w+)\s+in\s+(.+?)\s*%\}(.*?)\{%\s+endfor\s*%\}',
+        re.DOTALL
+    )
+
+    while pattern.search(text):
+        def _replace_for(m):
+            var_name = m.group(1).strip()
+            list_key = m.group(2).strip()
+            content = m.group(3)
+
+            items = _get_context_value(list_key, context_getter)
+            if items is None:
+                return ''
+            if isinstance(items, (str, bytes, dict)):
+                return ''
+            try:
+                items = list(items)
+            except TypeError:
+                return ''
+
+            results = []
+            for idx, item in enumerate(items):
+                item_text = content
+                # Replace {{ var }} and {{var}} with item value
+                item_text = item_text.replace('{{ ' + var_name + ' }}', str(item))
+                item_text = item_text.replace('{{' + var_name + '}}', str(item))
+                # Loop variables
+                item_text = item_text.replace('{{loop.iteration}}', str(idx + 1))
+                item_text = item_text.replace('{{ loop.iteration }}', str(idx + 1))
+                item_text = item_text.replace('{{loop.current_item}}', str(item))
+                item_text = item_text.replace('{{ loop.current_item }}', str(item))
+                results.append(item_text)
+
+            return ''.join(results)
+
+        text = pattern.sub(_replace_for, text, count=1)
+
+    return text
 
 
 def resolve_template(
@@ -54,28 +171,15 @@ def resolve_template(
     if not isinstance(text, str):
         return text
 
+    # Resolve control flow ({% if %}, {% for %}) before {{key}} placeholders
+    text = resolve_control_flow(text, context_getter)
+
     # Pattern matches {{key}} where key is any characters except }
     pattern = re.compile(r'\{\{([^}]+)\}\}')
 
     def get_value(key: str) -> Any:
         """Get value from context, handling nested attribute access."""
-        key = key.strip()
-
-        # Handle nested attribute access like user.name
-        if '.' in key:
-            parts = key.split('.')
-            obj = context_getter(parts[0])
-            for part in parts[1:]:
-                if obj is None:
-                    return None
-                # Support both dict key access and object attribute access
-                if isinstance(obj, dict):
-                    obj = obj.get(part)
-                else:
-                    obj = getattr(obj, part, None)
-            return obj
-
-        return context_getter(key)
+        return _get_context_value(key, context_getter)
 
     def replacer(match):
         nonlocal max_depth
@@ -242,8 +346,9 @@ def resolve_vfs_and_template(
         Value with VFS paths resolved to content and templates resolved.
     """
     if isinstance(value, str):
-        # First resolve VFS path, then templates
+        # First resolve VFS path, then control flow, then templates
         value = resolve_vfs_path(value, bundle_path_getter, permissions)
+        value = resolve_control_flow(value, context_getter)
         return resolve_template(value, context_getter, allow_missing, max_depth)
     elif isinstance(value, dict):
         # Recursively resolve dict values

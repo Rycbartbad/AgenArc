@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlparse
 
 from agenarc.engine.executor import ExecutionEngine
 from agenarc.protocol.loader import ProtocolLoader
+from agenarc.protocol.schema import Graph, Node, Edge, NodeConfig, Port
 from agenarc.visualization.events import ExecutionEventEmitter, ExecutionEvent
 from agenarc.visualization.state import GraphStateTracker, NodeStatus
 
@@ -52,11 +53,13 @@ class VisualizationServer:
         host: str = "localhost",
         port: int = 8765,
         bundle_path: Optional[str] = None,
+        protocol_path: Optional[str] = None,
     ):
         self.engine = engine
         self.host = host
         self.port = port
         self.bundle_path = bundle_path
+        self._protocol_path = protocol_path
         self._ws_connections: Set[Any] = set()
         self._event_emitter = ExecutionEventEmitter()
         self._state_tracker = GraphStateTracker()
@@ -549,15 +552,125 @@ class VisualizationServer:
             return {"version": "1.0.0", "nodes": [], "edges": []}
 
     def _save_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Save graph data — update engine state with frontend changes."""
+        """Save graph data — update engine state with frontend changes and persist to disk."""
         try:
-            if self.engine._graph and "nodes" in data:
-                # Update existing graph nodes with frontend positions
-                # The engine keeps canonical node definitions; frontend adds layout
-                pass
+            if "nodes" not in data or "edges" not in data:
+                return {"success": False, "error": "Missing nodes or edges"}
+
+            from agenarc.protocol.schema import NodeType as NT
+
+            # Build node lookup: map type string -> NodeType enum
+            type_map = {t.value: t for t in NT}
+            # Build frontend node lookup by id
+            fe_nodes = {n["id"]: n for n in data["nodes"]}
+
+            # Convert frontend node dicts to backend Node objects
+            converted_nodes = []
+            for n in data["nodes"]:
+                ntype = type_map.get(n.get("type", ""))
+                if not ntype:
+                    continue
+                node_obj = Node(
+                    id=n["id"],
+                    type=ntype,
+                    label=n.get("label", n["id"]),
+                    config=NodeConfig(data=n.get("config", {})),
+                )
+                converted_nodes.append(node_obj)
+
+            # Convert frontend edges to backend Edge objects
+            # Use serializeEdges logic: pair data+control edges by (source, target)
+            from collections import defaultdict
+            by_pair = defaultdict(list)
+            for e in data["edges"]:
+                key = (e["s"], e["t"])
+                by_pair[key].append(e)
+
+            converted_edges = []
+            for (src, tgt), pair in by_pair.items():
+                data_edge = next((e for e in pair if e.get("flowType") == "data"), None)
+                if data_edge:
+                    converted_edges.append(Edge(
+                        source=src,
+                        sourcePort=data_edge.get("sp", ""),
+                        target=tgt,
+                        targetPort=data_edge.get("tp", ""),
+                    ))
+                else:
+                    ctrl = next((e for e in pair if e.get("flowType") == "control"), None)
+                    if ctrl:
+                        converted_edges.append(Edge(
+                            source=src,
+                            sourcePort=ctrl.get("sp", ""),
+                            target=tgt,
+                        ))
+
+            # Rebuild engine graph
+            from agenarc.graph.traversal import GraphTraversal
+            new_graph = Graph(
+                version=self.engine._graph.version if self.engine._graph else "1.0.0",
+                nodes=converted_nodes,
+                edges=converted_edges,
+            )
+            self.engine._graph = new_graph
+            self.engine._traversal = GraphTraversal(new_graph)
+            self.engine._adjacency = {node.id: [] for node in new_graph.nodes}
+            for edge in converted_edges:
+                if edge.source in self.engine._adjacency:
+                    self.engine._adjacency[edge.source].append(edge.target)
+
+            # Persist to disk
+            self._persist_graph(new_graph)
+
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def _persist_graph(self, graph: Graph) -> None:
+        """Persist the graph to flow.json on disk."""
+        # Determine file path: bundle_path/flow.json or _protocol_path
+        if self.bundle_path and Path(self.bundle_path).is_dir():
+            file_path = Path(self.bundle_path) / "flow.json"
+        elif self._protocol_path:
+            file_path = Path(self._protocol_path)
+            if file_path.is_dir():
+                file_path = file_path / "flow.json"
+        else:
+            return  # No known path to write to
+
+        from agenarc.protocol.schema import NodeType as NT
+        type_reverse = {t: t.value for t in NT}
+
+        try:
+            flow_data = {
+                "version": graph.version,
+                "nodes": [
+                    {
+                        "id": n.id,
+                        "type": type_reverse.get(n.type, str(n.type)),
+                        "label": n.label,
+                        "config": n.config.data if hasattr(n.config, 'data') else {},
+                    }
+                    for n in graph.nodes
+                ],
+                "edges": [
+                    {
+                        "source": e.source,
+                        "sourcePort": e.sourcePort,
+                        "target": e.target,
+                        "targetPort": e.targetPort,
+                    }
+                    for e in graph.edges
+                ],
+            }
+
+            import tempfile
+            tmp_path = file_path.with_suffix(".flow.tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(flow_data, f, ensure_ascii=False, indent=2)
+            tmp_path.replace(file_path)
+        except Exception:
+            pass  # Silently fail — engine state is still updated
 
     async def _execute_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute graph synchronously and return full results."""

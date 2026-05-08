@@ -419,6 +419,7 @@ class InteractiveREPL:
         self._history: List[str] = []
         self._session_state: Optional[StateManager] = None  # Session-persistent StateManager
         self._session_initialized = False  # Flag: has Trigger run this session
+        self._exec_mode: ExecutionMode = ExecutionMode.ASYNC  # Default execution mode
 
     def _print_banner(self) -> None:
         """Print REPL banner."""
@@ -505,9 +506,17 @@ class InteractiveREPL:
             return True
 
         if cmd.startswith(":mode "):
-            mode = cmd[6:].strip()
-            self.engine.max_parallel = 4  # default
-            print(f"Mode set to: {mode}")
+            mode_str = cmd[6:].strip()
+            mode_map = {
+                "sync": ExecutionMode.SYNC,
+                "async": ExecutionMode.ASYNC,
+                "parallel": ExecutionMode.PARALLEL,
+            }
+            if mode_str in mode_map:
+                self._exec_mode = mode_map[mode_str]
+                print(f"Mode set to: {mode_str}")
+            else:
+                print(f"Unknown mode: {mode_str}. Use sync, async, or parallel.")
             return True
 
         # Not a special command
@@ -515,21 +524,24 @@ class InteractiveREPL:
 
     def _execute_payload(self, payload: Dict[str, Any]) -> tuple:
         """Execute payload and return (result, error, logs)."""
-        exec_mode = ExecutionMode.ASYNC
+        exec_mode = self._exec_mode
 
         try:
             # In shell mode, Trigger acts as the entry point that normalizes input
-            # Shell mode always creates a fresh state for each execution
-            self._session_state = StateManager(
-                auto_checkpoint=self.engine.enable_checkpoint
-            )
-            source_nodes = self.engine._find_source_nodes()
-            graph_id = source_nodes[0].id if source_nodes else "shell"
-            self._session_state.initialize(
-                self.engine._execution_id or "session",
-                graph_id
-            )
-            self._session_initialized = False
+            # Reuse session StateManager across calls so context persists (multi-turn)
+            if self._session_state is None:
+                self._session_state = StateManager(
+                    auto_checkpoint=self.engine.enable_checkpoint
+                )
+                source_nodes = self.engine._find_source_nodes()
+                graph_id = source_nodes[0].id if source_nodes else "shell"
+                self._session_state.initialize(
+                    self.engine._execution_id or "session",
+                    graph_id
+                )
+                self._session_initialized = False
+            else:
+                self._session_initialized = True
 
             # Attach session StateManager to engine
             self.engine._state = self._session_state
@@ -1181,6 +1193,7 @@ def command_visualize(
         host=host,
         port=port,
         bundle_path=bundle_path_str,
+        protocol_path=str(protocol_path),
     )
 
     if verbose:

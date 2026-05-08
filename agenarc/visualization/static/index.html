@@ -125,7 +125,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
     <div class="p-5 border-t" style="border-color:var(--border);background:rgba(255,255,255,0.015);">
       <div class="flex justify-between items-center mb-2">
         <span class="text-[10px] font-bold tracking-wider" style="color:var(--text-dim);">VFS MOUNT</span>
-        <span class="text-[9px] px-1.5 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
+        <span id="vfsBadge" class="text-[9px] px-1.5 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
       </div>
       <div class="text-[11px] font-mono truncate" style="color:var(--text);"><span id="vfsPath">—</span></div>
       <div class="text-[10px] mt-2 flex gap-3" style="color:var(--text-dim);"><span>Nodes: <b id="statN" style="color:var(--text-focus);">0</b></span><span>Edges: <b id="statE" style="color:var(--text-focus);">0</b></span></div>
@@ -214,6 +214,30 @@ let isPan=false, pS={x:0,y:0};
 let dragId=null, dOffX=0, dOffY=0, edgeSrc=null;
 let apiOnline=false;
 
+// ─── Undo/Redo ───
+let _history=[], _future=[];
+const _maxHist=50;
+function ss(){return {nodes:JSON.parse(JSON.stringify(nodes)),edges:JSON.parse(JSON.stringify(edges))};}
+function pushHist(){
+  _history.push(ss());
+  if(_history.length>_maxHist)_history.shift();
+  _future=[];
+}
+function undo(){
+  if(!_history.length)return;
+  _future.push(ss());
+  const s=_history.pop();
+  nodes=s.nodes;edges=s.edges;selId=null;selEdge=-1;
+  render();saveGraph();
+}
+function redo(){
+  if(!_future.length)return;
+  _history.push(ss());
+  const s=_future.pop();
+  nodes=s.nodes;edges=s.edges;selId=null;selEdge=-1;
+  render();saveGraph();
+}
+
 async function api(method,path,body){
   const opt={method,headers:{'Content-Type':'application/json'}};
   if(body)opt.body=JSON.stringify(body);
@@ -277,6 +301,55 @@ function updateApiStatus(){
   const txt=document.getElementById('termTxt');
   dot.style.background=apiOnline?'var(--green)':'var(--text-dim)';
   txt.textContent=apiOnline?'connected':'disconnected';
+  // Update VFS mount badge and path
+  const vb=document.getElementById('vfsBadge');
+  const vp=document.getElementById('vfsPath');
+  if(vb){
+    vb.textContent=apiOnline?'ACTIVE':'OFFLINE';
+    vb.style.background=apiOnline?'rgba(55,163,70,0.1)':'rgba(217,75,75,0.1)';
+    vb.style.color=apiOnline?'var(--green)':'var(--red)';
+  }
+  if(vp&&!apiOnline) vp.textContent='—';
+  // Update Execution Guard card in inspector (if open)
+  const eg=document.getElementById('egCard');
+  if(eg){
+    const egBd=apiOnline?'rgba(75,137,227,0.3)':'rgba(199,139,30,0.3)';
+    const egBg=apiOnline?'rgba(75,137,227,0.05)':'rgba(199,139,30,0.06)';
+    const stCo=apiOnline?'var(--blue)':'var(--orange)';
+    eg.style.borderColor=egBd;
+    eg.style.background=egBg;
+    // Update title text color
+    const title=eg.querySelector('.flex.justify-between.items-center.mb-2 > span');
+    if(title)title.style.color=stCo;
+    // Update shield icon color
+    const icon=eg.querySelector('.fa-shield-alt');
+    if(icon)icon.style.color=stCo;
+    // Update status text
+    const st=document.getElementById('egStatus');
+    if(st){st.textContent=apiOnline?'Connected':'Standalone';st.style.color=stCo;}
+  }
+}
+
+// ─── Auto-save ───
+let _saveTimer=null;
+function saveGraph(){
+  if(!apiOnline)return;
+  if(_saveTimer)clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(async()=>{
+    try{
+      await api('POST','/api/graph',{
+        nodes:nodes.map(n=>({
+          id:n.id,type:n.type,label:n.label,
+          config:n.config||{},
+          x:n.x,y:n.y,
+        })),
+        edges:edges.map(e=>({
+          s:e.s,sp:e.sp||'',t:e.t,tp:e.tp||'',flowType:e.flowType||'data'
+        })),
+      });
+    }catch(e){/* save silently */}
+    _saveTimer=null;
+  },300);
 }
 
 // Serialize frontend edges back to flow.json format (reversible)
@@ -402,7 +475,7 @@ async function syncWithBackend(){
         return true;
       });
       panX=0;panY=0;zoom=1;nidGen=nodes.length+1;selId=null;
-      render();
+      render();pushHist();
       // Update VFS path from backend
       if(data.bundlePath) document.getElementById('vfsPath').textContent='agrc://  '+data.bundlePath;
       log('[API] Graph synced from backend ('+nodes.length+' nodes)','var(--green)');
@@ -630,10 +703,13 @@ function hitEdge(mx,my,thr){
     const e=edges[i],s=$(e.s),t=$(e.t);if(!s||!t)continue;
     const isCtrl=e.flowType==='control';
     let sx,sy,tx,ty;
-    if(isCtrl){sx=s.x+250;sy=T(s.type).dynamic?portY(s,e.sp||'','',false):s.y+20;tx=t.x;ty=t.y+20;}
+    if(isCtrl){
+      sx=s.x+250;sy=T(s.type).dynamic?portY(s,e.sp||'','',false):s.y+20;
+      tx=t.x;ty=t.y+20;}
     else{
       const sp=e.sp||(outPorts(s)[0]||'payload'),tp=e.tp||(T(t.type).inp[0]||'input');
-      sx=s.x+250;sy=portY(s,sp,false);tx=t.x;ty=portY(t,tp,true);
+      sx=s.x+250;sy=portY(s,sp,false);
+      tx=t.x;ty=portY(t,tp,true);
     }
     const dx=tx-sx,cp=Math.max(Math.abs(dx)*0.45,50);
     const estLen=Math.abs(dx)+2*cp;
@@ -656,13 +732,25 @@ function xf(){
   EG.style.transform=t;
 }
 
+function portX(node,port,isIn){
+  // Measure actual port X position from DOM for perfect alignment with edge
+  const sel=`[data-nid="${node.id}"][data-port="${port}"]`;
+  const el=document.querySelector(sel);
+  if(el){
+    const r=el.getBoundingClientRect(),cr=CA.getBoundingClientRect();
+    return (r.left+r.width/2-cr.left-panX)/zoom;
+  }
+  // Estimation fallback: output ports at node right edge, input at left edge
+  return isIn?node.x:node.x+250;
+}
+
 function portY(node,port,isIn){
   // Measure actual port position from DOM for perfect alignment
   const sel=`[data-nid="${node.id}"][data-port="${port}"]`;
   const el=document.querySelector(sel);
   if(el){
     const r=el.getBoundingClientRect(),cr=CA.getBoundingClientRect();
-    return (r.top+r.height/2-cr.top)/zoom-panY;
+    return (r.top+r.height/2-cr.top-panY)/zoom;
   }
   // Estimation fallback (when node not yet rendered)
   const d=T(node.type);
@@ -697,7 +785,7 @@ function drawE(){
       p.addEventListener('click',ev=>{ev.stopPropagation();selEdge=idx;selId=null;render();});
       EG.appendChild(p);
     }else{
-      // Data flow: body port to body port
+      // Data flow: body port to body port (Y from DOM, X aligns with node box edge)
       const sp=e.sp||(outPorts(s)[0]||'payload');
       const tp=e.tp||(T(t.type).inp[0]||'input');
       const src={x:s.x+250,y:portY(s,sp,false)};
@@ -772,7 +860,7 @@ function updIns(){
         ${e.sp?`<div><span class="text-[11px] block mb-1" style="color:var(--text);">Source Port</span><input class="input-box" value="${e.sp}" readonly style="opacity:.6"></div>`:''}
         ${e.tp?`<div><span class="text-[11px] block mb-1" style="color:var(--text);">Target Port</span><input class="input-box" value="${e.tp}" readonly style="opacity:.6"></div>`:''}
       </div></section>
-      <button class="btn btn-block" style="margin-top:8px;border-color:var(--red);color:var(--red);" onclick="edges.splice(${selEdge},1);selEdge=-1;render();toast('Edge deleted','warn');"><i class="fas fa-trash-can mr-1"></i> Delete Edge</button>`;
+       <button class="btn btn-block" style="margin-top:8px;border-color:var(--red);color:var(--red);" onclick="pushHist();edges.splice(${selEdge},1);selEdge=-1;render();saveGraph();toast('Edge deleted','warn');"><i class="fas fa-trash-can mr-1"></i> Delete Edge</button>`;
     return;
   }
   const n=$(selId);
@@ -843,21 +931,25 @@ function updIns(){
   }
   const ops=outPorts(n);const ips=inpPorts(n);
   h+=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Ports</label><div style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono);">In: ${ips.length?ips.join(', '):'—'}<br>Out: ${ops.length?ops.join(', '):'—'}</div></section>`;
-  h+=`<section class="p-3 rounded border" style="border-color:rgba(75,137,227,0.3);background:rgba(75,137,227,0.05);">
-    <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--blue);">Execution Guard</span><i class="fas fa-shield-alt text-[10px]" style="color:var(--blue);"></i></div>
-    <div class="text-[11px] space-y-1" style="color:var(--text);"><div class="flex justify-between"><span>Status</span><span class="font-bold" style="color:var(--text-focus);">${apiOnline?'Connected':'Standalone'}</span></div></div></section>`;
+  const egBd=apiOnline?'rgba(75,137,227,0.3)':'rgba(199,139,30,0.3)';
+  const egBg=apiOnline?'rgba(75,137,227,0.05)':'rgba(199,139,30,0.06)';
+  const egCo=apiOnline?'var(--blue)':'var(--orange)';
+  h+=`<section id="egCard" class="p-3 rounded border" style="border-color:${egBd};background:${egBg};">
+    <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-bold uppercase tracking-widest" style="color:${egCo};">Execution Guard</span><i class="fas fa-shield-alt text-[10px]" style="color:${egCo};"></i></div>
+    <div class="text-[11px] space-y-1" style="color:var(--text);"><div class="flex justify-between"><span>Status</span><span id="egStatus" class="font-bold" style="color:${egCo};">${apiOnline?'Connected':'Standalone'}</span></div></div></section>`;
   IC.innerHTML=h;
 }
 
 window.updId=(oldId,newId)=>{
   if(!newId||newId===oldId)return;
   const n=$(oldId);if(!n)return;
+  pushHist();
   n.id=newId;edges.forEach(e=>{if(e.s===oldId)e.s=newId;if(e.t===oldId)e.t=newId;});
   if(selId===oldId)selId=newId;
-  render();
+  render();saveGraph();
 };
-window.updLbl=(id,v)=>{const n=$(id);if(n){n.label=v;render();}};
-window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){n.config[k]=v;}};
+window.updLbl=(id,v)=>{const n=$(id);if(n){pushHist();n.label=v;render();saveGraph();}};
+window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){pushHist();n.config[k]=v;saveGraph();}};
 
 // ─── Drag ───
 function onHead(e){
@@ -865,7 +957,7 @@ function onHead(e){
   const id=e.currentTarget.dataset.nid;if(!id)return;
   e.stopPropagation();e.preventDefault();
   const n=$(id);if(!n)return;
-  sel(id);dragId=id;const cp=cPos(e);dOffX=cp.x-n.x;dOffY=cp.y-n.y;
+  pushHist();sel(id);dragId=id;const cp=cPos(e);dOffX=cp.x-n.x;dOffY=cp.y-n.y;
   document.addEventListener('mousemove',onDrag);document.addEventListener('mouseup',onDragEnd);
 }
 function onDrag(e){
@@ -875,7 +967,7 @@ function onDrag(e){
   if(el){el.style.left=n.x+'px';el.style.top=n.y+'px';}
   drawE();xf();
 }
-function onDragEnd(){dragId=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',onDragEnd);render();}
+function onDragEnd(){dragId=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',onDragEnd);render();saveGraph();}
 
 // ─── Edge drawing ───
 function onPort(e){
@@ -929,12 +1021,12 @@ function onEdgeUp(e){
     if(edgeSrc.isExec&&tDir==='exec-in'){
       // Control flow edge (sp may be undefined for plain exec)
       const ex=edges.some(ed=>ed.s===edgeSrc.nid&&ed.t===tid&&ed.flowType==='control'&&(edgeSrc.port==='__exec__'?!ed.sp:ed.sp===edgeSrc.port));
-      if(!ex){const sp=edgeSrc.port==='__exec__'?undefined:edgeSrc.port;edges.push({s:edgeSrc.nid,sp,t:tid,flowType:'control'});render();log(`Control: ${edgeSrc.nid} → ${tid}`,'var(--orange)');toast('Control edge created','success');}
+      if(!ex){pushHist();const sp=edgeSrc.port==='__exec__'?undefined:edgeSrc.port;edges.push({s:edgeSrc.nid,sp,t:tid,flowType:'control'});render();saveGraph();log(`Control: ${edgeSrc.nid} → ${tid}`,'var(--orange)');toast('Control edge created','success');}
       else toast('Already exists','warn');
     }else if(!edgeSrc.isExec&&tDir==='in'){
       // Data flow edge
       const ex=edges.some(ed=>ed.s===edgeSrc.nid&&ed.sp===edgeSrc.port&&ed.t===tid&&ed.tp===tp);
-      if(!ex){edges.push({s:edgeSrc.nid,sp:edgeSrc.port,t:tid,tp,flowType:'data'});render();log(`Data: ${edgeSrc.nid}.${edgeSrc.port} → ${tid}.${tp}`,'var(--blue)');toast('Data edge created','success');}
+      if(!ex){pushHist();edges.push({s:edgeSrc.nid,sp:edgeSrc.port,t:tid,tp,flowType:'data'});render();saveGraph();log(`Data: ${edgeSrc.nid}.${edgeSrc.port} → ${tid}.${tp}`,'var(--blue)');toast('Data edge created','success');}
       else toast('Already exists','warn');
     }
   }
@@ -992,9 +1084,12 @@ CA.addEventListener('wheel',e=>{
 // ─── Keyboard ───
 document.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&!e.target.closest('input,select')){
-    if(selEdge>=0){edges.splice(selEdge,1);selEdge=-1;render();e.preventDefault();}
+    if(selEdge>=0){pushHist();edges.splice(selEdge,1);selEdge=-1;render();saveGraph();e.preventDefault();}
     else if(selId){delNode();e.preventDefault();}
   }
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Z'){e.preventDefault();redo();}
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==='z'){e.preventDefault();redo();}
   if(e.key==='Escape'){selId=null;selEdge=-1;edgeSrc=null;render();}
   if(e.key==='F'&&selId){const n=$(selId);if(n){const r=CA.getBoundingClientRect();panX=r.width/2-n.x*zoom-125*zoom;panY=r.height/2-n.y*zoom-50;xf();}}
   if(e.key==='0'&&!e.ctrlKey){zoom=1;panX=40;panY=40;xf();}
@@ -1003,22 +1098,25 @@ document.addEventListener('keydown',e=>{
 
 function delNode(){
   if(!selId)return;const id=selId;
+  pushHist();
   nodes=nodes.filter(n=>n.id!==id);edges=edges.filter(e=>e.s!==id&&e.t!==id);
-  selId=null;log(`Deleted: ${id}`,'var(--orange)');render();toast(`Deleted ${id}`,'warn');
+  selId=null;log(`Deleted: ${id}`,'var(--orange)');render();saveGraph();toast(`Deleted ${id}`,'warn');
 }
 
 // ─── Add / Reset ───
 window.addNode=function(type){
   const d=TYPES[type];if(!d)return;
+  pushHist();
   const id=gId(type),r=CA.getBoundingClientRect(),cx=(r.width/2-panX)/zoom,cy=(r.height/2-panY)/zoom;
   const conf=type==='LLM_Task'?{provider:'deepseek',model:'deepseek-chat',temperature:'0.7',system_prompt:'You are helpful.'}:type==='Prompt_Builder'?{history:'chat_history'}:type==='Script_Node'?{script_trust_level:'developer'}:type==='Asset_Writer'?{target_path:'agrc://manifest.json'}:type==='Memory_IO'?{mode:'read'}:type==='Plugin'?{plugin:'my_plugin',function:'process'}:type==='Router'?{conditions:[{ref:'input',operator:'contains',value:'keyword',output:'out_0'}],default:'fallback'}:{};
   nodes.push({id,type,label:type,x:cx+(Math.random()-.5)*160-125,y:cy+(Math.random()-.5)*100-30,config:conf});
-  sel(id);log(`Added: ${type}`,'var(--blue)');render();toast(`Added ${type}`,'success');
+  sel(id);log(`Added: ${type}`,'var(--blue)');render();saveGraph();toast(`Added ${type}`,'success');
 };
 
 window.resetCanvas=function(){
+  pushHist();
   nodes=[];edges=[];nidGen=1;selId=null;panX=40;panY=40;zoom=1;
-  render();xf();log('Canvas reset','var(--orange)');toast('Canvas reset','info');
+  render();xf();saveGraph();log('Canvas reset','var(--orange)');toast('Canvas reset','info');
 };
 
 // ─── Util ───
@@ -1054,6 +1152,8 @@ checkApi().then(online=>{
     log('  uv run agenarc visualize <agent>.agrc --port 8765','var(--text-dim)');
   }
 });
+// Heartbeat: periodically check backend liveness so Execution Guard status stays accurate
+setInterval(()=>checkApi(),5000);
 </script>
 </body>
 </html>
