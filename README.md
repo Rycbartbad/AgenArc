@@ -243,10 +243,12 @@ mypy agenarc/
 |----------|-------------|
 | [CHANGELOG.md](CHANGELOG.md) | Release history and change log |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, PR process, commit style |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture spec — data flow, port definitions, AST safety |
 | [docs/agents.md](docs/agents.md) | User-facing agent creation guide (Chinese) |
 | [docs/plugins/README.md](docs/plugins/README.md) | Plugin development guide |
-| [AGENTS.md](AGENTS.md) | Compact instruction file for AI agents |
+| [AGENTS.md](AGENTS.md) \* | Compact instruction file for AI agents |
+| [ARCHITECTURE.md](ARCHITECTURE.md) \* | Architecture spec — data flow, port definitions, AST safety |
+
+> \* Gitignored — only available locally to developers.
 
 ---
 
