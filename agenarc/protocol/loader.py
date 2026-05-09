@@ -6,9 +6,13 @@ Supports both standalone flow.json and .agrc bundle format.
 """
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
+_jsonschema_available = None  # None = not checked, True/False = result
 
 from agenarc.protocol.schema import (
     AGENARC_SCHEMA,
@@ -143,8 +147,11 @@ class ProtocolLoader:
             import jsonschema
             jsonschema.validate(instance=data, schema=AGENARC_SCHEMA)
         except ImportError:
-            import warnings
-            warnings.warn("jsonschema not installed. Protocol validation skipped. Install with: pip install jsonschema")
+            global _jsonschema_available
+            if _jsonschema_available is None:
+                _jsonschema_available = False
+                logger.warning("jsonschema not installed. Protocol validation skipped. "
+                               "Install with: pip install jsonschema")
         except jsonschema.ValidationError as e:
             raise SchemaValidationError(f"Schema validation failed: {e.message}")
 

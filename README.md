@@ -61,12 +61,13 @@ Directed-graph Agent Orchestration Engine with protocol-execution-visualization 
 - **Python/C++/External loaders** - Multi-language plugin support
 - **Plugin development docs**
 
-### Stage 5: Visualization Platform (Planned)
+### Stage 5: Visualization Platform (Complete)
 
-- React + TypeScript Canvas
-- Node drag-and-drop
-- Property editor panel
-- Execution preview and debugging
+- **Web-based IDE** — Node graph editor with drag-and-drop
+- **Real-time execution preview** — Watch nodes execute live
+- **Context panel** — YAML tree view with collapsible nodes
+- **Auto-save + undo/redo** — Lossless editing
+- **Live status indicators** — Node execution states, API connectivity
 
 ## Quick Start
 
@@ -291,8 +292,8 @@ pytest tests/unit/test_builtin_operators.py -v
 ### Current Test Status
 
 ```
-======================== 642 passed ========================
-Coverage: 79%
+======================== 627 passed ========================
+Coverage: ~79%
 ```
 
 ## Roadmap
@@ -303,7 +304,7 @@ Coverage: 79%
 | v0.2 | Complete Execution Engine | Complete |
 | v0.3 | Self-Evolution System | Complete |
 | v0.4 | Plugin System | Complete |
-| v0.5 | Visualization Platform | Planned |
+| v0.5 | Visualization Platform | Complete |
 
 ## License
 
