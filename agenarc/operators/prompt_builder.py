@@ -26,7 +26,7 @@ class Prompt_Builder_Operator(IOperator):
         messages: The complete messages list
 
     Config:
-        history: Custom history key name (default: node ID, stored as nodes.{history})
+        history: Custom history key name (default: node ID)
         max_history: Maximum number of messages to keep (default: 100)
     """
 
@@ -70,7 +70,7 @@ class Prompt_Builder_Operator(IOperator):
         # Determine history key from config or default to node ID
         if self._history_key is None:
             history_name = node_config.get("history", node_id)
-            self._history_key = f"nodes.{history_name}"
+            self._history_key = history_name
 
         # Get existing messages from context
         messages = context.get(self._history_key, [])

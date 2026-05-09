@@ -11,10 +11,13 @@ Core operators that are always available:
 
 import asyncio
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port, NodeType, MemoryMode
@@ -75,7 +78,7 @@ class TriggerOperator(IOperator):
             Port(name="message", type="any", description="Message content"),
             Port(name="message_type", type="string", description="Message type: private or group"),
             Port(name="raw", type="any", description="Raw event data"),
-            Port(name="timestamp", type="integer", description="Event timestamp"),
+            Port(name="timestamp", type="number", description="Event timestamp"),
             Port(name="token", type="string", description="Event token (for authentication)"),
         ]
 
@@ -84,77 +87,38 @@ class TriggerOperator(IOperator):
         inputs: Dict[str, Any],
         context: ExecutionContext
     ) -> Dict[str, Any]:
-        # Trigger outputs the initial payload from context
-        # Source nodes (Plugin/Script) write data to context.payload
-        # Trigger reads from context.payload and normalizes it
-
+        # Trigger normalizes the initial payload into standardized event fields
         payload = context.get("payload", {})
 
-        # If payload is empty, check for direct event data in context
-        # (from event plugins like QQ)
-        if not payload or not isinstance(payload, dict):
-            source = context.get("source", "manual")
-            if source == "manual":
-                # No event data, this is manual triggering
-                return {
-                    "payload": payload or {},
-                    "source": "manual",
-                    "user_id": None,
-                    "group_id": 0,
-                    "message": payload if payload else None,
-                    "message_type": "private",
-                    "raw": None,
-                    "timestamp": 0,
-                    "token": None,
-                }
-            # Event-driven: extract from direct context keys
-            return {
-                "payload": {
-                    "source": context.get("source"),
-                    "user_id": context.get("user_id"),
-                    "group_id": context.get("group_id", 0),
-                    "message": context.get("message"),
-                    "message_type": context.get("message_type", "private"),
-                    "raw": context.get("raw"),
-                    "timestamp": context.get("timestamp", 0),
-                    "token": context.get("token"),
-                },
+        # Build standardized event dict from available sources
+        if isinstance(payload, dict):
+            # Use payload dict as primary source, with fallback to context
+            result = {
+                "payload": payload,
+                "source": payload.get("source") or context.get("source", "manual"),
+                "user_id": payload.get("user_id") or context.get("user_id"),
+                "group_id": payload.get("group_id") or context.get("group_id", 0),
+                "message": payload.get("message") or context.get("message"),
+                "message_type": payload.get("message_type") or context.get("message_type", "private"),
+                "raw": payload.get("raw", payload),
+                "timestamp": payload.get("timestamp") or context.get("timestamp", 0),
+                "token": payload.get("token") or context.get("token"),
+            }
+        else:
+            # Simple/empty payload (string, None, etc.)
+            result = {
+                "payload": payload or {},
                 "source": context.get("source", "manual"),
                 "user_id": context.get("user_id"),
                 "group_id": context.get("group_id", 0),
-                "message": context.get("message"),
+                "message": payload or context.get("message"),
                 "message_type": context.get("message_type", "private"),
                 "raw": context.get("raw"),
                 "timestamp": context.get("timestamp", 0),
                 "token": context.get("token"),
             }
 
-        # Extract standardized event fields if payload is a dict
-        if isinstance(payload, dict):
-            return {
-                "payload": payload,
-                "source": payload.get("source", "manual"),
-                "user_id": payload.get("user_id"),
-                "group_id": payload.get("group_id", 0),
-                "message": payload.get("message"),
-                "message_type": payload.get("message_type", "private"),
-                "raw": payload.get("raw", payload),
-                "timestamp": payload.get("timestamp", 0),
-                "token": payload.get("token"),
-            }
-
-        # Simple payload (e.g., string)
-        return {
-            "payload": payload,
-            "source": "manual",
-            "user_id": None,
-            "group_id": 0,
-            "message": payload,
-            "message_type": "private",
-            "raw": None,
-            "timestamp": 0,
-            "token": None,
-        }
+        return result
 
 
 class Memory_IO_Operator(IOperator):
@@ -178,6 +142,7 @@ class Memory_IO_Operator(IOperator):
 
     def __init__(self):
         self._storage: Dict[str, Any] = {}
+        self._lock = asyncio.Lock()
 
     @property
     def name(self) -> str:
@@ -221,39 +186,40 @@ class Memory_IO_Operator(IOperator):
 
         mode = context.get("_memory_mode", MemoryMode.READ.value)
 
-        if mode == MemoryMode.READ.value or mode == "read":
-            # In transactional mode, check pending writes first
-            if state.in_transaction:
-                value = state.get_transactional(key)
-                if value is not None or key in state._transactional_pending:
-                    return {"value": value, "success": True}
-            value = self._storage.get(key)
-            return {"value": value, "success": value is not None}
+        async with self._lock:
+            if mode == MemoryMode.READ.value or mode == "read":
+                # In transactional mode, check pending writes first
+                if state.in_transaction:
+                    value = state.get_transactional(key)
+                    if value is not None or key in state._transactional_pending:
+                        return {"value": value, "success": True}
+                value = self._storage.get(key)
+                return {"value": value, "success": value is not None}
 
-        elif mode == MemoryMode.WRITE.value or mode == "write":
-            value = inputs.get("value")
+            elif mode == MemoryMode.WRITE.value or mode == "write":
+                value = inputs.get("value")
 
-            if state.in_transaction:
-                # Add to pending writes (not yet committed)
-                state.set_transactional(key, value)
-            else:
-                # Direct write (original behavior)
-                self._storage[key] = value
+                if state.in_transaction:
+                    # Add to pending writes (not yet committed)
+                    state.set_transactional(key, value)
+                else:
+                    # Direct write (original behavior)
+                    self._storage[key] = value
 
-                # If checkpoint requested, persist to disk
-                if context.get("_memory_checkpoint"):
-                    self._persist_to_disk(key, value)
+                    # If checkpoint requested, persist to disk
+                    if context.get("_memory_checkpoint"):
+                        self._persist_to_disk(key, value)
 
-            return {"value": value, "success": True}
+                return {"value": value, "success": True}
 
-        elif mode == MemoryMode.DELETE.value or mode == "delete":
-            if state.in_transaction:
-                # Mark for deletion in pending
-                state.set_transactional(key, None)
-            else:
-                if key in self._storage:
-                    del self._storage[key]
-            return {"value": None, "success": True}
+            elif mode == MemoryMode.DELETE.value or mode == "delete":
+                if state.in_transaction:
+                    # Mark for deletion in pending
+                    state.set_transactional(key, None)
+                else:
+                    if key in self._storage:
+                        del self._storage[key]
+                return {"value": None, "success": True}
 
         return {"value": None, "success": False}
 
@@ -268,32 +234,10 @@ class Memory_IO_Operator(IOperator):
 
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump({"key": key, "value": value}, f)
-        except Exception:
-            pass  # Fail silently for now
+        except Exception as e:
+            logger.warning("Failed to persist Memory_I/O to disk for key '%s': %s", key, e)
 
 
-
-def _autonomy_to_trust_level(autonomy_level: int) -> str:
-    """
-    Map manifest autonomy level to Script_Node trust level.
-
-    Matches ARCHITECTURE.md spec:
-        level_0 (Zero Knowledge) -> locked (expressions only)
-        level_1 (Supervised)     -> trusted (safe statements)
-        level_2/3 (Autonomous+)  -> developer (unrestricted)
-
-    Args:
-        autonomy_level: Integer autonomy level (0-3)
-
-    Returns:
-        trust_level string: "locked", "trusted", or "developer"
-    """
-    if autonomy_level == 0:
-        return "locked"
-    elif autonomy_level == 1:
-        return "trusted"
-    else:
-        return "developer"
 
 
 class Script_Node_Operator(IOperator):
@@ -332,7 +276,7 @@ class Script_Node_Operator(IOperator):
     def get_input_ports(self) -> List[Port]:
         return [
             Port(name="script", type="string", description="Python script to execute"),
-            Port(name="timeout", type="integer", description="Timeout in seconds", default=30)
+            Port(name="timeout", type="number", description="Timeout in seconds", default=30)
         ]
 
     def get_output_ports(self) -> List[Port]:
@@ -361,15 +305,16 @@ class Script_Node_Operator(IOperator):
             return {"result": None, "success": False, "error": "Empty script"}
 
         # Get trust level from node config
-        # Script_Node is developer-written code, default to developer (fully trusted)
+        # Default to trusted (safe statements, restricted builtins)
+        # Use "developer" only explicitly for full Python access
         node_config = context.get("_node_config", {})
         explicit_trust = node_config.get("script_trust_level", None)
         if explicit_trust is not None:
             # Node config explicitly sets trust level
             trust_level = explicit_trust
         else:
-            # Default to developer - Script_Node is written by developers, fully trusted
-            trust_level = "developer"
+            # Default to trusted - restricts builtins to safe subset
+            trust_level = "trusted"
 
         # Get resource limits from manifest permissions
         gas_budget = context.get("_gas_budget", 1000)
@@ -735,8 +680,8 @@ def _register_llm_operators():
     try:
         from agenarc.operators.llm import LLM_Task_Operator
         BUILTIN_OPERATORS["LLM_Task"] = LLM_Task_Operator
-    except ImportError:
-        pass  # LLM operators not available
+    except ImportError as e:
+        logger.warning("LLM operators not available (import failed): %s", e)
 
 
 def _register_router_operator():
@@ -744,8 +689,8 @@ def _register_router_operator():
     try:
         from agenarc.operators.router import RouterOperator
         BUILTIN_OPERATORS["Router"] = RouterOperator
-    except ImportError:
-        pass  # Router not available
+    except ImportError as e:
+        logger.warning("Router operator not available (import failed): %s", e)
 
 
 def _register_join_operator():
@@ -753,8 +698,8 @@ def _register_join_operator():
     try:
         from agenarc.operators.join import JoinOperator
         BUILTIN_OPERATORS["Join"] = JoinOperator
-    except ImportError:
-        pass  # Join not available
+    except ImportError as e:
+        logger.warning("Join operator not available (import failed): %s", e)
 
 
 def _register_evolution_operators():
@@ -764,8 +709,8 @@ def _register_evolution_operators():
         evolution_ops = get_evolution_operators()
         for name, op_class in evolution_ops.items():
             BUILTIN_OPERATORS[name] = op_class
-    except ImportError:
-        pass  # Evolution operators not available
+    except ImportError as e:
+        logger.warning("Evolution operators not available (import failed): %s", e)
 
 
 # Auto-register operators on import
