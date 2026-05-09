@@ -91,7 +91,6 @@ frontend/release/
 *.log
 
 # Local configuration (contains API keys)
-AGENTS.md
 ARCHITECTURE.md
 CLAUDE.md
 config.yaml
