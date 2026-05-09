@@ -3,7 +3,6 @@ Command: visualize — Start visualization studio for agent editing and debuggin
 """
 
 import asyncio
-import contextlib
 import logging
 import webbrowser
 from pathlib import Path
@@ -104,12 +103,19 @@ def command_visualize(
     url = f"http://{host}:{port}"
 
     # Run server — single event loop for both start and stop
+    def _open_browser_safe():
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
     async def _run_visualize():
+        print(f"  Studio  ->  {url}")
+        print("  Press Ctrl+C to stop.")
+        # Open browser after server starts (server.start() blocks on serve_forever)
+        asyncio.get_running_loop().call_later(0.5, _open_browser_safe)
         try:
             await server.start()
-            print("Server running. Press Ctrl+C to stop.")
-            with contextlib.suppress(Exception):
-                webbrowser.open(url)
         except asyncio.CancelledError:
             logger.debug("Visualization server task cancelled")
         finally:
