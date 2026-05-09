@@ -92,7 +92,16 @@ def command_visualize(
     )
 
     url = f"http://{host}:{port}"
-    print(f"AgenArc Studio → {url}")
+
+    print(r"""
+    ___                    ___
+   /   | ____ ____  _____ / _ |________ _______
+  / /| |/ __ `/ _ \/ ___// __ / ___/ __ `/ ___/
+ / __ / /_/ /  __/ /   / /_/ / /__/ /_/ / /
+/_/ |_\__, /\___/_/   /_.___/\___/\__,_/_/
+     /____/
+""")
+    print(f"  Studio  ->  {url}\n")
 
     # Run server — single event loop for both start and stop
     async def _run_visualize():
