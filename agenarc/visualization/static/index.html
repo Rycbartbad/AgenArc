@@ -116,7 +116,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
       <div>
         <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-plug text-[9px] mr-1"></i> Output / Evolution</h3>
         <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Log')"><i class="fas fa-terminal w-5" style="color:var(--text-dim);"></i> Log</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-sync w-5" style="color:var(--green);"></i> Asset_Writer</div>
+        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-floppy-disk w-5" style="color:var(--green);"></i> Asset_Writer</div>
         <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Plugin')"><i class="fas fa-puzzle-piece w-5" style="color:var(--orange);"></i> Plugin</div>
         <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Reader')"><i class="fas fa-file-import w-5" style="color:var(--blue);"></i> Asset_Reader</div>
         <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Runtime_Reload')"><i class="fas fa-rotate w-5" style="color:var(--green);"></i> Runtime_Reload</div>
@@ -163,19 +163,14 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 
   <!-- Right -->
   <aside class="sidebar sidebar-right" id="rightPanel">
-    <div class="p-5 border-b" style="border-color:var(--border);">
-      <div class="flex items-center justify-between">
-        <h2 class="text-sm font-bold flex items-center" style="color:var(--text-focus);"><i class="fas fa-sliders-h mr-2" style="color:var(--text-dim);"></i> Inspector</h2>
-        <span id="insBadge" class="text-[11px] px-2 py-0.5 rounded border font-mono" style="border-color:var(--border);color:var(--text-dim);">none</span>
+    <div class="p-4 border-b" style="border-color:var(--border);">
+      <div class="flex items-center gap-1" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <span id="tabInspector" class="text-[11px] font-bold px-4 py-1.5 cursor-pointer select-none transition-colors" style="flex:1;text-align:center;color:var(--text-focus);background:rgba(75,137,227,0.08);" onclick="switchTab('inspector')"><i class="fas fa-sliders-h mr-1.5"></i>Inspector</span>
+        <span id="tabContext" class="text-[11px] font-bold px-4 py-1.5 cursor-pointer select-none transition-colors" style="flex:1;text-align:center;color:var(--text-dim);" onclick="switchTab('context')"><i class="fas fa-code-branch mr-1.5"></i>Context</span>
       </div>
     </div>
     <div class="flex-grow overflow-y-auto p-5 space-y-6" id="ic">
       <div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="2"/></svg><span>Click a node to inspect</span></div>
-    </div>
-    <div class="p-4 border-t" style="border-color:var(--border);background:rgba(255,255,255,0.015);display:flex;flex-direction:column;gap:8px;">
-      <div class="text-[9px] text-center" style="color:var(--text-dim);">
-        <span id="apiStatus">/help for commands</span>
-      </div>
     </div>
   </aside>
 </div>
@@ -201,7 +196,7 @@ const TYPES = {
   Context_Set:{ic:'fa-arrow-right-to-bracket',cl:'var(--blue)',bd:'CtxSet',inp:['key','value'],out:['success']},
   Context_Get:{ic:'fa-arrow-right-from-bracket',cl:'var(--blue)',bd:'CtxGet',inp:['key','default'],out:['value']},
   Log:{ic:'fa-terminal',cl:'var(--text-dim)',bd:'Log',inp:['message','data'],out:['message','data']},
-  Asset_Writer:{ic:'fa-sync',cl:'var(--green)',bd:'Evolve',inp:['path','content','operation'],out:['success','path']},
+  Asset_Writer:{ic:'fa-floppy-disk',cl:'var(--green)',bd:'Evolve',inp:['path','content','operation'],out:['success','path']},
   Plugin:{ic:'fa-puzzle-piece',cl:'var(--orange)',bd:'Plugin',inp:[],out:[]},
   Asset_Reader:{ic:'fa-file-import',cl:'var(--blue)',bd:'Reader',inp:['path'],out:['content','metadata']},
   Runtime_Reload:{ic:'fa-rotate',cl:'var(--green)',bd:'Reload',inp:[],out:['reloaded_scripts','success']},
@@ -212,7 +207,7 @@ let nodes=[], edges=[], nidGen=1, selId=null, selEdge=-1, hoverEdge=-1;
 let panX=40, panY=40, zoom=1;
 let isPan=false, pS={x:0,y:0};
 let dragId=null, dOffX=0, dOffY=0, edgeSrc=null;
-let apiOnline=false;
+let apiOnline=false, _activeTab='inspector';
 
 // ─── Undo/Redo ───
 let _history=[], _future=[];
@@ -296,11 +291,15 @@ async function checkApi(){
 }
 
 function updateApiStatus(){
-  document.getElementById('apiStatus').textContent=apiOnline?'Connected':'Disconnected';
+  const as=document.getElementById('apiStatus');if(as)as.textContent=apiOnline?'Connected':'Disconnected';
+  // ONLY update connection indicator, NOT execution status
+  // termSend() manages execution status — don't overwrite it with heartbeat
   const dot=document.getElementById('termDot');
   const txt=document.getElementById('termTxt');
-  dot.style.background=apiOnline?'var(--green)':'var(--text-dim)';
-  txt.textContent=apiOnline?'connected':'disconnected';
+  if(txt.textContent!=='running'){
+    dot.style.background=apiOnline?'var(--green)':'var(--text-dim)';
+    txt.textContent=apiOnline?'connected':'disconnected';
+  }
   // Update VFS mount badge and path
   const vb=document.getElementById('vfsBadge');
   const vp=document.getElementById('vfsPath');
@@ -327,6 +326,117 @@ function updateApiStatus(){
     // Update status text
     const st=document.getElementById('egStatus');
     if(st){st.textContent=apiOnline?'Connected':'Standalone';st.style.color=stCo;}
+  }
+}
+
+// ─── Context panel ───
+let _ctxTimer=null;
+function switchTab(tab){
+  _activeTab=tab;
+  if(_ctxTimer){clearInterval(_ctxTimer);_ctxTimer=null;}
+  const ti=document.getElementById('tabInspector'),tc=document.getElementById('tabContext');
+  if(tab==='inspector'){
+    ti.style.color='var(--text-focus)';ti.style.background='rgba(75,137,227,0.08)';
+    tc.style.color='var(--text-dim)';tc.style.background='transparent';
+    updIns();
+  }else{
+    tc.style.color='var(--text-focus)';tc.style.background='rgba(75,137,227,0.08)';
+    ti.style.color='var(--text-dim)';ti.style.background='transparent';
+    showContext();
+    _ctxTimer=setInterval(()=>showContext(true),3000);
+  }
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function yamlTree(k,v,indent,path){
+  const pfx='<span style="color:#808080;">-</span> ';
+  const ek=esc(k);
+  const key=k.startsWith('- ')?pfx+'<span style="color:#9CDCFE;">'+esc(k.slice(2))+'</span>':'<span style="color:#9CDCFE;">'+ek+'</span>';
+  const pad='padding-left:'+(14*indent)+'px;';
+  const id=path?'_c'+esc(path).replace(/[^a-z0-9]/gi,'_'):'';
+  if(v===null||v===undefined)return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span style="color:#6A9955;font-style:italic;">null</span></div>';
+  if(typeof v==='string')return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span style="color:#CE9178;">"'+esc(v.length>500?v.substring(0,500)+'...':v)+'"</span></div>';
+  if(typeof v==='number')return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span style="color:#B5CEA8;">'+v+'</span></div>';
+  if(typeof v==='boolean')return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span style="color:#569CD6;">'+v+'</span></div>';
+  if(Array.isArray(v)){
+    if(!v.length)return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span style="color:#808080;margin-left:3px;">[]</span></div>';
+    let r='<div class="ctx-l" style="'+pad+'"><span class="ctx-a ctx-o" onclick="var b=document.getElementById(\''+id+'\');b.hidden=!b.hidden;this.classList.toggle(\'ctx-o\');"></span>'+key+': <span style="color:#808080;margin-left:3px;">[<span style="color:#9CDCFE;">'+v.length+'</span>]</span></div><div id="'+id+'" class="ctx-b" hidden>';
+    v.forEach((item,idx)=>{
+      if(typeof item==='object'&&item!==null){
+        const ks=Object.keys(item);
+        ks.forEach((k2,i)=>{
+          r+=yamlTree((i===0?'- ':'  ')+k2,item[k2],indent+1,path+'_'+idx+'_'+k2.replace(/[^a-z0-9]/gi,'_'));
+        });
+      }else{
+        r+=yamlTree('- ',item,indent+1,path+'_'+idx);
+      }
+    });
+    return r+'</div>';
+  }
+  if(typeof v==='object'){
+    const ks=Object.keys(v);
+    if(!ks.length)return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span style="color:#808080;margin-left:3px;">{}</span></div>';
+    let r='<div class="ctx-l" style="'+pad+'"><span class="ctx-a ctx-o" onclick="var b=document.getElementById(\''+id+'\');b.hidden=!b.hidden;this.classList.toggle(\'ctx-o\');"></span>'+key+': <span style="color:#808080;margin-left:3px;">{<span style="color:#9CDCFE;">'+ks.length+'</span>}</span></div><div id="'+id+'" class="ctx-b" hidden>';
+    ks.forEach(k2=>r+=yamlTree(k2,v[k2],indent+1,path+'_'+k2.replace(/[^a-z0-9]/gi,'_')));
+    return r+'</div>';
+  }
+  return'<div class="ctx-l" style="'+pad+'"><span class="ctx-d"></span>'+key+': <span>'+esc(v)+'</span></div>';
+}
+function fmtYaml(obj,title){
+  const ks=Object.keys(obj);
+  if(!ks.length)return '';
+  let r='<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--blue);">'+title+'</label>';
+  r+='<style>.ctx-l{line-height:1.75;word-break:break-all;}.ctx-l:hover{background:rgba(255,255,255,0.03);border-radius:2px;}.ctx-a{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;cursor:pointer;user-select:none;color:#808080;border-radius:3px;vertical-align:middle;}.ctx-a:hover{background:rgba(255,255,255,0.06);}.ctx-a::before{content:"▶";font-size:7px;display:inline-block;transform:rotate(90deg);}.ctx-a.ctx-o::before{transform:rotate(0deg);}.ctx-d{display:inline-block;width:14px;}.ctx-b{border-left:1px solid #2b313a;margin:2px 0 3px 6px;padding-left:2px;}</style>';
+  r+='<div class="font-mono text-[11px]">';
+  ks.forEach(k=>r+=yamlTree(k,obj[k],0,k.replace(/[^a-z0-9]/gi,'_')));
+  return r+'</div></section>';
+}
+async function showContext(silent){
+  const ic=document.getElementById('ic');
+  const st=silent?ic.scrollTop:0;
+  // Save expanded state before refresh
+  const expanded=[];
+  if(silent)ic.querySelectorAll('.ctx-b:not([hidden])').forEach(b=>{
+    if(b.id)expanded.push(b.id);
+  });
+  if(!silent)ic.innerHTML=`<div class="flex justify-center py-8" style="color:var(--text-dim);"><i class="fas fa-spinner fa-spin mr-2"></i>Loading context...</div>`;
+  try{
+    const data=await api('GET','/api/context');
+    // Merge global + nodeOutputs into one unified view
+    const ctx={...data?.global||{}};
+    const nodeOuts=data?.nodeOutputs||{};
+    Object.entries(nodeOuts).forEach(([nid,outs])=>{
+      ctx['nodes.'+nid+'.outputs']=outs;
+    });
+    // Group all nodes.* under a single "nodes" tree (skip redundant per-port entries)
+    const nodesGroup={}, filtered={};
+    const hasOutputs=new Set();
+    Object.keys(ctx).forEach(k=>{
+      const m=k.match(/^nodes\.(.+?)\.outputs$/);
+      if(m)hasOutputs.add(m[1]);
+    });
+    Object.entries(ctx).forEach(([k,v])=>{
+      const m=k.match(/^nodes\.(.+)$/);
+      if(m){
+        const seg=m[1].split('.');
+        if(seg.length>=2&&seg[seg.length-1]!=='outputs'&&hasOutputs.has(seg[0]))return;
+        nodesGroup[m[1]]=v;
+      }else{
+        filtered[k]=v;
+      }
+    });
+    if(Object.keys(nodesGroup).length)filtered.nodes=nodesGroup;
+    let h=Object.keys(filtered).length?fmtYaml(filtered,'<i class="fas fa-code-branch mr-1"></i> Context'):`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 3"/></svg><span>No context data yet<br><span style="font-size:9px;color:var(--text-dim);">Run the graph to see live context</span></span></div>`;
+    ic.innerHTML=h;
+    if(silent){
+      // Restore expanded state
+      expanded.forEach(id=>{
+        const b=document.getElementById(id);
+        if(b){b.removeAttribute('hidden');const a=b.previousElementSibling?.querySelector('.ctx-a');if(a)a.classList.remove('ctx-o');}
+      });
+      if(st>0)requestAnimationFrame(()=>{ic.scrollTop=st;});
+    }
+  }catch(e){
+    ic.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" stroke="var(--red)"/><path d="M8 8l8 8M16 8l-8 8" stroke="var(--red)"/></svg><span style="color:var(--red)">Failed to load context</span></div>`;
   }
 }
 
@@ -378,7 +488,7 @@ async function syncWithBackend(){
     return;
   }
   log('[API] Connected to '+API_BASE,'var(--green)');
-  document.getElementById('apiStatus').textContent='Connected to backend';
+  const as2=document.getElementById('apiStatus');if(as2)as2.textContent='Connected to backend';
   try{
     const data=await api('GET','/api/graph');
     if(data.nodes&&data.nodes.length){
@@ -847,11 +957,12 @@ function updStat(){
 }
 
 function updIns(){
+  if(_activeTab==='context')return;
   // Edge selected — show edge inspector
   if(selEdge>=0){
     const e=edges[selEdge];
     if(!e){selEdge=-1;updIns();return;}
-    IB.innerHTML=`<span style="color:var(--orange);">edge #${selEdge}</span>`;
+    if(IB)IB.innerHTML=`<span style="color:var(--orange);">edge #${selEdge}</span>`;
     IC.innerHTML=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Edge</label>
       <div class="space-y-3">
         <div><span class="text-[11px] block mb-1" style="color:var(--text);">Source</span><input class="input-box" value="${e.s}" readonly style="opacity:.6"></div>
@@ -865,12 +976,12 @@ function updIns(){
   }
   const n=$(selId);
   if(!n){
-    IB.innerHTML='none';
-    IC.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="2"/></svg><span>Click a node to inspect</span></div>`;
+    if(IB)IB.innerHTML='none';
+    IC.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="2"/></svg><span>Click a node to inspect</span><span style="font-size:9px;color:var(--text-dim);margin-top:4px;">Or switch to <b>Context</b> tab for live execution state</span></div>`;
     return;
   }
   const d=T(n.type);
-  IB.innerHTML=`<span style="color:${d.cl};">${n.id}</span>`;
+  if(IB)IB.innerHTML=`<span style="color:${d.cl};">${n.id}</span>`;
   let h=`<section><label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--text-dim);">Node Parameters</label>
     <div class="space-y-3">
       <div><span class="text-[11px] block mb-1" style="color:var(--text);">Node ID</span><input class="input-box" value="${n.id}" onchange="updId('${n.id}',this.value)"></div>
