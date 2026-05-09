@@ -149,7 +149,7 @@ class TriggerCallback:
                 result = await self.engine.execute(event_data, mode=self.execution_mode)
 
             except Exception as e:
-                print(f"[TriggerCallback] Error executing graph: {e}")
+                logger.error(f"[TriggerCallback] Error executing graph: {e}")
                 import traceback
                 traceback.print_exc()
 

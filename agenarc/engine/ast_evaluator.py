@@ -127,7 +127,7 @@ class SafeContext:
                     total = sum(stat.size for stat in stats)
                     tracemalloc.stop()
                     self._current_memory += total
-                except Exception:
+                except (RuntimeError, ValueError):
                     # Fallback to sys.getsizeof
                     self._current_memory += size
 

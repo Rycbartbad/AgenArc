@@ -107,8 +107,8 @@ class VisualizationServer:
             host_str = "127.0.0.1"
         elif host_str == "::":
             host_str = self.host
-        print(f"\n  [VISUALIZATION] Server started at http://{host_str}:{addr[1]}")
-        print(f"  [VISUALIZATION] Open http://{host_str}:{addr[1]} in your browser\n")
+        logger.info(f"\n  [VISUALIZATION] Server started at http://{host_str}:{addr[1]}")
+        logger.info(f"  [VISUALIZATION] Open http://{host_str}:{addr[1]} in your browser\n")
 
         # Keep running until stopped
         await self._server.serve_forever()
@@ -123,7 +123,7 @@ class VisualizationServer:
                 await asyncio.wait_for(self._server.wait_closed(), timeout=5)
             except (AttributeError, asyncio.TimeoutError, Exception) as e:
                 logger.warning("Failed to close server socket on stop: %s", e)
-        print("[VISUALIZATION] Server stopped")
+        logger.info("[VISUALIZATION] Server stopped")
 
     def _attach_to_engine(self) -> None:
         """Attach event hooks to ExecutionEngine."""
@@ -384,7 +384,7 @@ class VisualizationServer:
                 await original_trigger(event_data)
             except Exception as e:
                 _sys.stdout = old_stdout
-                print(f"[Serve] Graph execution error: {e}")
+                logger.error(f"[Serve] Graph execution error: {e}")
                 import traceback
                 traceback.print_exc()
                 _sys.stdout = buf
@@ -577,7 +577,7 @@ class VisualizationServer:
                     for e in (getattr(graph, 'edges', []) or [])
                 ]
             }
-        except Exception:
+        except (AttributeError, TypeError):
             return {"version": "1.0.0", "nodes": [], "edges": []}
 
     def _save_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -961,6 +961,6 @@ class VisualizationServer:
                 frame = self._ws_frame(payload)
                 w.write(frame)
                 await w.drain()
-            except Exception:
+            except (TypeError, ValueError, ConnectionError, OSError):
                 disconnected.add(w)
         self._ws_connections -= disconnected

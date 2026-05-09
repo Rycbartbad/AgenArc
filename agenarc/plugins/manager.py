@@ -173,7 +173,7 @@ class PluginManager:
             return None
         try:
             return _json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             return None
 
     def discover_plugins(self) -> None:

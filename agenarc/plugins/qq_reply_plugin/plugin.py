@@ -71,7 +71,7 @@ class QQConnectionManager:
                 try:
                     cls._ws_connection = await websockets.connect(full_url, compression=None)
                 except Exception as e:
-                    print(f"[QQ_Reply] Connection error: {e}")
+                    logger.error(f"[QQ_Reply] Connection error: {e}")
                     cls._ws_connection = None
                     raise
             return cls._ws_connection
@@ -121,7 +121,7 @@ class QQConnectionManager:
             logger.warning("Timeout waiting for QQ reply response")
         except Exception as e:
             logger.warning("QQ reply response error: %s", e)
-            print(f"[QQ_Reply] Response error: {e}")
+            logger.error(f"[QQ_Reply] Response error: {e}")
             # Connection is broken, clear it so next call creates a new one
             cls._ws_connection = None
             return {'success': False, 'error': str(e)}
@@ -213,5 +213,5 @@ class QQ_Reply_Operator(IOperator):
                 'error': result.get('error')
             }
         except Exception as e:
-            print(f"[QQ_Reply] Error: {e}")
+            logger.error(f"[QQ_Reply] Error: {e}")
             return {'success': False, 'data': None, 'error': str(e)}

@@ -75,7 +75,7 @@ class Config:
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     self._config = yaml.safe_load(f) or {}
-            except Exception:
+            except (yaml.YAMLError, OSError):
                 self._config = {}
 
         # Environment variables override config file

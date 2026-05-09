@@ -228,7 +228,7 @@ class CheckpointManager:
                 local_states=data["local_states"],
                 metadata=data.get("metadata", {}),
             )
-        except Exception:
+        except (OSError, KeyError, TypeError, json.JSONDecodeError):
             return None
 
     def _delete_checkpoint_file(self, checkpoint_id: str, execution_id: str) -> bool:

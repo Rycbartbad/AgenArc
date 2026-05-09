@@ -316,7 +316,7 @@ def resolve_vfs_path(
 
         vfs = VFS(Path(bundle_path), permissions)
         return vfs.read(value)
-    except Exception:
+    except (VFSError, OSError):
         # If VFS resolution fails, return original value
         return value
 

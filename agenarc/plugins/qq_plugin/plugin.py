@@ -249,14 +249,14 @@ class QQ_Event_Plugin:
                 "token": self.token,  # Pass token for use in graph
             }
 
-            print(f"[QQ Plugin] Received: [{message_type}] {user_id} -> {message_text[:50]}...")
+            logger.debug(f"[QQ Plugin] Received: [{message_type}] {user_id} -> {message_text[:50]}...")
 
             # Trigger graph execution
             if self._trigger_callback:
                 await self._trigger_callback(standardized_event)
 
         except json.JSONDecodeError as e:
-            print(f"[QQ Plugin] Failed to parse message: {e}")
+            logger.error(f"[QQ Plugin] Failed to parse message: {e}")
 
     def _extract_text_from_segments(self, segments: List[Dict]) -> str:
         """Extract plain text from OneBot message segments."""
