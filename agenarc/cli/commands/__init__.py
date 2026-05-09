@@ -22,7 +22,7 @@ from agenarc.engine.executor import ExecutionEngine, ExecutionMode
 from agenarc.engine.state import StateManager
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.protocol.loader import LoaderError, ProtocolLoader
 
 
 def _install_bundle_plugins(bundle_path: Path, verbose: bool = False) -> None:
@@ -34,7 +34,6 @@ def _install_bundle_plugins(bundle_path: Path, verbose: bool = False) -> None:
         verbose: Print verbose output
     """
     import shutil
-    import json
 
     assets_plugins_dir = bundle_path / "assets" / "plugins"
     if not assets_plugins_dir.exists():
@@ -58,9 +57,9 @@ def _install_bundle_plugins(bundle_path: Path, verbose: bool = False) -> None:
             target_meta = target_dir / "agenarc.json"
             if target_meta.exists():
                 try:
-                    with open(target_meta, "r", encoding="utf-8") as f:
+                    with open(target_meta, encoding="utf-8") as f:
                         target_version = json.load(f).get("version", "0")
-                    with open(agenarc_json, "r", encoding="utf-8") as f:
+                    with open(agenarc_json, encoding="utf-8") as f:
                         source_version = json.load(f).get("version", "0")
                     if target_version >= source_version:
                         if verbose:
@@ -79,7 +78,7 @@ def _install_bundle_plugins(bundle_path: Path, verbose: bool = False) -> None:
 
 
 # Cache for extracted .agrc bundles: bundle_path -> extraction_dir
-_agrc_cache: Dict[Path, Path] = {}
+_agrc_cache: dict[Path, Path] = {}
 
 
 def _extract_agrc(agrc_path: Path, verbose: bool = False) -> Path:
@@ -96,8 +95,8 @@ def _extract_agrc(agrc_path: Path, verbose: bool = False) -> Path:
     Returns:
         Path to extracted bundle directory (path containing flow.json)
     """
-    import zipfile
     import tempfile
+    import zipfile
 
     if agrc_path in _agrc_cache:
         return _agrc_cache[agrc_path]
@@ -119,10 +118,9 @@ def _extract_agrc(agrc_path: Path, verbose: bool = False) -> Path:
 
     # Look for flow.json in subdirectories
     for item in extract_dir.iterdir():
-        if item.is_dir():
-            if (item / "flow.json").exists():
-                _agrc_cache[agrc_path] = item
-                return item
+        if item.is_dir() and (item / "flow.json").exists():
+            _agrc_cache[agrc_path] = item
+            return item
 
     # Fallback: return root
     _agrc_cache[agrc_path] = extract_dir
@@ -191,7 +189,7 @@ def pack_bundle(source_dir: Path, output_path: Path, verbose: bool = False) -> N
         print(f"Packing {source_dir} -> {output_path}...")
 
     output_path = Path(output_path)
-    if not output_path.suffix == ".agrc":
+    if output_path.suffix != ".agrc":
         output_path = Path(str(output_path) + ".agrc")
 
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -218,10 +216,10 @@ def print_success(message: str) -> None:
 
 # --- Import command functions from sub-modules ---
 
-from .run import command_run
-from .shell import InteractiveREPL, command_shell
-from .serve import command_serve
-from .validate import command_validate
 from .info import command_info
 from .pack import command_pack
+from .run import command_run
+from .serve import command_serve
+from .shell import InteractiveREPL, command_shell
+from .validate import command_validate
 from .visualize import command_visualize

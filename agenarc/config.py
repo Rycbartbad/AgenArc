@@ -6,8 +6,9 @@ API keys take precedence over config file values.
 """
 
 import os
+import threading
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 try:
     import yaml
@@ -36,7 +37,7 @@ class Config:
 
     _instance: Optional["Config"] = None
 
-    def __init__(self, config_dict: Optional[Dict[str, Any]] = None, env_overrides: bool = True):
+    def __init__(self, config_dict: dict[str, Any] | None = None, env_overrides: bool = True):
         """
         Initialize Config.
 
@@ -45,7 +46,7 @@ class Config:
                          no file loading occurs and env_overrides defaults to False.
             env_overrides: Whether to apply environment variable overrides.
         """
-        self._config: Dict[str, Any] = {}
+        self._config: dict[str, Any] = {}
         if config_dict is not None:
             self._config = config_dict
         else:
@@ -73,7 +74,7 @@ class Config:
         config_path = self._find_config_file()
         if config_path and YAML_AVAILABLE:
             try:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     self._config = yaml.safe_load(f) or {}
             except (yaml.YAMLError, OSError):
                 self._config = {}
@@ -81,7 +82,7 @@ class Config:
         # Environment variables override config file
         self._apply_env_overrides()
 
-    def _find_config_file(self) -> Optional[Path]:
+    def _find_config_file(self) -> Path | None:
         """Find config.yaml in ~/.agenarc/ or project root."""
         # ~/.agenarc/config.yaml (preferred, user-level)
         user_config = Path("~/.agenarc/config.yaml").expanduser()
@@ -143,11 +144,11 @@ class Config:
 
         return value if value is not None else default
 
-    def get_openai_api_key(self) -> Optional[str]:
+    def get_openai_api_key(self) -> str | None:
         """Get OpenAI API key."""
         return self.get("openai.api_key") or os.environ.get("OPENAI_API_KEY")
 
-    def get_openai_base_url(self) -> Optional[str]:
+    def get_openai_base_url(self) -> str | None:
         """Get OpenAI base URL."""
         return self.get("openai.base_url") or os.environ.get("OPENAI_BASE_URL")
 
@@ -159,7 +160,7 @@ class Config:
         """Get default OpenAI temperature."""
         return float(self.get("openai.default_temperature", 0.7))
 
-    def get_anthropic_api_key(self) -> Optional[str]:
+    def get_anthropic_api_key(self) -> str | None:
         """Get Anthropic API key."""
         return self.get("anthropic.api_key") or os.environ.get("ANTHROPIC_API_KEY")
 
@@ -167,7 +168,7 @@ class Config:
         """Get default Anthropic model."""
         return self.get("anthropic.default_model", "claude-3-sonnet-20240229")
 
-    def get_provider_config(self, provider: str) -> Dict[str, Any]:
+    def get_provider_config(self, provider: str) -> dict[str, Any]:
         """
         Get configuration for a specific provider.
 

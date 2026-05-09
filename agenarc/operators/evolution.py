@@ -6,13 +6,12 @@ Asset_Writer - Write files to .agrc bundle
 Runtime_Reload - Hot reload scripts and plugins
 """
 
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from agenarc.engine.state import ExecutionContext
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
-from agenarc.engine.state import ExecutionContext
 from agenarc.vfs.filesystem import VFS, VFSError
 
 
@@ -40,13 +39,13 @@ class Asset_Reader_Operator(IOperator):
     def description(self) -> str:
         return "Read files from .agrc bundle via VFS"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="path", type="string", description="VFS path (agrc://...)"),
             Port(name="encoding", type="string", description="File encoding", default="utf-8"),
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="content", type="string", description="File content"),
             Port(name="metadata", type="object", description="File metadata"),
@@ -55,9 +54,9 @@ class Asset_Reader_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         vfs_path = inputs.get("path", "")
         encoding = inputs.get("encoding", "utf-8")
 
@@ -74,7 +73,7 @@ class Asset_Reader_Operator(IOperator):
             # Try to get from config or default
             from agenarc.config import get_config
             config = get_config()
-            agent_dir = config.get("agent.checkpoint_dir", "~/.agenarc")
+            config.get("agent.checkpoint_dir", "~/.agenarc")
             # For now, try current directory
             bundle_path = Path.cwd()
 
@@ -141,7 +140,7 @@ class Asset_Writer_Operator(IOperator):
     def description(self) -> str:
         return "Write files to .agrc bundle via VFS"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="path", type="string", description="VFS path (agrc://...)"),
             Port(name="content", type="string", description="Content to write"),
@@ -149,7 +148,7 @@ class Asset_Writer_Operator(IOperator):
             Port(name="encoding", type="string", description="File encoding", default="utf-8"),
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="success", type="boolean", description="Whether write succeeded"),
             Port(name="path", type="string", description="Written file path"),
@@ -158,9 +157,9 @@ class Asset_Writer_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         vfs_path = inputs.get("path", "")
         content = inputs.get("content", "")
         operation = inputs.get("operation", "create")
@@ -268,12 +267,12 @@ class Runtime_Reload_Operator(IOperator):
     def description(self) -> str:
         return "Hot reload scripts and plugins"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="target", type="string", description="Target: plugins, scripts, both", default="both"),
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="success", type="boolean", description="Whether reload succeeded"),
             Port(name="reloaded_scripts", type="array", description="List of reloaded scripts"),
@@ -282,9 +281,9 @@ class Runtime_Reload_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         target = inputs.get("target", "both")
 
         try:
@@ -322,7 +321,7 @@ class Runtime_Reload_Operator(IOperator):
             }
 
 
-def get_evolution_operators() -> Dict[str, type]:
+def get_evolution_operators() -> dict[str, type]:
     """Get all evolution operators."""
     return {
         "Asset_Reader": Asset_Reader_Operator,

@@ -7,9 +7,8 @@ Supports both standalone flow.json and .agrc bundle format.
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 _jsonschema_available = None  # None = not checked, True/False = result
@@ -17,17 +16,17 @@ _jsonschema_available = None  # None = not checked, True/False = result
 from agenarc.protocol.schema import (
     AGENARC_SCHEMA,
     Condition,
+    ConditionOperator,
     Edge,
     ErrorHandling,
     ErrorStrategy,
     Graph,
+    MemoryMode,
     Node,
     NodeConfig,
     NodeType,
     Port,
     TriggerSource,
-    MemoryMode,
-    ConditionOperator,
 )
 
 
@@ -58,7 +57,7 @@ class ProtocolLoader:
         self._memory_modes = {m.value: m for m in MemoryMode}
         self._condition_operators = {o.value: o for o in ConditionOperator}
 
-    def load(self, source: Union[str, Path, Dict[str, Any]]) -> Graph:
+    def load(self, source: str | Path | dict[str, Any]) -> Graph:
         """
         Load protocol from file path or dictionary.
 
@@ -79,7 +78,7 @@ class ProtocolLoader:
         else:
             raise LoaderError(f"Unsupported source type: {type(source)}")
 
-    def load_file(self, path: Union[str, Path]) -> Graph:
+    def load_file(self, path: str | Path) -> Graph:
         """
         Load protocol from a JSON file or bundle directory.
 
@@ -98,14 +97,14 @@ class ProtocolLoader:
         if path.is_dir():
             flow_file = path / "flow.json"
             if flow_file.exists():
-                with open(flow_file, "r", encoding="utf-8") as f:
+                with open(flow_file, encoding="utf-8") as f:
                     data = json.load(f)
                 return self.load_dict(data)
             else:
                 raise LoaderError(f"No flow.json found in directory: {path}")
 
         if path.suffix == ".json":
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             return self.load_dict(data)
 
@@ -118,7 +117,7 @@ class ProtocolLoader:
 
         raise LoaderError(f"Unsupported file type: {path.suffix}")
 
-    def load_dict(self, data: Dict[str, Any]) -> Graph:
+    def load_dict(self, data: dict[str, Any]) -> Graph:
         """
         Load protocol from a dictionary.
 
@@ -133,7 +132,7 @@ class ProtocolLoader:
 
         return self._parse_graph(data)
 
-    def _validate_schema(self, data: Dict[str, Any]) -> None:
+    def _validate_schema(self, data: dict[str, Any]) -> None:
         """
         Validate data against JSON schema.
 
@@ -155,7 +154,7 @@ class ProtocolLoader:
         except jsonschema.ValidationError as e:
             raise SchemaValidationError(f"Schema validation failed: {e.message}")
 
-    def _parse_graph(self, data: Dict[str, Any]) -> Graph:
+    def _parse_graph(self, data: dict[str, Any]) -> Graph:
         """
         Parse dictionary into Graph object.
 
@@ -179,9 +178,9 @@ class ProtocolLoader:
 
     def _expand_output_to_context(
         self,
-        nodes: List[Node],
-        edges: List[Edge]
-    ) -> Tuple[List[Node], List[Edge]]:
+        nodes: list[Node],
+        edges: list[Edge]
+    ) -> tuple[list[Node], list[Edge]]:
         """
         Expand output_to_context shorthand in node configs into Context_Set nodes.
 
@@ -227,7 +226,7 @@ class ProtocolLoader:
                     import warnings
                     warnings.warn(
                         f"output_to_context references port '{output_port}' "
-                        f"on node '{node.id}' but node has outputs: {source_output_names}"
+                        f"on node '{node.id}' but node has outputs: {source_output_names}", stacklevel=2
                     )
 
                 # Generate unique ID for the Context_Set node
@@ -238,7 +237,7 @@ class ProtocolLoader:
                     import warnings
                     warnings.warn(
                         f"Generated Context_Set node ID '{context_node_id}' "
-                        f"collides with existing node ID. Skipping."
+                        f"collides with existing node ID. Skipping.", stacklevel=2
                     )
                     continue
 
@@ -264,7 +263,7 @@ class ProtocolLoader:
 
         return expanded_nodes, expanded_edges
 
-    def _parse_node(self, data: Dict[str, Any]) -> Node:
+    def _parse_node(self, data: dict[str, Any]) -> Node:
         """
         Parse node dictionary into Node object.
 
@@ -315,7 +314,7 @@ class ProtocolLoader:
             metadata=data,
         )
 
-    def _parse_port(self, data: Dict[str, Any]) -> Port:
+    def _parse_port(self, data: dict[str, Any]) -> Port:
         """
         Parse port dictionary into Port object.
 
@@ -332,7 +331,7 @@ class ProtocolLoader:
             default=data.get("default"),
         )
 
-    def _parse_edge(self, data: Dict[str, Any]) -> Edge:
+    def _parse_edge(self, data: dict[str, Any]) -> Edge:
         """
         Parse edge dictionary into Edge object.
 
@@ -351,7 +350,7 @@ class ProtocolLoader:
             style=data.get("style", "solid"),
         )
 
-    def _parse_condition(self, data: Dict[str, Any]) -> Condition:
+    def _parse_condition(self, data: dict[str, Any]) -> Condition:
         """
         Parse condition dictionary into Condition object.
 
@@ -383,7 +382,7 @@ class ProtocolLoader:
         )
 
 
-def load(path: Union[str, Path]) -> Graph:
+def load(path: str | Path) -> Graph:
     """
     Convenience function to load a protocol file.
 

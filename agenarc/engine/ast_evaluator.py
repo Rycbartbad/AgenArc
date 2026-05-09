@@ -16,7 +16,8 @@ import ast
 import operator as op
 import sys
 import tracemalloc
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from typing import Any
 
 
 class ASTEvaluatorError(Exception):
@@ -35,7 +36,7 @@ class MemoryLimitError(ASTEvaluatorError):
 
 
 # Dangerous attributes that can crash or compromise the interpreter
-DANGEROUS_ATTRIBUTES: Set[str] = {
+DANGEROUS_ATTRIBUTES: set[str] = {
     # Interpreter internals
     "__globals__",
     "__builtins__",
@@ -101,11 +102,11 @@ class SafeContext:
     Uses tracemalloc to track memory usage and enforce limits.
     """
 
-    def __init__(self, data: Dict[str, Any], max_memory_mb: int = 128):
+    def __init__(self, data: dict[str, Any], max_memory_mb: int = 128):
         self._data = data
         self._max_memory_bytes = max_memory_mb * 1024 * 1024
         self._current_memory = 0
-        self._tracked_ids: Set[int] = set()
+        self._tracked_ids: set[int] = set()
 
     def get(self, key: str, default: Any = None) -> Any:
         value = self._data.get(key, default)
@@ -163,7 +164,7 @@ class ASTEvaluator:
     """
 
     # Safe binary operators
-    BINARY_OPERATORS: Dict[type[ast.operator], Callable[[Any, Any], Any]] = {
+    BINARY_OPERATORS: dict[type[ast.operator], Callable[[Any, Any], Any]] = {
         ast.Add: op.add,
         ast.Sub: op.sub,
         ast.Mult: op.mul,
@@ -180,7 +181,7 @@ class ASTEvaluator:
     }
 
     # Safe unary operators
-    UNARY_OPERATORS: Dict[type[ast.unaryop], Callable[[Any], Any]] = {
+    UNARY_OPERATORS: dict[type[ast.unaryop], Callable[[Any], Any]] = {
         ast.Invert: op.invert,
         ast.Not: op.not_,
         ast.UAdd: lambda x: +x,
@@ -188,7 +189,7 @@ class ASTEvaluator:
     }
 
     # Safe comparison operators
-    COMPARISON_OPERATORS: Dict[type[ast.cmpop], Callable[[Any, Any], bool]] = {
+    COMPARISON_OPERATORS: dict[type[ast.cmpop], Callable[[Any, Any], bool]] = {
         ast.Eq: op.eq,
         ast.NotEq: op.ne,
         ast.Lt: op.lt,
@@ -202,7 +203,7 @@ class ASTEvaluator:
     }
 
     # Allowed built-in functions (whitelist - available at all trust levels)
-    ALLOWED_BUILTINS: Dict[str, Callable[..., Any]] = {
+    ALLOWED_BUILTINS: dict[str, Callable[..., Any]] = {
         # Type conversion
         "len": len,
         "str": str,
@@ -260,7 +261,7 @@ class ASTEvaluator:
     }
 
     # Extended builtins for level_2+
-    LEVEL2_BUILTINS: Dict[str, Callable[..., Any]] = {
+    LEVEL2_BUILTINS: dict[str, Callable[..., Any]] = {
         "open": open,
         "compile": compile,
         "eval": eval,
@@ -273,7 +274,7 @@ class ASTEvaluator:
         autonomy_level: int = 1,
         gas_budget: int = 1000,
         max_memory_mb: int = 128,
-        extra_builtins: Optional[Dict[str, Callable[..., Any]]] = None,
+        extra_builtins: dict[str, Callable[..., Any]] | None = None,
     ):
         """
         Initialize evaluator with trust-based autonomy.
@@ -288,7 +289,7 @@ class ASTEvaluator:
         self._gas_budget = gas_budget
         self._gas_used = 0
         self._max_memory_mb = max_memory_mb
-        self._enabled_features: Set[str] = {"comprehensions", "attribute_access"}
+        self._enabled_features: set[str] = {"comprehensions", "attribute_access"}
 
         self._builtins = self.ALLOWED_BUILTINS.copy()
         if autonomy_level >= 2:
@@ -322,7 +323,7 @@ class ASTEvaluator:
     def evaluate(
         self,
         expression: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> Any:
         """
         Evaluate an expression with trust-based autonomy.
@@ -435,7 +436,7 @@ class ASTEvaluator:
         if isinstance(node, ast.Dict):
             return {
                 self._eval_node(k, context): self._eval_node(v, context)
-                for k, v in zip(node.keys, node.values)
+                for k, v in zip(node.keys, node.values, strict=False)
             }
 
         # Variables
@@ -479,7 +480,7 @@ class ASTEvaluator:
         # Comparison operations
         if isinstance(node, ast.Compare):
             left = self._eval_node(node.left, context)
-            for op_node, comparator in zip(node.ops, node.comparators):
+            for op_node, comparator in zip(node.ops, node.comparators, strict=False):
                 right = self._eval_node(comparator, context)
                 op_func = self.COMPARISON_OPERATORS.get(type(op_node))
                 if op_func is None:
@@ -495,10 +496,7 @@ class ASTEvaluator:
             is_and = isinstance(node.op, ast.And)
             for value in node.values[1:]:
                 right = self._eval_node(value, context)
-                if is_and:
-                    left = left and right
-                else:
-                    left = left or right
+                left = left and right if is_and else left or right
             return left
 
         # If expressions (ternary)
@@ -557,14 +555,14 @@ class ASTEvaluator:
     def _eval_comprehension(
         self,
         elt: ast.AST,
-        generators: List[ast.comprehension],
+        generators: list[ast.comprehension],
         context: SafeContext,
         result_type: type = list,
     ) -> Any:
         """Evaluate list/set comprehension."""
         result = result_type() if result_type in (set,) else []
 
-        def process_generator(gen_idx: int, current_values: List[Any]) -> None:
+        def process_generator(gen_idx: int, current_values: list[Any]) -> None:
             generator = generators[gen_idx]
 
             # Evaluate iterable
@@ -591,7 +589,7 @@ class ASTEvaluator:
 
                     self._consume_gas(1)
                     if self._gas_used > self._gas_budget:
-                        raise GasExceededError(f"Comprehension exceeded gas budget")
+                        raise GasExceededError("Comprehension exceeded gas budget")
                 else:
                     process_generator(gen_idx + 1, current_values + [item])
 
@@ -602,9 +600,9 @@ class ASTEvaluator:
         self,
         key_elt: ast.AST,
         value_elt: ast.AST,
-        generators: List[ast.comprehension],
+        generators: list[ast.comprehension],
         context: SafeContext,
-    ) -> Dict[Any, Any]:
+    ) -> dict[Any, Any]:
         """Evaluate dict comprehension."""
         result = {}
 
@@ -627,7 +625,7 @@ class ASTEvaluator:
                     result[k] = v
                     self._consume_gas(1)
                     if self._gas_used > self._gas_budget:
-                        raise GasExceededError(f"Dict comprehension exceeded gas budget")
+                        raise GasExceededError("Dict comprehension exceeded gas budget")
                 else:
                     process_generator(gen_idx + 1)
 
@@ -672,7 +670,7 @@ class ASTEvaluator:
 
 def evaluate_expression(
     expression: str,
-    context: Optional[Dict[str, Any]] = None,
+    context: dict[str, Any] | None = None,
     autonomy_level: int = 1,
     gas_budget: int = 1000,
     max_memory_mb: int = 128,

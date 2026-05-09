@@ -5,9 +5,8 @@ Graph traversal algorithms for AgenArc execution planning.
 """
 
 from collections import deque
-from typing import Callable, Dict, List, Optional, Set, Tuple
 
-from agenarc.protocol.schema import Edge, Graph, Node
+from agenarc.protocol.schema import Graph, Node
 
 
 class CycleError(Exception):
@@ -32,8 +31,8 @@ class GraphTraversal:
 
     def __init__(self, graph: Graph):
         self.graph = graph
-        self._adjacency: Dict[str, List[str]] = {}
-        self._reverse_adjacency: Dict[str, List[str]] = {}
+        self._adjacency: dict[str, list[str]] = {}
+        self._reverse_adjacency: dict[str, list[str]] = {}
         self._build_adjacency()
 
     def _build_adjacency(self) -> None:
@@ -47,7 +46,7 @@ class GraphTraversal:
             if edge.target in self._reverse_adjacency:
                 self._reverse_adjacency[edge.target].append(edge.source)
 
-    def topological_sort(self) -> List[str]:
+    def topological_sort(self) -> list[str]:
         """
         Compute topological sort of the graph.
 
@@ -81,7 +80,7 @@ class GraphTraversal:
 
         return result
 
-    def get_execution_order(self, start_node_id: str) -> List[str]:
+    def get_execution_order(self, start_node_id: str) -> list[str]:
         """
         Get execution order starting from a specific node.
 
@@ -93,8 +92,8 @@ class GraphTraversal:
         Returns:
             List of node IDs in execution order
         """
-        visited: Set[str] = set()
-        order: List[str] = []
+        visited: set[str] = set()
+        order: list[str] = []
 
         def dfs(node_id: str) -> None:
             if node_id in visited:
@@ -110,9 +109,9 @@ class GraphTraversal:
 
     def get_ready_nodes(
         self,
-        executed: Set[str],
-        pending: Set[str]
-    ) -> List[str]:
+        executed: set[str],
+        pending: set[str]
+    ) -> list[str]:
         """
         Get nodes that are ready to execute.
 
@@ -147,7 +146,7 @@ class GraphTraversal:
 
         return ready
 
-    def _find_source_nodes(self) -> List["Node"]:
+    def _find_source_nodes(self) -> list["Node"]:
         """Find all source nodes (nodes with no incoming data edges)."""
         if not self.graph.edges:
             return list(self.graph.nodes)
@@ -161,7 +160,7 @@ class GraphTraversal:
         ]
         return source_nodes
 
-    def find_path(self, source: str, target: str) -> Optional[List[str]]:
+    def find_path(self, source: str, target: str) -> list[str] | None:
         """
         Find a path from source to target.
 
@@ -175,7 +174,7 @@ class GraphTraversal:
         if source == target:
             return [source]
 
-        visited: Set[str] = set()
+        visited: set[str] = set()
         queue = deque([(source, [source])])
 
         while queue:
@@ -194,7 +193,7 @@ class GraphTraversal:
 
         return None
 
-    def get_subgraph(self, node_ids: Set[str]) -> Graph:
+    def get_subgraph(self, node_ids: set[str]) -> Graph:
         """
         Extract a subgraph containing only the specified nodes.
 
@@ -216,7 +215,7 @@ class GraphTraversal:
         )
         return new_graph
 
-    def find_cycles(self) -> List[List[str]]:
+    def find_cycles(self) -> list[list[str]]:
         """
         Find all cycles in the graph using DFS.
 
@@ -257,7 +256,7 @@ class GraphTraversal:
 
         return cycles
 
-    def find_loop_regions(self) -> Dict[str, Set[str]]:
+    def find_loop_regions(self) -> dict[str, set[str]]:
         """
         Find all loop regions in the graph.
 
@@ -285,7 +284,7 @@ class GraphTraversal:
 
         return loop_regions
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """
         Validate the graph structure.
 

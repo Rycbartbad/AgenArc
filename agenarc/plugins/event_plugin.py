@@ -9,7 +9,8 @@ and trigger the graph when events arrive.
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class EventPlugin(ABC):
         return ""
 
     @abstractmethod
-    async def start(self, trigger_callback: Callable[[Dict[str, Any]], None]) -> None:
+    async def start(self, trigger_callback: Callable[[dict[str, Any]], None]) -> None:
         """
         Start listening for events.
 
@@ -98,7 +99,7 @@ class TriggerCallback:
     def __init__(
         self,
         engine: Any,
-        state_manager: Optional[Any] = None,
+        state_manager: Any | None = None,
         execution_mode: Any = None
     ):
         self.engine = engine
@@ -107,7 +108,7 @@ class TriggerCallback:
         self.execution_mode = execution_mode if execution_mode is not None else ExecutionMode.ASYNC
         self._running = False
         self._lock = asyncio.Lock()
-        self._session_state: Optional[Any] = None  # Session-persistent state for multi-turn
+        self._session_state: Any | None = None  # Session-persistent state for multi-turn
 
     def _get_graph_id(self) -> str:
         """Get a graph identifier from source nodes."""
@@ -116,7 +117,7 @@ class TriggerCallback:
         source_nodes = self.engine._find_source_nodes()
         return source_nodes[0].id if source_nodes else "agent"
 
-    async def __call__(self, event_data: Dict[str, Any]) -> None:
+    async def __call__(self, event_data: dict[str, Any]) -> None:
         """
         Trigger callback - execute graph with event data as payload.
 
@@ -146,7 +147,7 @@ class TriggerCallback:
                 self.engine._state = state
 
                 # Execute with event payload
-                result = await self.engine.execute(event_data, mode=self.execution_mode)
+                await self.engine.execute(event_data, mode=self.execution_mode)
 
             except Exception as e:
                 logger.error(f"[TriggerCallback] Error executing graph: {e}")

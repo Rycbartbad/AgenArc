@@ -12,17 +12,15 @@ Core operators that are always available:
 import asyncio
 import json
 import logging
-import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from agenarc.operators.operator import IOperator
-from agenarc.protocol.schema import Port, NodeType, MemoryMode
+from agenarc.engine.evaluator import ASTEvaluator
 from agenarc.engine.state import ExecutionContext
-from agenarc.engine.evaluator import ASTEvaluator, evaluate_expression
+from agenarc.operators.operator import IOperator
+from agenarc.protocol.schema import MemoryMode, Port
 
 
 class TriggerOperator(IOperator):
@@ -66,10 +64,10 @@ class TriggerOperator(IOperator):
     def description(self) -> str:
         return "Entry point trigger for graph execution"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return []
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="payload", type="any", description="Initial payload (event data or manual input)"),
             Port(name="source", type="string", description="Event source: qq, webhook, manual, timer"),
@@ -84,9 +82,9 @@ class TriggerOperator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         # Trigger normalizes the initial payload into standardized event fields
         payload = context.get("payload", {})
 
@@ -141,7 +139,7 @@ class Memory_IO_Operator(IOperator):
     """
 
     def __init__(self):
-        self._storage: Dict[str, Any] = {}
+        self._storage: dict[str, Any] = {}
         self._lock = asyncio.Lock()
 
     @property
@@ -152,13 +150,13 @@ class Memory_IO_Operator(IOperator):
     def description(self) -> str:
         return "Read/write to persistent memory storage with optional transactions"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="key", type="string", description="Storage key"),
             Port(name="value", type="any", description="Value to write", default=None)
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="value", type="any", description="Read value"),
             Port(name="success", type="boolean", description="Operation success")
@@ -166,9 +164,9 @@ class Memory_IO_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         key = inputs.get("key")
         if not key:
             return {"value": None, "success": False}
@@ -273,13 +271,13 @@ class Script_Node_Operator(IOperator):
     def description(self) -> str:
         return "Execute inline Python scripts with AST safety"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="script", type="string", description="Python script to execute"),
             Port(name="timeout", type="number", description="Timeout in seconds", default=30)
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="result", type="any", description="Script execution result"),
             Port(name="success", type="boolean", description="Execution success"),
@@ -288,9 +286,9 @@ class Script_Node_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         # Script can come from inputs (edge) or from node config
         script = inputs.get("script", "")
 
@@ -299,7 +297,7 @@ class Script_Node_Operator(IOperator):
             node_config = context.get("_node_config", {})
             script = node_config.get("script", "")
 
-        timeout = inputs.get("timeout", self._timeout)
+        inputs.get("timeout", self._timeout)
 
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}
@@ -388,7 +386,7 @@ class Script_Node_Operator(IOperator):
                 return False
         return True
 
-    def _build_context(self, context: ExecutionContext, inputs: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _build_context(self, context: ExecutionContext, inputs: dict[str, Any] = None) -> dict[str, Any]:
         """Build context dictionary for evaluation."""
         # Get relevant values from execution context
         eval_context = {
@@ -399,7 +397,7 @@ class Script_Node_Operator(IOperator):
 
         # Add all context values with prefix
         # This allows expressions like: {{context.my_var}}
-        ctx_data = {
+        {
             "input": context.get("input"),
             "payload": context.get("payload"),
         }
@@ -417,8 +415,8 @@ class Script_Node_Operator(IOperator):
         self,
         script: str,
         context: ExecutionContext,
-        eval_context: Dict[str, Any],
-        inputs: Dict[str, Any] = None,
+        eval_context: dict[str, Any],
+        inputs: dict[str, Any] = None,
         developer_mode: bool = False
     ) -> Any:
         """
@@ -528,13 +526,13 @@ class Log_Node_Operator(IOperator):
     def description(self) -> str:
         return "Log and pass through values for debugging"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="message", type="string", description="Log message", default=""),
             Port(name="data", type="any", description="Data to log", default=None)
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="message", type="string", description="Pass through message"),
             Port(name="data", type="any", description="Pass through data")
@@ -542,9 +540,9 @@ class Log_Node_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         message = inputs.get("message", "")
         data = inputs.get("data")
 
@@ -581,22 +579,22 @@ class Context_Set_Operator(IOperator):
     def description(self) -> str:
         return "Set values in global execution context"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="key", type="string", description="Context key"),
             Port(name="value", type="any", description="Value to set")
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="success", type="boolean", description="Operation success")
         ]
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         key = inputs.get("key")
         value = inputs.get("value")
 
@@ -631,22 +629,22 @@ class Context_Get_Operator(IOperator):
     def description(self) -> str:
         return "Get values from global execution context"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="key", type="string", description="Context key"),
             Port(name="default", type="any", description="Default value", default=None)
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="value", type="any", description="Retrieved value")
         ]
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         key = inputs.get("key")
         default = inputs.get("default")
 
@@ -659,9 +657,8 @@ class Context_Get_Operator(IOperator):
 # Prompt_Builder_Operator extracted to prompt_builder.py
 from agenarc.operators.prompt_builder import Prompt_Builder_Operator  # noqa: F401
 
-
 # Registry of all built-in operators
-BUILTIN_OPERATORS: Dict[str, type] = {
+BUILTIN_OPERATORS: dict[str, type] = {
     "Trigger": TriggerOperator,
     "Memory_I/O": Memory_IO_Operator,
     "Script_Node": Script_Node_Operator,
@@ -720,7 +717,7 @@ _register_join_operator()
 _register_evolution_operators()
 
 
-def get_builtin_operator(node_type: str) -> Optional[IOperator]:
+def get_builtin_operator(node_type: str) -> IOperator | None:
     """
     Get a built-in operator instance by node type.
 

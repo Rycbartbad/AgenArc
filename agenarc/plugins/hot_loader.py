@@ -7,14 +7,13 @@ Provides file watching and atomic plugin reloading for zero-downtime updates.
 import asyncio
 import logging
 import os
-import sys
+import threading
 import time
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-import threading
-import hashlib
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class PluginInfo:
 @dataclass
 class HotReloadConfig:
     """Configuration for hot reloading."""
-    watch_paths: List[Path] = field(default_factory=list)
+    watch_paths: list[Path] = field(default_factory=list)
     reload_strategy: ReloadStrategy = ReloadStrategy.ATOMIC
     debounce_ms: int = 500          # Debounce file change events
     scan_interval_seconds: float = 5.0  # Periodic scan interval
@@ -56,11 +55,11 @@ class FileWatcher:
     Priority: inotify (Linux) > FSEvents (macOS) > watchdog > polling
     """
 
-    def __init__(self, paths: List[Path], callback: Callable[[Set[Path]], None]):
+    def __init__(self, paths: list[Path], callback: Callable[[set[Path]], None]):
         self._paths = paths
         self._callback = callback
         self._running = False
-        self._modified_files: Set[Path] = set()
+        self._modified_files: set[Path] = set()
         self._lock = threading.Lock()
         self._watchdog_handle = None
 
@@ -73,8 +72,8 @@ class FileWatcher:
 
         # Try watchdog first (cross-platform)
         try:
-            from watchdog.observers import Observer
             from watchdog.events import FileSystemEventHandler
+            from watchdog.observers import Observer
 
             class ChangeHandler(FileSystemEventHandler):
                 def __init__(handler_self, watcher: "FileWatcher"):
@@ -104,7 +103,7 @@ class FileWatcher:
             logger.warning("Watchdog not available, falling back to polling for file watching")
 
         # Fallback to polling
-        self._file_mtimes: Dict[Path, float] = {}
+        self._file_mtimes: dict[Path, float] = {}
         threading.Thread(target=self._poll_loop, daemon=True).start()
         logger.info("File watcher started (using polling)")
 
@@ -125,7 +124,7 @@ class FileWatcher:
 
             time.sleep(0.5)  # Poll every 500ms
 
-    def _collect_files(self) -> Dict[Path, float]:
+    def _collect_files(self) -> dict[Path, float]:
         """Collect all plugin files and their modification times."""
         files = {}
         for base_path in self._paths:
@@ -145,7 +144,7 @@ class FileWatcher:
                             logger.warning("Failed to get mtime for %s: %s", path, e)
         return files
 
-    def get_modified_files(self) -> Set[Path]:
+    def get_modified_files(self) -> set[Path]:
         """Get and clear modified files since last check."""
         with self._lock:
             modified = self._modified_files.copy()
@@ -178,19 +177,19 @@ class HotPluginLoader:
         operator = loader.get_operator("my_plugin", "my_operator")
     """
 
-    def __init__(self, config: Optional[HotReloadConfig] = None):
+    def __init__(self, config: HotReloadConfig | None = None):
         self._config = config or HotReloadConfig()
-        self._plugins: Dict[str, PluginInfo] = {}
-        self._operators: Dict[str, Any] = {}  # plugin.operator -> instance
-        self._file_watcher: Optional[FileWatcher] = None
+        self._plugins: dict[str, PluginInfo] = {}
+        self._operators: dict[str, Any] = {}  # plugin.operator -> instance
+        self._file_watcher: FileWatcher | None = None
         self._running = False
         self._reload_semaphore = asyncio.Semaphore(1)
-        self._pending_reloads: Set[str] = set()
+        self._pending_reloads: set[str] = set()
 
         # Per-loader registries
-        self._python_loader: Optional["PythonPluginLoader"] = None
-        self._cpp_loader: Optional["CppPluginLoader"] = None
-        self._external_loader: Optional["ExternalPluginLoader"] = None
+        self._python_loader: PythonPluginLoader | None = None
+        self._cpp_loader: CppPluginLoader | None = None
+        self._external_loader: ExternalPluginLoader | None = None
 
     async def initialize(self) -> None:
         """Initialize the hot loader and start file watching."""
@@ -215,15 +214,15 @@ class HotPluginLoader:
 
     async def _init_loaders(self) -> None:
         """Initialize individual plugin loaders."""
-        from agenarc.plugins.loaders.python import PythonPluginLoader
         from agenarc.plugins.loaders.cpp import CppPluginLoader
         from agenarc.plugins.loaders.external import ExternalPluginLoader
+        from agenarc.plugins.loaders.python import PythonPluginLoader
 
         self._python_loader = PythonPluginLoader()
         self._cpp_loader = CppPluginLoader()
         self._external_loader = ExternalPluginLoader()
 
-    def _get_watch_paths(self) -> List[Path]:
+    def _get_watch_paths(self) -> list[Path]:
         """Get all paths to watch for file changes."""
         paths = []
         for search_path in self._config.watch_paths:
@@ -289,7 +288,7 @@ class HotPluginLoader:
             logger.error(f"Failed to load plugin {plugin_info.name}: {e}")
             return False
 
-    def _on_files_changed(self, modified_files: Set[Path]) -> None:
+    def _on_files_changed(self, modified_files: set[Path]) -> None:
         """Callback when plugin files are modified."""
         if not modified_files:
             return
@@ -297,7 +296,7 @@ class HotPluginLoader:
         # Schedule reload with debounce
         asyncio.create_task(self._schedule_reload(modified_files))
 
-    async def _schedule_reload(self, modified_files: Set[Path]) -> None:
+    async def _schedule_reload(self, modified_files: set[Path]) -> None:
         """Schedule a debounced reload."""
         # Debounce: wait for more changes to settle
         await asyncio.sleep(self._config.debounce_ms / 1000.0)
@@ -363,7 +362,7 @@ class HotPluginLoader:
 
         return success
 
-    def get_operator(self, plugin_name: str, operator_name: str = "") -> Optional[Any]:
+    def get_operator(self, plugin_name: str, operator_name: str = "") -> Any | None:
         """
         Get an operator by plugin and function name.
 
@@ -377,11 +376,11 @@ class HotPluginLoader:
         key = f"{plugin_name}.{operator_name}" if operator_name else plugin_name
         return self._operators.get(key)
 
-    def list_operators(self) -> List[str]:
+    def list_operators(self) -> list[str]:
         """List all registered operator names."""
         return list(self._operators.keys())
 
-    def list_plugins(self) -> List[PluginInfo]:
+    def list_plugins(self) -> list[PluginInfo]:
         """List all discovered plugins."""
         return list(self._plugins.values())
 
@@ -417,6 +416,6 @@ class HotPluginLoader:
 
 
 # Import loaders at module level for type hints
-from agenarc.plugins.loaders.python import PythonPluginLoader
 from agenarc.plugins.loaders.cpp import CppPluginLoader
 from agenarc.plugins.loaders.external import ExternalPluginLoader
+from agenarc.plugins.loaders.python import PythonPluginLoader

@@ -6,11 +6,11 @@ Supports if-else and switch-case style routing.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from agenarc.operators.operator import IOperator
-from agenarc.protocol.schema import Port, Condition, ConditionOperator
 from agenarc.engine.state import ExecutionContext
+from agenarc.operators.operator import IOperator
+from agenarc.protocol.schema import Condition, ConditionOperator, Port
 
 
 class RouterOperator(IOperator):
@@ -41,21 +41,21 @@ class RouterOperator(IOperator):
     def description(self) -> str:
         return "Route execution based on condition expressions"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="input", type="any", description="Value to evaluate"),
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         # Router does not declare fixed output ports.
         # Output ports are determined by edges with matching sourcePort values.
         return []
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         input_value = inputs.get("input")
 
         # Get conditions from config
@@ -150,9 +150,7 @@ class RouterOperator(IOperator):
         elif operator == ConditionOperator.LTE:
             return actual <= expected
         elif operator == ConditionOperator.CONTAINS:
-            if isinstance(actual, str):
-                return expected in actual
-            elif isinstance(actual, (list, tuple)):
+            if isinstance(actual, (str, list, tuple)):
                 return expected in actual
             elif isinstance(actual, dict):
                 return expected in actual.values()

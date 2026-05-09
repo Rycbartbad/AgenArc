@@ -14,22 +14,21 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from agenarc import __version__
 
 # Import all command functions and helpers from the commands package
 from agenarc.cli.commands import (  # noqa: F401
     InteractiveREPL,
-    command_run,
-    command_shell,
-    command_serve,
-    command_validate,
-    command_info,
-    command_visualize,
-    _install_bundle_plugins,
     _extract_agrc,
+    _install_bundle_plugins,
     _resolve_bundle_path,
+    command_info,
+    command_run,
+    command_serve,
+    command_shell,
+    command_validate,
+    command_visualize,
     pack_bundle,
     print_error,
     print_success,
@@ -219,7 +218,7 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """
     Main CLI entry point.
 

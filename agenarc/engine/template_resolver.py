@@ -10,7 +10,9 @@ VFS path resolution (agrc://...), and Jinja2-style control flow:
 """
 
 import re
-from typing import Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 
 class TemplateError(Exception):
@@ -31,10 +33,7 @@ def _get_context_value(key: str, context_getter: Callable[[str], Any]) -> Any:
         for part in parts[1:]:
             if obj is None:
                 return None
-            if isinstance(obj, dict):
-                obj = obj.get(part)
-            else:
-                obj = getattr(obj, part, None)
+            obj = obj.get(part) if isinstance(obj, dict) else getattr(obj, part, None)
         return obj
     return context_getter(key)
 
@@ -133,11 +132,11 @@ def _resolve_for_loops(text: str, context_getter: Callable[[str], Any]) -> str:
 
 
 def resolve_template(
-    text: Union[str, Any],
+    text: str | Any,
     context_getter: Callable[[str], Any],
     allow_missing: bool = False,
     max_depth: int = 10,
-) -> Union[str, Any]:
+) -> str | Any:
     """
     Resolve {{key}} placeholders in text with values from context.
 
@@ -217,11 +216,11 @@ def resolve_template(
 
 
 def resolve_template_dict(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     context_getter: Callable[[str], Any],
     allow_missing: bool = False,
     max_depth: int = 10,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Recursively resolve {{key}} placeholders in a dictionary.
 
@@ -287,7 +286,7 @@ def resolve_template_any(
 def resolve_vfs_path(
     value: str,
     bundle_path_getter: Callable[[], "Path"],
-    permissions: Optional[Dict[str, bool]] = None,
+    permissions: dict[str, bool] | None = None,
 ) -> str:
     """
     Resolve VFS path (agrc://...) to actual file content.
@@ -308,6 +307,7 @@ def resolve_vfs_path(
 
     try:
         from pathlib import Path
+
         from agenarc.vfs.filesystem import VFS, VFSError
 
         bundle_path = bundle_path_getter()
@@ -325,7 +325,7 @@ def resolve_vfs_and_template(
     value: Any,
     context_getter: Callable[[str], Any],
     bundle_path_getter: Callable[[], Any],
-    permissions: Optional[Dict[str, bool]] = None,
+    permissions: dict[str, bool] | None = None,
     allow_missing: bool = False,
     max_depth: int = 10,
 ) -> Any:

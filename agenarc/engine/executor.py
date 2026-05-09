@@ -17,14 +17,16 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+from agenarc.engine.evaluator import resolve_vfs_and_template
+from agenarc.engine.state import ExecutionContext, StateManager
+from agenarc.graph.traversal import GraphTraversal
 from agenarc.protocol.loader import ProtocolLoader
 from agenarc.protocol.schema import (
     AutonomyLevel,
-    Edge,
     ErrorHandling,
     ErrorStrategy,
     Graph,
@@ -32,13 +34,10 @@ from agenarc.protocol.schema import (
     NodeType,
     Permissions,
 )
-from agenarc.graph.traversal import GraphTraversal
-from agenarc.engine.state import StateManager, ExecutionContext
-from agenarc.engine.evaluator import resolve_vfs_and_template
 
 if TYPE_CHECKING:
-    from agenarc.plugins.manager import PluginManager
     from agenarc.operators.operator import IOperator
+    from agenarc.plugins.manager import PluginManager
 
 
 class NodeStatus(Enum):
@@ -63,8 +62,8 @@ class ExecutionResult:
     """Result of a node execution."""
     node_id: str
     status: NodeStatus
-    outputs: Dict[str, Any] = field(default_factory=dict)
-    error: Optional[Exception] = None
+    outputs: dict[str, Any] = field(default_factory=dict)
+    error: Exception | None = None
     duration_ms: float = 0
 
 
@@ -73,9 +72,9 @@ class GraphResult:
     """Result of a complete graph execution."""
     execution_id: str
     status: str  # "success", "failed", "partial"
-    node_results: Dict[str, ExecutionResult] = field(default_factory=dict)
-    final_outputs: Dict[str, Any] = field(default_factory=dict)
-    error: Optional[Exception] = None
+    node_results: dict[str, ExecutionResult] = field(default_factory=dict)
+    final_outputs: dict[str, Any] = field(default_factory=dict)
+    error: Exception | None = None
     duration_ms: float = 0
 
 
@@ -107,25 +106,25 @@ class ExecutionEngine:
         self.enable_checkpoint = enable_checkpoint
 
         # Internal state
-        self._graph: Optional[Graph] = None
-        self._traversal: Optional[GraphTraversal] = None
-        self._state: Optional[StateManager] = None
-        self._operators: Dict[str, "IOperator"] = {}
-        self._adjacency: Dict[str, List[str]] = {}  # For loop support
+        self._graph: Graph | None = None
+        self._traversal: GraphTraversal | None = None
+        self._state: StateManager | None = None
+        self._operators: dict[str, IOperator] = {}
+        self._adjacency: dict[str, list[str]] = {}  # For loop support
 
         # Manifest permissions (for Trust-based Autonomy)
         self._permissions: Permissions = Permissions()
 
         # Bundle path for VFS resolution
-        self._bundle_path: Optional[Any] = None
+        self._bundle_path: Any | None = None
 
         # Execution tracking
-        self._node_statuses: Dict[str, NodeStatus] = {}
-        self._node_errors: Dict[str, Exception] = {}
+        self._node_statuses: dict[str, NodeStatus] = {}
+        self._node_errors: dict[str, Exception] = {}
         self._execution_id: str = ""
 
         # Built-in operators registry
-        self._builtin_operators: Dict[str, type] = {}
+        self._builtin_operators: dict[str, type] = {}
 
         # Operator timeout
         self._operator_timeout: int = 300
@@ -146,16 +145,13 @@ class ExecutionEngine:
         manifest_path = Path(manifest_path)
 
         # If it's a directory, look for manifest.json inside
-        if manifest_path.is_dir():
-            manifest_file = manifest_path / "manifest.json"
-        else:
-            manifest_file = manifest_path
+        manifest_file = manifest_path / "manifest.json" if manifest_path.is_dir() else manifest_path
 
         if not manifest_file.exists():
             return  # Use defaults
 
         try:
-            with open(manifest_file, "r", encoding="utf-8") as f:
+            with open(manifest_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             permissions_data = data.get("permissions", {})
@@ -199,7 +195,7 @@ class ExecutionEngine:
         """
         self._bundle_path = bundle_path
 
-    def _find_source_nodes(self) -> List[Node]:
+    def _find_source_nodes(self) -> list[Node]:
         """
         Find all source nodes (nodes with no incoming data edges).
 
@@ -221,7 +217,7 @@ class ExecutionEngine:
         ]
         return source_nodes
 
-    def _get_entry_nodes(self) -> List[Node]:
+    def _get_entry_nodes(self) -> list[Node]:
         """
         Get entry node(s) for execution.
 
@@ -313,7 +309,7 @@ class ExecutionEngine:
 
     async def execute(
         self,
-        initial_inputs: Dict[str, Any] = None,
+        initial_inputs: dict[str, Any] = None,
         mode: ExecutionMode = ExecutionMode.ASYNC
     ) -> GraphResult:
         """
@@ -432,7 +428,7 @@ class ExecutionEngine:
             duration_ms=duration_ms
         )
 
-    async def _execute_sync(self, entry_nodes: List[Node]) -> None:
+    async def _execute_sync(self, entry_nodes: list[Node]) -> None:
         """
         Synchronous execution (sequential).
 
@@ -440,8 +436,8 @@ class ExecutionEngine:
             entry_nodes: Entry point node(s)
         """
         # Collect execution orders from all entry nodes and merge
-        all_order: List[str] = []
-        seen: Set[str] = set()
+        all_order: list[str] = []
+        seen: set[str] = set()
 
         for entry_node in entry_nodes:
             order = self._traversal.get_execution_order(entry_node.id)
@@ -455,7 +451,7 @@ class ExecutionEngine:
             if node:
                 await self._execute_node(node)
 
-    async def _execute_async(self, entry_nodes: List[Node]) -> None:
+    async def _execute_async(self, entry_nodes: list[Node]) -> None:
         """
         Async execution with dependency tracking.
 
@@ -465,8 +461,8 @@ class ExecutionEngine:
         Args:
             entry_nodes: Entry point node(s)
         """
-        executed: Set[str] = set()
-        pending: Set[str] = {
+        executed: set[str] = set()
+        pending: set[str] = {
             node.id for node in self._graph.nodes
         }
 
@@ -524,7 +520,7 @@ class ExecutionEngine:
                 executed.add(node_id)
                 pending.discard(node_id)
 
-    def _find_routing_target(self, source_node_id: str, source_port: str) -> Optional[str]:
+    def _find_routing_target(self, source_node_id: str, source_port: str) -> str | None:
         """
         Find the target node for a Router output.
 
@@ -545,9 +541,9 @@ class ExecutionEngine:
 
     def _topological_sort_subset(
         self,
-        node_ids: Set[str],
-        exclude: Set[str]
-    ) -> List[str]:
+        node_ids: set[str],
+        exclude: set[str]
+    ) -> list[str]:
         """
         Topological sort of a subset of nodes.
 
@@ -587,7 +583,7 @@ class ExecutionEngine:
 
         return result
 
-    async def _execute_parallel(self, entry_nodes: List[Node]) -> None:
+    async def _execute_parallel(self, entry_nodes: list[Node]) -> None:
         """
         Parallel execution with concurrency limiting.
 
@@ -595,8 +591,8 @@ class ExecutionEngine:
             entry_nodes: Entry point node(s)
         """
         semaphore = asyncio.Semaphore(self.max_parallel)
-        executed: Set[str] = set()
-        pending: Set[str] = {
+        executed: set[str] = set()
+        pending: set[str] = {
             node.id for node in self._graph.nodes
         }
 
@@ -640,7 +636,7 @@ class ExecutionEngine:
         """
         await self._execute_node_with_tracking(node)
 
-    async def _execute_node_with_tracking(self, node: Node) -> Optional[Dict[str, Any]]:
+    async def _execute_node_with_tracking(self, node: Node) -> dict[str, Any] | None:
         """
         Execute a single node and return outputs.
 
@@ -698,7 +694,7 @@ class ExecutionEngine:
         )
         # Strip sensitive keys (api_key, token, secret, password) from context
         # LLM_Task etc. read credentials from config.py directly, not from context
-        _sensitive_keys = {"api_key", "key", "token", "secret", "password", "api_key"}
+        _sensitive_keys = {"api_key", "key", "token", "secret", "password"}
         node_config = {k: v for k, v in node_config.items()
                        if not any(s in k.lower() for s in _sensitive_keys)}
         context.set("_node_type", node.type.value)
@@ -746,9 +742,9 @@ class ExecutionEngine:
     async def _safe_execute(
         self,
         operator: "IOperator",
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Safely execute operator with timeout.
 
@@ -768,7 +764,7 @@ class ExecutionEngine:
                 timeout=timeout
             )
             return result or {}
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(f"Operator execution timed out after {timeout}s")
 
     async def _handle_node_error(
@@ -852,7 +848,7 @@ class ExecutionEngine:
                 self._state.store_output(node.id, {"_error": str(self._node_errors[node.id])})
                 await self._execute_node(fallback)
 
-    def _resolve_inputs(self, node: Node) -> Dict[str, Any]:
+    def _resolve_inputs(self, node: Node) -> dict[str, Any]:
         """
         Resolve node inputs from upstream outputs and context.
 
@@ -896,7 +892,7 @@ class ExecutionEngine:
 
         return inputs
 
-    def _build_node_results(self) -> Dict[str, ExecutionResult]:
+    def _build_node_results(self) -> dict[str, ExecutionResult]:
         """Build node results dictionary."""
         results = {}
         for node_id, status in self._node_statuses.items():
@@ -909,7 +905,7 @@ class ExecutionEngine:
             )
         return results
 
-    def _collect_final_outputs(self) -> Dict[str, Any]:
+    def _collect_final_outputs(self) -> dict[str, Any]:
         """Collect final outputs from terminal nodes."""
         # Find nodes with no outgoing edges (terminal nodes)
         terminal_node_ids = set()
@@ -936,11 +932,11 @@ class ExecutionEngine:
         return self._running
 
     @property
-    def graph(self) -> Optional[Graph]:
+    def graph(self) -> Graph | None:
         """Get the loaded graph."""
         return self._graph
 
     @property
-    def state(self) -> Optional[StateManager]:
+    def state(self) -> StateManager | None:
         """Get the state manager."""
         return self._state

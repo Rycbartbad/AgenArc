@@ -5,7 +5,7 @@ Standard interface for all operators (plugins) in AgenArc.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from agenarc.engine.state import ExecutionContext
@@ -58,7 +58,7 @@ class IOperator(ABC):
         return ""
 
     @abstractmethod
-    def get_input_ports(self) -> List["Port"]:
+    def get_input_ports(self) -> list["Port"]:
         """
         Define input ports for this operator.
 
@@ -68,7 +68,7 @@ class IOperator(ABC):
         pass
 
     @abstractmethod
-    def get_output_ports(self) -> List["Port"]:
+    def get_output_ports(self) -> list["Port"]:
         """
         Define output ports for this operator.
 
@@ -80,9 +80,9 @@ class IOperator(ABC):
     @abstractmethod
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: "ExecutionContext"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute the operator.
 
@@ -98,7 +98,7 @@ class IOperator(ABC):
         """
         pass
 
-    async def validate(self, inputs: Dict[str, Any]) -> bool:
+    async def validate(self, inputs: dict[str, Any]) -> bool:
         """
         Validate inputs before execution.
 

@@ -6,7 +6,7 @@ import json
 import logging
 from pathlib import Path
 
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.protocol.loader import LoaderError, ProtocolLoader
 
 from . import _resolve_bundle_path, print_error
 
@@ -45,8 +45,8 @@ def command_info(file: Path) -> int:
             except Exception as e:
                 logger.warning("Failed to load manifest: %s", e)
 
-        print(f"AgenArc Protocol Information")
-        print(f"=" * 40)
+        print("AgenArc Protocol Information")
+        print("=" * 40)
         print(f"Version: {graph.version}")
         if manifest_name:
             print(f"Name: {manifest_name}")

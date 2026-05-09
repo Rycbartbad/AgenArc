@@ -4,11 +4,11 @@ Prompt Builder Operator
 Manages conversation message history with alternating role enforcement.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
+from agenarc.engine.state import ExecutionContext
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
-from agenarc.engine.state import ExecutionContext
 
 
 class Prompt_Builder_Operator(IOperator):
@@ -41,22 +41,22 @@ class Prompt_Builder_Operator(IOperator):
     def description(self) -> str:
         return "Build and manage conversation message history"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="user", type="string", description="User message", default=None),
             Port(name="assistant", type="string", description="Assistant message", default=None),
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="messages", type="array", description="Conversation messages list"),
         ]
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         user_msg = inputs.get("user")
         assistant_msg = inputs.get("assistant")
 

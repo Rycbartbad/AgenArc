@@ -5,17 +5,16 @@ Command: shell — Interactive REPL for agent execution.
 import asyncio
 import json
 import logging
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agenarc.engine.executor import ExecutionEngine, ExecutionMode
 from agenarc.engine.state import StateManager
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.protocol.loader import LoaderError
 
-from . import _resolve_bundle_path, _install_bundle_plugins, print_error
+from . import _install_bundle_plugins, _resolve_bundle_path, print_error
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +34,8 @@ class InteractiveREPL:
         self.verbose = verbose
         self.show_logs = show_logs
         self.show_results = False
-        self._history: List[str] = []
-        self._session_state: Optional[StateManager] = None  # Session-persistent StateManager
+        self._history: list[str] = []
+        self._session_state: StateManager | None = None  # Session-persistent StateManager
         self._session_initialized = False  # Flag: has Trigger run this session
         self._exec_mode: ExecutionMode = ExecutionMode.ASYNC  # Default execution mode
 
@@ -65,7 +64,7 @@ class InteractiveREPL:
             else:
                 print(result)
 
-    def _handle_command(self, line: str) -> Optional[bool]:
+    def _handle_command(self, line: str) -> bool | None:
         """
         Handle special REPL commands.
 
@@ -141,7 +140,7 @@ class InteractiveREPL:
         # Not a special command
         return None
 
-    def _execute_payload(self, payload: Dict[str, Any]) -> tuple:
+    def _execute_payload(self, payload: dict[str, Any]) -> tuple:
         """Execute payload and return (result, error, logs)."""
         exec_mode = self._exec_mode
 

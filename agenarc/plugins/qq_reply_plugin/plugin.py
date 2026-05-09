@@ -8,7 +8,7 @@ Uses a shared connection manager to avoid short-connection issues.
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class QQConnectionManager:
     """
 
     _instance: Optional['QQConnectionManager'] = None
-    _ws_connection: Optional[Any] = None
+    _ws_connection: Any | None = None
     _lock: asyncio.Lock = None
     _ws_url: str = "ws://127.0.0.1:3001"
     _token: str = ""
@@ -45,7 +45,6 @@ class QQConnectionManager:
     @classmethod
     def _load_config(cls):
         """Load config from agenarc config file."""
-        import os
         from pathlib import Path
         config_path = Path.home() / ".agenarc" / "config.yaml"
         if config_path.exists():
@@ -80,9 +79,9 @@ class QQConnectionManager:
     async def send_message(
         cls,
         action: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         timeout: float = 5.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Send a message via the shared connection.
 
@@ -117,7 +116,7 @@ class QQConnectionManager:
                         'error': resp_data.get('message') or resp_data.get('wording'),
                         'data': resp_data.get('data')
                     }
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Timeout waiting for QQ reply response")
         except Exception as e:
             logger.warning("QQ reply response error: %s", e)
@@ -184,9 +183,9 @@ class QQ_Reply_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         message = inputs.get('message', '')
         user_id = inputs.get('user_id')
         group_id = inputs.get('group_id', 0)
@@ -197,7 +196,7 @@ class QQ_Reply_Operator(IOperator):
 
         # Determine action and params
         action = 'send_private_msg' if message_type == 'private' else 'send_group_msg'
-        params: Dict[str, Any] = {'message': str(message)}
+        params: dict[str, Any] = {'message': str(message)}
 
         if message_type == 'private':
             params['user_id'] = user_id

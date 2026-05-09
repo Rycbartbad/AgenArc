@@ -20,7 +20,7 @@ Permission Model (rwx):
 
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class VFSError(Exception):
@@ -72,7 +72,7 @@ class VFS:
     def __init__(
         self,
         bundle_path: Path,
-        permissions: Optional[Dict[str, str]] = None
+        permissions: dict[str, str] | None = None
     ):
         """
         Initialize VFS with bundle path.
@@ -95,7 +95,7 @@ class VFS:
             self._permissions = {k.rstrip("/"): v for k, v in self._permissions.items()}
 
         # Permission cache for performance
-        self._permission_cache: Dict[str, str] = {}
+        self._permission_cache: dict[str, str] = {}
 
         # Validate bundle exists and is a directory
         if not self._bundle_path.exists():
@@ -429,7 +429,7 @@ class VFS:
         result.sort()
         return result
 
-    def render_template(self, vfs_path: str, context: Dict[str, Any]) -> str:
+    def render_template(self, vfs_path: str, context: dict[str, Any]) -> str:
         """
         Render template with context variables.
 

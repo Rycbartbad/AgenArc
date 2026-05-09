@@ -3,14 +3,13 @@ Command: pack — Pack a directory into a .agrc ZIP bundle.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from . import pack_bundle
 
 
 def command_pack(
     source: Path,
-    output: Optional[Path] = None,
+    output: Path | None = None,
     verbose: bool = False
 ) -> int:
     """

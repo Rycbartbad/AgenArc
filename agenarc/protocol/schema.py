@@ -6,11 +6,11 @@ Based on ARCHITECTURE.md DSL specification.
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any, Optional
 
 
-class NodeType(str, Enum):
+class NodeType(StrEnum):
     """Node type enumeration."""
     TRIGGER = "Trigger"
     LLM_TASK = "LLM_Task"
@@ -26,7 +26,7 @@ class NodeType(str, Enum):
     PROMPT_BUILDER = "Prompt_Builder"
 
 
-class ErrorStrategy(str, Enum):
+class ErrorStrategy(StrEnum):
     """Error handling strategies."""
     RETRY = "retry"
     FALLBACK = "fallback"
@@ -34,7 +34,7 @@ class ErrorStrategy(str, Enum):
     ABORT = "abort"
 
 
-class TriggerSource(str, Enum):
+class TriggerSource(StrEnum):
     """Trigger source types."""
     MANUAL = "manual"
     WEBHOOK = "webhook"
@@ -42,14 +42,14 @@ class TriggerSource(str, Enum):
     EVENT = "event"
 
 
-class MemoryMode(str, Enum):
+class MemoryMode(StrEnum):
     """Memory I/O modes."""
     READ = "read"
     WRITE = "write"
     DELETE = "delete"
 
 
-class AutonomyLevel(str, Enum):
+class AutonomyLevel(StrEnum):
     """
     Trust-based autonomy levels for Agent self-evolution.
 
@@ -65,7 +65,7 @@ class AutonomyLevel(str, Enum):
     LEVEL_3_SELF_EVOLVING = "level_3"
 
 
-class ConditionOperator(str, Enum):
+class ConditionOperator(StrEnum):
     """Condition operators."""
     EQ = "eq"
     NE = "ne"
@@ -102,7 +102,7 @@ class Port:
             import warnings
             warnings.warn(
                 f"Invalid port type '{self.type}' for port '{self.name}'. "
-                f"Valid types: {', '.join(sorted(VALID_PORT_TYPES))}"
+                f"Valid types: {', '.join(sorted(VALID_PORT_TYPES))}", stacklevel=2
             )
 
 
@@ -120,7 +120,7 @@ class Permissions:
     allow_prompt_write: bool = False
     allow_flow_modification: bool = False  # level_2+
     allow_manifest_modification: bool = False  # level_3
-    allowed_modules: List[str] = field(default_factory=list)
+    allowed_modules: list[str] = field(default_factory=list)
     autonomy_level: AutonomyLevel = AutonomyLevel.LEVEL_1_SUPERVISED
     gas_budget: int = 1000  # Expression evaluation gas limit
     max_memory_mb: int = 128  # SafeContext memory limit
@@ -149,8 +149,8 @@ class Manifest:
     entry: str = "flow.json"
     description: str = ""
     permissions: Permissions = field(default_factory=Permissions)
-    immutable_nodes: List[str] = field(default_factory=list)
-    immutable_anchors: List[ImmutableAnchor] = field(default_factory=list)
+    immutable_nodes: list[str] = field(default_factory=list)
+    immutable_anchors: list[ImmutableAnchor] = field(default_factory=list)
     hot_reload: bool = True
     gas_budget: int = 1000  # Expression evaluation gas limit
     max_memory_mb: int = 128  # SafeContext memory limit
@@ -162,26 +162,26 @@ class ErrorHandling:
     strategy: ErrorStrategy = ErrorStrategy.ABORT
     maxRetries: int = 0
     errorPort: str = "error"
-    fallbackNode: Optional[str] = None
+    fallbackNode: str | None = None
 
 
 @dataclass
 class Condition:
     """Condition expression for Router."""
-    ref: Optional[str] = None
-    operator: Optional[ConditionOperator] = None
+    ref: str | None = None
+    operator: ConditionOperator | None = None
     value: Any = None
-    output: Optional[str] = None
+    output: str | None = None
     # Combinators
-    and_conditions: Optional[List["Condition"]] = None
-    or_conditions: Optional[List["Condition"]] = None
+    and_conditions: list["Condition"] | None = None
+    or_conditions: list["Condition"] | None = None
     not_condition: Optional["Condition"] = None
 
 
 @dataclass
 class NodeConfig:
     """Node-specific configuration storage."""
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
@@ -209,21 +209,21 @@ class Node:
     description: str = ""
 
     # Ports
-    inputs: List[Port] = field(default_factory=list)
-    outputs: List[Port] = field(default_factory=list)
+    inputs: list[Port] = field(default_factory=list)
+    outputs: list[Port] = field(default_factory=list)
 
     # Configuration
     config: NodeConfig = field(default_factory=NodeConfig)
 
     # Error handling
-    errorHandling: Optional[ErrorHandling] = None
+    errorHandling: ErrorHandling | None = None
 
     # Checkpoint settings
     checkpoint: bool = False
     idempotent: bool = True
 
     # Node-type specific data
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -252,7 +252,7 @@ class GraphMetadata:
     author: str = ""
     version: str = "1.0.0"
     created: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -265,21 +265,21 @@ class Graph:
     version: str = "1.0.0"
     errorNode: str = ""  # Global error handler node ID
 
-    nodes: List[Node] = field(default_factory=list)
-    edges: List[Edge] = field(default_factory=list)
+    nodes: list[Node] = field(default_factory=list)
+    edges: list[Edge] = field(default_factory=list)
 
-    def get_node(self, node_id: str) -> Optional[Node]:
+    def get_node(self, node_id: str) -> Node | None:
         """Get node by ID."""
         for node in self.nodes:
             if node.id == node_id:
                 return node
         return None
 
-    def get_outgoing_edges(self, node_id: str) -> List[Edge]:
+    def get_outgoing_edges(self, node_id: str) -> list[Edge]:
         """Get all edges originating from a node."""
         return [e for e in self.edges if e.source == node_id]
 
-    def get_incoming_edges(self, node_id: str) -> List[Edge]:
+    def get_incoming_edges(self, node_id: str) -> list[Edge]:
         """Get all edges targeting a node."""
         return [e for e in self.edges if e.target == node_id]
 

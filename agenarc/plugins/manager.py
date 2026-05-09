@@ -4,10 +4,9 @@ Plugin Manager
 Manages dynamic loading of operator plugins with hot reload support.
 """
 
-import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from agenarc.plugins.hot_loader import (
     HotPluginLoader,
@@ -36,13 +35,13 @@ class PluginManager:
         operators = manager.list_operators()
     """
 
-    def __init__(self, plugin_dirs: Optional[List[str]] = None, bundle_paths: Optional[List[Path]] = None):
+    def __init__(self, plugin_dirs: list[str] | None = None, bundle_paths: list[Path] | None = None):
         self._plugin_dirs = plugin_dirs or []
         self._bundle_paths = bundle_paths or []  # Bundle-embedded plugin directories
-        self._operators: Dict[str, "IOperator"] = {}
-        self._plugins: Dict[str, PluginInfo] = {}
-        self._event_plugins: Dict[str, Any] = {}  # Loaded event plugin instances
-        self._hot_loader: Optional[HotPluginLoader] = None
+        self._operators: dict[str, IOperator] = {}
+        self._plugins: dict[str, PluginInfo] = {}
+        self._event_plugins: dict[str, Any] = {}  # Loaded event plugin instances
+        self._hot_loader: HotPluginLoader | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -136,7 +135,7 @@ class PluginManager:
 
         return None
 
-    def list_operators(self) -> List[str]:
+    def list_operators(self) -> list[str]:
         """
         List all registered operator names.
 
@@ -145,7 +144,7 @@ class PluginManager:
         """
         return list(self._operators.keys())
 
-    def list_plugins(self) -> List[PluginInfo]:
+    def list_plugins(self) -> list[PluginInfo]:
         """
         List all discovered plugins.
 
@@ -154,7 +153,7 @@ class PluginManager:
         """
         return list(self._plugins.values())
 
-    def get_plugin_manifest(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_manifest(self, plugin_name: str) -> dict[str, Any] | None:
         """
         Get the full agenarc.json manifest for a plugin.
 
@@ -173,7 +172,7 @@ class PluginManager:
             return None
         try:
             return _json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, _json.JSONDecodeError):
             return None
 
     def discover_plugins(self) -> None:
@@ -236,7 +235,7 @@ class PluginManager:
         logger.info("PluginManager shutdown complete")
 
     @property
-    def hot_loader(self) -> Optional[HotPluginLoader]:
+    def hot_loader(self) -> HotPluginLoader | None:
         """Get the hot plugin loader instance."""
         return self._hot_loader
 
@@ -247,7 +246,7 @@ class PluginManager:
 
     # Event Plugin Management
 
-    def get_event_plugin(self, plugin_name: str) -> Optional[Any]:
+    def get_event_plugin(self, plugin_name: str) -> Any | None:
         """
         Get an event plugin instance by name.
 
@@ -329,7 +328,7 @@ class PluginManager:
         for plugin_name in list(self._event_plugins.keys()):
             await self.stop_event_plugin(plugin_name)
 
-    def list_event_plugins(self) -> List[str]:
+    def list_event_plugins(self) -> list[str]:
         """
         List all registered event plugin names.
 

@@ -5,13 +5,14 @@ Emits events when nodes execute, complete, or fail.
 """
 
 import logging
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class ExecutionEvent(str, Enum):
+class ExecutionEvent(StrEnum):
     """Event types for execution visualization."""
     NODE_START = "node:start"
     NODE_COMPLETE = "node:complete"
@@ -34,18 +35,18 @@ class ExecutionEventEmitter:
     """
 
     def __init__(self):
-        self._listeners: List[Callable[[ExecutionEvent, Dict[str, Any]], None]] = []
+        self._listeners: list[Callable[[ExecutionEvent, dict[str, Any]], None]] = []
 
     def add_listener(
         self,
-        callback: Callable[[ExecutionEvent, Dict[str, Any]], None]
+        callback: Callable[[ExecutionEvent, dict[str, Any]], None]
     ) -> None:
         """Add an event listener."""
         self._listeners.append(callback)
 
     def remove_listener(
         self,
-        callback: Callable[[ExecutionEvent, Dict[str, Any]], None]
+        callback: Callable[[ExecutionEvent, dict[str, Any]], None]
     ) -> None:
         """Remove an event listener."""
         if callback in self._listeners:
@@ -54,7 +55,7 @@ class ExecutionEventEmitter:
     def emit(
         self,
         event_type: ExecutionEvent,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> None:
         """Emit event to all listeners."""
         for listener in self._listeners:
@@ -78,7 +79,7 @@ class ExecutionEventEmitter:
         self,
         node_id: str,
         execution_id: str,
-        outputs: Dict[str, Any]
+        outputs: dict[str, Any]
     ) -> None:
         """Emit node complete event."""
         self.emit(ExecutionEvent.NODE_COMPLETE, {
@@ -133,7 +134,7 @@ class ExecutionEventEmitter:
 
     def emit_context_update(
         self,
-        context: Dict[str, Any]
+        context: dict[str, Any]
     ) -> None:
         """Emit context update event."""
         self.emit(ExecutionEvent.CONTEXT_UPDATE, {

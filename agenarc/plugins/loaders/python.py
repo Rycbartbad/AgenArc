@@ -4,15 +4,14 @@ Python Plugin Loader
 Dynamically loads Python-based plugins using importlib.
 """
 
-import asyncio
 import importlib
 import importlib.util
-import logging
-import os
-import sys
 import json
+import logging
+import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +35,13 @@ class PythonPluginLoader:
     """
 
     def __init__(self):
-        self._plugins: Dict[str, Any] = {}  # module cache
+        self._plugins: dict[str, Any] = {}  # module cache
 
     async def discover(
         self,
         search_path: Path,
         callback: Callable[[Any], None]
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Discover Python plugins in a directory.
 
@@ -68,7 +67,7 @@ class PythonPluginLoader:
                 continue
 
             try:
-                with open(manifest_path, "r", encoding="utf-8") as f:
+                with open(manifest_path, encoding="utf-8") as f:
                     manifest = json.load(f)
 
                 from agenarc.plugins.hot_loader import PluginInfo
@@ -88,7 +87,7 @@ class PythonPluginLoader:
 
         return discovered
 
-    async def load(self, plugin_info: Any) -> Dict[str, Any]:
+    async def load(self, plugin_info: Any) -> dict[str, Any]:
         """
         Load a Python plugin and return its operators.
 
@@ -102,11 +101,11 @@ class PythonPluginLoader:
         plugin_dir = manifest_path.parent
 
         # Load manifest to get entry point
-        with open(manifest_path, "r", encoding="utf-8") as f:
+        with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
 
         entry_file = manifest.get("entry", "plugin.py")
-        module_name = manifest.get("name", plugin_dir.name)
+        manifest.get("name", plugin_dir.name)
 
         # Build module path
         plugin_file = plugin_dir / entry_file
@@ -183,6 +182,6 @@ class PythonPluginLoader:
             return True
         return False
 
-    def get_plugin(self, plugin_name: str) -> Optional[Any]:
+    def get_plugin(self, plugin_name: str) -> Any | None:
         """Get a loaded plugin module."""
         return self._plugins.get(plugin_name)

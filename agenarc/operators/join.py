@@ -4,7 +4,10 @@ Join Operator for AgenArc
 Provides synchronization for multiple parallel branches.
 """
 
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from agenarc.engine.state import ExecutionContext
 
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
@@ -41,22 +44,22 @@ class JoinOperator(IOperator):
     def description(self) -> str:
         return "Join multiple branches with configurable merge strategy"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         # Join does not declare fixed input ports
         return []
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="output", type="any", description="Merged output"),
         ]
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: "ExecutionContext"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         strategy = context.get("_join_strategy", self._default_strategy)
-        node_id = context.get("_node_id", "join")
+        context.get("_node_id", "join")
 
         # Collect all inputs from context based on edges
         # Edge format: source --sourcePort--> join

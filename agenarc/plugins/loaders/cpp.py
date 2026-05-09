@@ -4,14 +4,13 @@ Cpp Plugin Loader
 Loads C++ compiled plugins via ctypes/Foreign Function Interface.
 """
 
-import asyncio
 import ctypes
 import json
 import logging
-import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +40,8 @@ class CppPluginLoader:
     """
 
     def __init__(self):
-        self._libraries: Dict[str, ctypes.CDLL] = {}
-        self._factories: Dict[str, Any] = {}
+        self._libraries: dict[str, ctypes.CDLL] = {}
+        self._factories: dict[str, Any] = {}
 
     def _get_library_extension(self) -> str:
         """Get platform-specific library extension."""
@@ -57,7 +56,7 @@ class CppPluginLoader:
         self,
         search_path: Path,
         callback: Callable[[Any], None]
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Discover C++ plugins in a directory.
 
@@ -85,7 +84,7 @@ class CppPluginLoader:
                 continue
 
             try:
-                with open(manifest_path, "r", encoding="utf-8") as f:
+                with open(manifest_path, encoding="utf-8") as f:
                     manifest = json.load(f)
 
                 lib_name = manifest.get("library", f"lib{item.name}{lib_ext}")
@@ -112,7 +111,7 @@ class CppPluginLoader:
 
         return discovered
 
-    async def load(self, plugin_info: Any) -> Dict[str, Any]:
+    async def load(self, plugin_info: Any) -> dict[str, Any]:
         """
         Load a C++ plugin and return its operators.
 
@@ -126,7 +125,7 @@ class CppPluginLoader:
 
         # Load manifest
         manifest_path = lib_path.parent / "agenarc.json"
-        with open(manifest_path, "r", encoding="utf-8") as f:
+        with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
 
         # Load the shared library

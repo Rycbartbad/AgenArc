@@ -4,7 +4,7 @@ Command: validate — Validate an agent bundle or protocol file.
 
 from pathlib import Path
 
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.protocol.loader import LoaderError, ProtocolLoader
 
 from . import _resolve_bundle_path, print_error, print_success
 
@@ -26,7 +26,7 @@ def command_validate(file: Path) -> int:
         loader = ProtocolLoader(validate=True)
         graph = loader.load(protocol_path)
 
-        print_success(f"Protocol is valid")
+        print_success("Protocol is valid")
         print(f"  Version: {graph.version}")
         print(f"  Nodes: {len(graph.nodes)}")
         print(f"  Edges: {len(graph.edges)}")

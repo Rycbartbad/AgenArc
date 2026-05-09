@@ -8,11 +8,11 @@ import asyncio
 import json
 import logging
 import subprocess
-import sys
 import threading
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 class ExternalPluginConfig:
     """Configuration for an external plugin."""
     protocol: str = "stdio"  # "stdio", "http", "grpc"
-    command: List[str] = None  # For stdio protocol
+    command: list[str] = None  # For stdio protocol
     url: str = ""  # For http/grpc protocols
-    env: Dict[str, str] = None
+    env: dict[str, str] = None
     startup_timeout: float = 10.0
     request_timeout: float = 30.0
 
@@ -51,15 +51,15 @@ class ExternalPluginLoader:
     """
 
     def __init__(self):
-        self._processes: Dict[str, subprocess.Popen] = {}
-        self._configs: Dict[str, ExternalPluginConfig] = {}
+        self._processes: dict[str, subprocess.Popen] = {}
+        self._configs: dict[str, ExternalPluginConfig] = {}
         self._lock = threading.Lock()
 
     async def discover(
         self,
         search_path: Path,
         callback: Callable[[Any], None]
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Discover external plugins in a directory.
 
@@ -85,7 +85,7 @@ class ExternalPluginLoader:
                 continue
 
             try:
-                with open(manifest_path, "r", encoding="utf-8") as f:
+                with open(manifest_path, encoding="utf-8") as f:
                     manifest = json.load(f)
 
                 loader_type = manifest.get("loader", "")
@@ -121,7 +121,7 @@ class ExternalPluginLoader:
 
         return discovered
 
-    async def load(self, plugin_info: Any) -> Dict[str, Any]:
+    async def load(self, plugin_info: Any) -> dict[str, Any]:
         """
         Load an external plugin and return its operators.
 
@@ -155,7 +155,7 @@ class ExternalPluginLoader:
         self,
         plugin_name: str,
         config: ExternalPluginConfig
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Load a stdio-based external plugin."""
         if not config.command:
             logger.error(f"No command specified for stdio plugin: {plugin_name}")
@@ -212,7 +212,7 @@ class ExternalPluginLoader:
         self,
         plugin_name: str,
         config: ExternalPluginConfig
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Load an HTTP-based external plugin."""
         if not config.url:
             logger.error(f"No URL specified for HTTP plugin: {plugin_name}")
@@ -228,9 +228,8 @@ class ExternalPluginLoader:
                         return {}
 
             # Get operator list
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{config.url}/operators") as resp:
-                    data = await resp.json()
+            async with aiohttp.ClientSession() as session, session.get(f"{config.url}/operators") as resp:
+                data = await resp.json()
 
             operators = {}
             for op_name in data.get("operators", []):
@@ -254,8 +253,8 @@ class ExternalPluginLoader:
     async def _send_stdio_request(
         self,
         plugin_name: str,
-        request: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        request: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Send a JSON-RPC request to a stdio plugin."""
         process = self._processes.get(plugin_name)
         if not process or process.poll() is not None:
@@ -279,7 +278,7 @@ class ExternalPluginLoader:
 
             return json.loads(response_line)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"Timeout waiting for plugin response: {plugin_name}")
             return None
         except Exception as e:
@@ -291,7 +290,7 @@ class ExternalPluginLoader:
         plugin_name: str,
         operator_name: str,
         method: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> Any:
         """
         Call an operator method via IPC.
@@ -319,7 +318,7 @@ class ExternalPluginLoader:
         plugin_name: str,
         operator_name: str,
         method: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> Any:
         """Call operator via stdio."""
         request = {
@@ -343,7 +342,7 @@ class ExternalPluginLoader:
         plugin_name: str,
         operator_name: str,
         method: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> Any:
         """Call operator via HTTP."""
         config = self._configs.get(plugin_name)
@@ -351,16 +350,15 @@ class ExternalPluginLoader:
             raise ValueError(f"Unknown plugin: {plugin_name}")
 
         import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{config.url}/operators/{operator_name}/{method}",
-                json=params,
-                timeout=aiohttp.ClientTimeout(total=config.request_timeout),
-            ) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    raise RuntimeError(f"HTTP {resp.status}: {text}")
-                return await resp.json()
+        async with aiohttp.ClientSession() as session, session.post(
+            f"{config.url}/operators/{operator_name}/{method}",
+            json=params,
+            timeout=aiohttp.ClientTimeout(total=config.request_timeout),
+        ) as resp:
+            if resp.status != 200:
+                text = await resp.text()
+                raise RuntimeError(f"HTTP {resp.status}: {text}")
+            return await resp.json()
 
     def unload(self, plugin_name: str) -> bool:
         """
@@ -413,7 +411,7 @@ class ExternalOperatorWrapper:
         self._loader = loader
         self.base_url = base_url
 
-    async def execute(self, inputs: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: Any) -> dict[str, Any]:
         """Execute the operator via IPC."""
         return await self._loader.call_operator(
             self.plugin_name,
@@ -422,7 +420,7 @@ class ExternalOperatorWrapper:
             {"inputs": inputs, "context": {}},
         )
 
-    async def validate(self, inputs: Dict[str, Any]) -> bool:
+    async def validate(self, inputs: dict[str, Any]) -> bool:
         """Validate inputs via IPC."""
         try:
             result = await self._loader.call_operator(

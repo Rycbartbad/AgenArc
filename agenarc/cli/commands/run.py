@@ -5,19 +5,18 @@ Command: run — Execute an agent bundle or protocol file.
 import asyncio
 import json
 from pathlib import Path
-from typing import Optional
 
 from agenarc.engine.executor import ExecutionEngine, ExecutionMode
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.protocol.loader import LoaderError
 
-from . import _resolve_bundle_path, _install_bundle_plugins, print_error, print_success
+from . import _install_bundle_plugins, _resolve_bundle_path, print_error, print_success
 
 
 def command_run(
     file: Path,
-    input_json: Optional[str] = None,
+    input_json: str | None = None,
     mode: str = "async",
     verbose: bool = False
 ) -> int:

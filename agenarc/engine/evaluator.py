@@ -7,22 +7,21 @@ Sourced from two independent submodules:
 """
 
 from agenarc.engine.ast_evaluator import (
+    DANGEROUS_ATTRIBUTES,
+    ASTEvaluator,
     ASTEvaluatorError,
     GasExceededError,
     MemoryLimitError,
-    DANGEROUS_ATTRIBUTES,
     SafeContext,
-    ASTEvaluator,
     evaluate_expression,
 )
-
 from agenarc.engine.template_resolver import (
     TemplateError,
     resolve_template,
-    resolve_template_dict,
     resolve_template_any,
-    resolve_vfs_path,
+    resolve_template_dict,
     resolve_vfs_and_template,
+    resolve_vfs_path,
 )
 
 __all__ = [

@@ -10,11 +10,11 @@ Tracks graph execution state including:
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 
-class NodeStatus(str, Enum):
+class NodeStatus(StrEnum):
     """Node execution status."""
     PENDING = "pending"
     RUNNING = "running"
@@ -28,8 +28,8 @@ class TimelineEvent:
     """An event in the execution timeline."""
     timestamp: str
     event_type: str
-    node_id: Optional[str]
-    data: Dict[str, Any]
+    node_id: str | None
+    data: dict[str, Any]
 
 
 @dataclass
@@ -37,11 +37,11 @@ class GraphExecutionState:
     """Complete graph execution state."""
     execution_id: str
     status: str  # idle, running, paused, completed, failed
-    node_statuses: Dict[str, NodeStatus]
-    current_node_id: Optional[str]
-    start_time: Optional[str]
-    end_time: Optional[str]
-    timeline: List[TimelineEvent] = field(default_factory=list)
+    node_statuses: dict[str, NodeStatus]
+    current_node_id: str | None
+    start_time: str | None
+    end_time: str | None
+    timeline: list[TimelineEvent] = field(default_factory=list)
 
 
 class GraphStateTracker:
@@ -56,15 +56,15 @@ class GraphStateTracker:
     """
 
     def __init__(self):
-        self._execution_id: Optional[str] = None
+        self._execution_id: str | None = None
         self._status: str = "idle"
-        self._node_statuses: Dict[str, NodeStatus] = {}
-        self._node_outputs: Dict[str, Dict[str, Any]] = {}
-        self._context_snapshot: Dict[str, Any] = {}
-        self._current_node_id: Optional[str] = None
-        self._start_time: Optional[str] = None
-        self._end_time: Optional[str] = None
-        self._timeline: List[TimelineEvent] = []
+        self._node_statuses: dict[str, NodeStatus] = {}
+        self._node_outputs: dict[str, dict[str, Any]] = {}
+        self._context_snapshot: dict[str, Any] = {}
+        self._current_node_id: str | None = None
+        self._start_time: str | None = None
+        self._end_time: str | None = None
+        self._timeline: list[TimelineEvent] = []
 
     def reset(self) -> None:
         """Reset all tracked state."""
@@ -111,15 +111,15 @@ class GraphStateTracker:
     def record_node_output(
         self,
         node_id: str,
-        outputs: Dict[str, Any]
+        outputs: dict[str, Any]
     ) -> None:
         """Record node outputs."""
         self._node_outputs[node_id] = outputs
 
     def capture_context_snapshot(
         self,
-        global_context: Dict[str, Any],
-        local_context: Dict[str, Dict[str, Any]]
+        global_context: dict[str, Any],
+        local_context: dict[str, dict[str, Any]]
     ) -> None:
         """Capture current context state."""
         self._context_snapshot = {
@@ -144,19 +144,19 @@ class GraphStateTracker:
         """Get status for a specific node."""
         return self._node_statuses.get(node_id, NodeStatus.PENDING)
 
-    def get_node_outputs(self, node_id: str) -> Dict[str, Any]:
+    def get_node_outputs(self, node_id: str) -> dict[str, Any]:
         """Get outputs for a specific node."""
         return self._node_outputs.get(node_id, {})
 
-    def get_context_snapshot(self) -> Dict[str, Any]:
+    def get_context_snapshot(self) -> dict[str, Any]:
         """Get current context snapshot."""
         return self._context_snapshot.copy()
 
     def _add_timeline_event(
         self,
         event_type: str,
-        node_id: Optional[str],
-        data: Dict[str, Any]
+        node_id: str | None,
+        data: dict[str, Any]
     ) -> None:
         """Add an event to the timeline."""
         self._timeline.append(TimelineEvent(

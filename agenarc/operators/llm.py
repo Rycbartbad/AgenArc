@@ -5,13 +5,12 @@ LLM Task operator for calling language model APIs.
 Supports OpenAI-compatible APIs with streaming and provider fallback.
 """
 
-import asyncio
-import os
-from typing import Any, Dict, List, Optional, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
+from agenarc.engine.state import ExecutionContext
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
-from agenarc.engine.state import ExecutionContext
 
 
 def _get_llm_config():
@@ -20,7 +19,7 @@ def _get_llm_config():
     return get_config()
 
 
-def _normalize_error(exc: Exception) -> Dict[str, Any]:
+def _normalize_error(exc: Exception) -> dict[str, Any]:
     """Convert exception to structured error dict with type classification."""
     exc_str = str(exc)
     exc_type = type(exc).__name__.lower()
@@ -77,7 +76,7 @@ class LLM_Task_Operator(IOperator):
     """
 
     def __init__(self):
-        self._clients: Dict[str, Any] = {}
+        self._clients: dict[str, Any] = {}
 
     @property
     def name(self) -> str:
@@ -91,12 +90,12 @@ class LLM_Task_Operator(IOperator):
     def version(self) -> str:
         return "1.1.0"
 
-    def get_input_ports(self) -> List[Port]:
+    def get_input_ports(self) -> list[Port]:
         return [
             Port(name="messages", type="array", description="Conversation messages list", default=[]),
         ]
 
-    def get_output_ports(self) -> List[Port]:
+    def get_output_ports(self) -> list[Port]:
         return [
             Port(name="response", type="string", description="LLM response"),
             Port(name="usage", type="object", description="Token usage info"),
@@ -136,7 +135,7 @@ class LLM_Task_Operator(IOperator):
                 "Install with: pip install openai"
             )
 
-    def _get_provider_order(self, node_config: Dict[str, Any]) -> List[str]:
+    def _get_provider_order(self, node_config: dict[str, Any]) -> list[str]:
         """Get ordered list of providers to try (node config overrides global)."""
         # Explicit providers list in node config
         if "providers" in node_config:
@@ -147,10 +146,10 @@ class LLM_Task_Operator(IOperator):
             return [node_config["provider"]]
 
         # Default provider order from config
-        config = _get_llm_config()
+        _get_llm_config()
         return ["openai", "deepseek"]
 
-    async def _stream_response(self, client, model: str, messages: List[Dict], temperature: float) -> AsyncIterator[str]:
+    async def _stream_response(self, client, model: str, messages: list[dict], temperature: float) -> AsyncIterator[str]:
         """Yield response chunks via streaming."""
         stream = await client.chat.completions.create(
             model=model,
@@ -165,9 +164,9 @@ class LLM_Task_Operator(IOperator):
 
     async def execute(
         self,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute LLM inference with streaming and provider fallback.
 
@@ -272,7 +271,7 @@ class LLM_Task_Operator(IOperator):
             "error": error_info,
         }
 
-    async def validate(self, inputs: Dict[str, Any]) -> bool:
+    async def validate(self, inputs: dict[str, Any]) -> bool:
         """Validate inputs before execution."""
         return "messages" in inputs
 

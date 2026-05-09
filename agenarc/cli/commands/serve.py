@@ -3,18 +3,16 @@ Command: serve — Start agent as a background service with event plugins.
 """
 
 import asyncio
-import json
 import logging
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agenarc.engine.executor import ExecutionEngine, ExecutionMode
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.protocol.loader import LoaderError
 
-from . import _resolve_bundle_path, _install_bundle_plugins, print_error
+from . import _install_bundle_plugins, _resolve_bundle_path, print_error
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +20,8 @@ logger = logging.getLogger(__name__)
 async def _start_event_plugins(
     engine: ExecutionEngine,
     plugin_manager: PluginManager,
-    selected_plugins: Optional[List[str]] = None,
-    plugin_configs: Optional[Dict[str, Dict[str, Any]]] = None
+    selected_plugins: list[str] | None = None,
+    plugin_configs: dict[str, dict[str, Any]] | None = None
 ) -> None:
     """
     Start event plugins and register them with the plugin manager.
@@ -61,7 +59,7 @@ async def _start_event_plugins(
                 auto_detected_plugins.append((node.id, plugin_name))
 
     # Load and start each detected plugin
-    for node_id, plugin_name in auto_detected_plugins:
+    for _node_id, plugin_name in auto_detected_plugins:
         plugin_instance = None
 
         # 1) Try built-in plugin (e.g. qq)
@@ -81,8 +79,8 @@ async def _start_event_plugins(
         elif engine._bundle_path:
             plugins_root = engine._bundle_path / "plugins"
             if plugins_root.exists():
-                import json as _json
                 import importlib.util as _util
+                import json as _json
                 found = False
                 for subdir in plugins_root.iterdir():
                     if not subdir.is_dir():
@@ -217,7 +215,7 @@ def command_serve(
         engine.set_bundle_path(bundle_path)
 
     # Choose execution mode
-    exec_mode = {
+    {
         "sync": ExecutionMode.SYNC,
         "async": ExecutionMode.ASYNC,
         "parallel": ExecutionMode.PARALLEL
@@ -274,7 +272,7 @@ def command_serve(
                 plugin_manager.stop_all_event_plugins(),
                 timeout=5.0
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Timeout stopping event plugins during shutdown")
         except Exception as e:
             logger.warning("Failed to stop event plugins: %s", e)
@@ -285,7 +283,7 @@ def command_serve(
                 plugin_manager.shutdown(),
                 timeout=5.0
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Timeout shutting down plugin manager")
         except Exception as e:
             logger.warning("Failed to shutdown plugin manager: %s", e)

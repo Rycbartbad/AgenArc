@@ -78,12 +78,24 @@ filterwarnings = [
 
 [tool.ruff]
 target-version = "py311"
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["N801", "N805", "N806", "N815", "N817"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"agenarc/cli/commands/__init__.py" = ["E402"]
+"agenarc/engine/executor.py" = ["E402"]
+"agenarc/operators/builtin.py" = ["E402"]
+"agenarc/visualization/server.py" = ["E402"]
+"agenarc/plugins/hot_loader.py" = ["E402"]
+"agenarc/plugins/qq_reply_plugin/plugin.py" = ["E402"]
+"agenarc/protocol/loader.py" = ["E402"]
+"agenarc/plugins/loaders/external.py" = ["E402"]
+"agenarc/operators/operator.py" = ["B027"]
+"agenarc/plugins/event_plugin.py" = ["B027"]
 
 [tool.mypy]
 python_version = "3.11"

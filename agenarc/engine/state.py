@@ -7,16 +7,16 @@ Hierarchical state management for AgenArc execution:
 - Checkpoints (for interruption and recovery)
 """
 
-import asyncio
 import copy
 import json
 import time
 import uuid
 import warnings
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 
 
 @dataclass
@@ -25,9 +25,9 @@ class Checkpoint:
     id: str
     label: str
     timestamp: float
-    global_state: Dict[str, Any]
-    local_states: Dict[str, Dict[str, Any]]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    global_state: dict[str, Any]
+    local_states: dict[str, dict[str, Any]]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class CheckpointManager:
@@ -45,7 +45,7 @@ class CheckpointManager:
 
     def __init__(
         self,
-        checkpoint_dir: Optional[Path] = None,
+        checkpoint_dir: Path | None = None,
         max_checkpoints: int = 100
     ):
         """
@@ -93,7 +93,7 @@ class CheckpointManager:
 
         return checkpoint.id
 
-    def load_checkpoint(self, checkpoint_id: str, execution_id: str) -> Optional[Checkpoint]:
+    def load_checkpoint(self, checkpoint_id: str, execution_id: str) -> Checkpoint | None:
         """
         Load checkpoint from disk or memory.
 
@@ -111,7 +111,7 @@ class CheckpointManager:
         # Try to load from disk
         return self._load_from_disk(checkpoint_id, execution_id)
 
-    def list_checkpoints(self, execution_id: str) -> List[Checkpoint]:
+    def list_checkpoints(self, execution_id: str) -> list[Checkpoint]:
         """
         List all checkpoints for an execution.
 
@@ -133,9 +133,8 @@ class CheckpointManager:
 
         # Add memory checkpoints
         for checkpoint in self._checkpoints.values():
-            if checkpoint.metadata.get("execution_id") == execution_id:
-                if checkpoint not in checkpoints:
-                    checkpoints.append(checkpoint)
+            if checkpoint.metadata.get("execution_id") == execution_id and checkpoint not in checkpoints:
+                checkpoints.append(checkpoint)
 
         # Sort by timestamp
         checkpoints.sort(key=lambda c: c.timestamp)
@@ -205,7 +204,7 @@ class CheckpointManager:
             json.dump(data, f, default=str)
         tmp_path.replace(file_path)
 
-    def _load_from_disk(self, checkpoint_id: str, execution_id: str) -> Optional[Checkpoint]:
+    def _load_from_disk(self, checkpoint_id: str, execution_id: str) -> Checkpoint | None:
         """Load checkpoint from disk."""
         file_path = self._get_checkpoint_path(checkpoint_id, execution_id)
 
@@ -214,10 +213,10 @@ class CheckpointManager:
 
         return self._read_checkpoint_file(file_path)
 
-    def _read_checkpoint_file(self, file_path: Path) -> Optional[Checkpoint]:
+    def _read_checkpoint_file(self, file_path: Path) -> Checkpoint | None:
         """Read checkpoint from file."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             return Checkpoint(
@@ -244,11 +243,11 @@ class CheckpointManager:
 class StateChange:
     """Represents a state change event."""
     scope: str  # "global", "local", "checkpoint", "restore"
-    node_id: Optional[str] = None
-    key: Optional[str] = None
+    node_id: str | None = None
+    key: str | None = None
     old_value: Any = None
     new_value: Any = None
-    checkpoint_id: Optional[str] = None
+    checkpoint_id: str | None = None
 
 
 class StateManager:
@@ -278,36 +277,36 @@ class StateManager:
         self,
         max_checkpoints: int = 100,
         auto_checkpoint: bool = False,
-        large_object_keys: List[str] = None,
+        large_object_keys: list[str] = None,
         strict_mode: bool = False,
-        checkpoint_manager: Optional[CheckpointManager] = None,
+        checkpoint_manager: CheckpointManager | None = None,
     ):
         self._max_checkpoints = max_checkpoints
         self._auto_checkpoint = auto_checkpoint
         self._checkpoint_manager = checkpoint_manager
 
         # Copy-on-write configuration
-        self._large_object_keys: Set[str] = set(large_object_keys or [])
+        self._large_object_keys: set[str] = set(large_object_keys or [])
         self._strict_mode = strict_mode
 
         # Global context (shared across all nodes)
-        self._global: Dict[str, Any] = {}
+        self._global: dict[str, Any] = {}
 
         # Per-node local states
-        self._local: Dict[str, Dict[str, Any]] = {}
+        self._local: dict[str, dict[str, Any]] = {}
 
         # Transactional memory storage
-        self._transactional_pending: Dict[str, Any] = {}
+        self._transactional_pending: dict[str, Any] = {}
         self._transactional_enabled: bool = False
 
         # Checkpoints
         self._checkpoints: OrderedDict[str, Checkpoint] = OrderedDict()
 
         # State change listeners
-        self._listeners: List[Callable[[StateChange], None]] = []
+        self._listeners: list[Callable[[StateChange], None]] = []
 
         # Object ID tracking for in-place mutation detection
-        self._origin_ids: Dict[str, int] = {}
+        self._origin_ids: dict[str, int] = {}
 
         # Execution metadata
         self._execution_id: str = ""
@@ -461,7 +460,7 @@ class StateManager:
             new_value=value
         ))
 
-    def get_node_state(self, node_id: str) -> Dict[str, Any]:
+    def get_node_state(self, node_id: str) -> dict[str, Any]:
         """
         Get entire local state for a node.
 
@@ -476,7 +475,7 @@ class StateManager:
     def set_node_state(
         self,
         node_id: str,
-        state: Dict[str, Any]
+        state: dict[str, Any]
     ) -> None:
         """
         Set entire local state for a node.
@@ -516,7 +515,7 @@ class StateManager:
     def store_output(
         self,
         node_id: str,
-        outputs: Dict[str, Any]
+        outputs: dict[str, Any]
     ) -> None:
         """
         Store node outputs for downstream consumption.
@@ -560,7 +559,7 @@ class StateManager:
         outputs = self._local.get(node_id, {}).get("_outputs", {})
         return outputs.get(port_name)
 
-    def get_node_outputs(self, node_id: str) -> Dict[str, Any]:
+    def get_node_outputs(self, node_id: str) -> dict[str, Any]:
         """
         Get all outputs from a node.
 
@@ -650,7 +649,7 @@ class StateManager:
 
         return True
 
-    def get_checkpoint(self, checkpoint_id: str) -> Optional[Checkpoint]:
+    def get_checkpoint(self, checkpoint_id: str) -> Checkpoint | None:
         """
         Get checkpoint metadata without restoring.
 
@@ -662,7 +661,7 @@ class StateManager:
         """
         return self._checkpoints.get(checkpoint_id)
 
-    def list_checkpoints(self) -> List[Checkpoint]:
+    def list_checkpoints(self) -> list[Checkpoint]:
         """
         List all checkpoints.
 
@@ -671,7 +670,7 @@ class StateManager:
         """
         return list(self._checkpoints.values())
 
-    def get_latest_checkpoint(self) -> Optional[Checkpoint]:
+    def get_latest_checkpoint(self) -> Checkpoint | None:
         """
         Get the most recent checkpoint.
 
@@ -684,7 +683,7 @@ class StateManager:
 
     # ========== Snapshot & Restore ==========
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """
         Create a snapshot of entire state.
 
@@ -702,7 +701,7 @@ class StateManager:
             "checkpoint_ids": list(self._checkpoints.keys())
         }
 
-    def restore_snapshot(self, snapshot: Dict[str, Any]) -> None:
+    def restore_snapshot(self, snapshot: dict[str, Any]) -> None:
         """
         Restore state from snapshot.
 
@@ -769,7 +768,7 @@ class ExecutionContext:
 
     def __init__(self, state_manager: StateManager):
         self._state = state_manager
-        self._cache: Dict[str, Any] = {}  # CoW cache for large objects
+        self._cache: dict[str, Any] = {}  # CoW cache for large objects
 
     @property
     def execution_id(self) -> str:
@@ -847,7 +846,7 @@ class ExecutionContext:
                     f"data races in PARALLEL mode. Declare it in "
                     f"manifest.json context.large_object_keys or use "
                     f"context.set() instead of direct mutation.",
-                    RuntimeWarning
+                    RuntimeWarning, stacklevel=2
                 )
                 # Update tracking to avoid repeated warnings
                 self._state._origin_ids[key] = current_id
@@ -856,7 +855,7 @@ class ExecutionContext:
         """Get output from a specific node port."""
         return self._state.get_output(node_id, port_name)
 
-    def get_node_outputs(self, node_id: str) -> Dict[str, Any]:
+    def get_node_outputs(self, node_id: str) -> dict[str, Any]:
         """Get all outputs from a node."""
         return self._state.get_node_outputs(node_id)
 
@@ -868,10 +867,10 @@ class ExecutionContext:
         """Restore from checkpoint."""
         return self._state.restore(checkpoint_id)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Create a full state snapshot."""
         return self._state.snapshot()
 
-    def restore_snapshot(self, snapshot: Dict[str, Any]) -> None:
+    def restore_snapshot(self, snapshot: dict[str, Any]) -> None:
         """Restore from snapshot."""
         self._state.restore_snapshot(snapshot)

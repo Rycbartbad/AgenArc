@@ -11,21 +11,18 @@ import datetime
 import hashlib
 import json
 import logging
-import mimetypes
-import os
 import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-from typing import Any, Dict, Optional, Set
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 WS_MAGIC = "258EAFA5-E914-47DA-95CA-5AB9DC11B85B"
 
 from agenarc.engine.executor import ExecutionEngine
-from agenarc.protocol.loader import ProtocolLoader
-from agenarc.protocol.schema import Graph, Node, Edge, NodeConfig, Port
-from agenarc.visualization.events import ExecutionEventEmitter, ExecutionEvent
+from agenarc.protocol.schema import Edge, Graph, Node, NodeConfig
+from agenarc.visualization.events import ExecutionEventEmitter
 from agenarc.visualization.state import GraphStateTracker, NodeStatus
 
 
@@ -60,25 +57,25 @@ class VisualizationServer:
         engine: ExecutionEngine,
         host: str = "localhost",
         port: int = 8765,
-        bundle_path: Optional[str] = None,
-        protocol_path: Optional[str] = None,
+        bundle_path: str | None = None,
+        protocol_path: str | None = None,
     ):
         self.engine = engine
         self.host = host
         self.port = port
         self.bundle_path = bundle_path
         self._protocol_path = protocol_path
-        self._ws_connections: Set[Any] = set()
+        self._ws_connections: set[Any] = set()
         self._event_emitter = ExecutionEventEmitter()
         self._state_tracker = GraphStateTracker()
         self._running = False
-        self._server: Optional[Any] = None
+        self._server: Any | None = None
         self._session_state: Any = None  # Persistent state for multi-turn
         self._is_serving = False
         self._serve_status = {"status": "stopped", "plugins": [], "error": None}
-        self._last_event_result: Optional[Dict[str, Any]] = None
+        self._last_event_result: dict[str, Any] | None = None
         self._event_seq = 0
-        self._serve_buffer: Optional[LiveBuffer] = None
+        self._serve_buffer: LiveBuffer | None = None
         self._serve_buffer_idx = 0
 
     @property
@@ -121,7 +118,7 @@ class VisualizationServer:
             try:
                 self._server.close()
                 await asyncio.wait_for(self._server.wait_closed(), timeout=5)
-            except (AttributeError, asyncio.TimeoutError, Exception) as e:
+            except (TimeoutError, AttributeError, Exception) as e:
                 logger.warning("Failed to close server socket on stop: %s", e)
         logger.info("[VISUALIZATION] Server stopped")
 
@@ -229,7 +226,7 @@ class VisualizationServer:
         self,
         method: str,
         path: str,
-        headers: Dict[str, str],
+        headers: dict[str, str],
         body: bytes
     ) -> bytes:
         """Route HTTP request to appropriate handler."""
@@ -324,7 +321,7 @@ class VisualizationServer:
         # Not found — serve frontend for SPA routing
         return self._json_response({"error": "Not found"}, status=404)
 
-    async def _start_service(self) -> Dict[str, Any]:
+    async def _start_service(self) -> dict[str, Any]:
         """Start event plugins in service mode (like CLI's `agenarc serve`).
 
         Returns:
@@ -359,7 +356,6 @@ class VisualizationServer:
             self._serve_status = {"status": "idle", "plugins": [], "error": None}
             return self._serve_status
 
-        import importlib
         import importlib.util as _util
         import json as _json
 
@@ -476,7 +472,7 @@ class VisualizationServer:
         }
         return self._serve_status
 
-    def _node_to_dict(self, n: Any) -> Dict[str, Any]:
+    def _node_to_dict(self, n: Any) -> dict[str, Any]:
         """Convert a Node to a dict. Plugin ports from agenarc.json manifest."""
         base = {
             "id": n.id,
@@ -522,10 +518,7 @@ class VisualizationServer:
                             if src_node:
                                 src_dict = self._node_to_dict(src_node)
                                 source_ports = [p["name"] for p in src_dict.get("outputs", [])]
-                            if edge.sourcePort:
-                                ports_to_add = [edge.sourcePort]
-                            else:
-                                ports_to_add = source_ports
+                            ports_to_add = [edge.sourcePort] if edge.sourcePort else source_ports
                             for p in ports_to_add:
                                 out_name = f"{edge.source}_{p}"
                                 if out_name not in seen:
@@ -553,7 +546,7 @@ class VisualizationServer:
 
         return base
 
-    def _get_graph(self) -> Dict[str, Any]:
+    def _get_graph(self) -> dict[str, Any]:
         """Get current graph data."""
         if not self.engine._graph:
             return {"version": "1.0.0", "nodes": [], "edges": []}
@@ -580,7 +573,7 @@ class VisualizationServer:
         except (AttributeError, TypeError):
             return {"version": "1.0.0", "nodes": [], "edges": []}
 
-    def _save_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _save_graph(self, data: dict[str, Any]) -> dict[str, Any]:
         """Save graph data — update engine state with frontend changes and persist to disk."""
         try:
             if "nodes" not in data or "edges" not in data:
@@ -591,7 +584,7 @@ class VisualizationServer:
             # Build node lookup: map type string -> NodeType enum
             type_map = {t.value: t for t in NT}
             # Build frontend node lookup by id
-            fe_nodes = {n["id"]: n for n in data["nodes"]}
+            {n["id"]: n for n in data["nodes"]}
 
             # Convert frontend node dicts to backend Node objects
             converted_nodes = []
@@ -693,7 +686,6 @@ class VisualizationServer:
                 ],
             }
 
-            import tempfile
             tmp_path = file_path.with_suffix(".flow.tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(flow_data, f, ensure_ascii=False, indent=2)
@@ -701,7 +693,7 @@ class VisualizationServer:
         except Exception as e:
             logger.warning("Failed to persist graph to disk: %s", e)
 
-    async def _execute_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_graph(self, data: dict[str, Any]) -> dict[str, Any]:
         """Execute graph synchronously and return full results."""
         if not self.engine._graph or not self.engine._graph.nodes:
             return {"error": "No graph loaded", "status": "failed"}
@@ -762,7 +754,7 @@ class VisualizationServer:
                 },
                 "durationMs": result.duration_ms,
             }
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._state_tracker.end_execution("timeout")
             return {"status": "timeout", "error": "Execution timed out"}
         except Exception as e:
@@ -783,7 +775,7 @@ class VisualizationServer:
         self.engine.stop()
         self._state_tracker.end_execution("stopped")
 
-    def _get_execution_status(self) -> Dict[str, Any]:
+    def _get_execution_status(self) -> dict[str, Any]:
         """Get current execution status."""
         state = self._state_tracker.get_current_state()
         return {
@@ -795,7 +787,7 @@ class VisualizationServer:
             "nodeStatuses": {k: v.value for k, v in state.node_statuses.items()},
         }
 
-    def _get_node_outputs(self, node_id: str) -> Dict[str, Any]:
+    def _get_node_outputs(self, node_id: str) -> dict[str, Any]:
         """Get outputs for a specific node."""
         outputs = self._state_tracker.get_node_outputs(node_id)
         status = self._state_tracker.get_node_status(node_id)
@@ -805,13 +797,13 @@ class VisualizationServer:
             "status": status.value,
         }
 
-    def _get_context_state(self) -> Dict[str, Any]:
+    def _get_context_state(self) -> dict[str, Any]:
         """Get current context state from engine and tracker.
 
         Returns live engine state directly (not stale tracker snapshots).
         engine._state is the authoritative source after execution completes.
         """
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
 
         # Primary: pull directly from engine's live StateManager
         if self.engine._state is not None:
@@ -848,9 +840,8 @@ class VisualizationServer:
                     if local:
                         node_outputs = {}
                         for node_id, st in local.items():
-                            if isinstance(st, dict) and "_outputs" in st:
-                                if st["_outputs"]:
-                                    node_outputs[node_id] = st["_outputs"]
+                            if isinstance(st, dict) and "_outputs" in st and st["_outputs"]:
+                                node_outputs[node_id] = st["_outputs"]
                         if node_outputs:
                             result["nodeOutputs"] = node_outputs
 
@@ -935,7 +926,7 @@ class VisualizationServer:
 
     def _json_response(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         status: int = 200
     ) -> bytes:
         """Generate JSON HTTP response."""

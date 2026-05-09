@@ -8,8 +8,8 @@ Supports OneBot v11 protocol.
 import asyncio
 import json
 import logging
-import signal
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +41,21 @@ class QQ_Event_Plugin:
         self.token: str = ""  # NapCat token (if required)
         self.auto_reconnect: bool = True
         self.reconnect_interval: int = 5
-        self.filter_groups: List[int] = []
-        self.filter_users: List[int] = []
+        self.filter_groups: list[int] = []
+        self.filter_users: list[int] = []
         self.accept_private: bool = True
         self.accept_group: bool = True
 
         # Internal state
-        self._trigger_callback: Optional[Callable[[Dict[str, Any]], None]] = None
-        self._stop_event: Optional[asyncio.Event] = None
-        self._listener_task: Optional[asyncio.Task] = None
-        self._ws_connection: Optional[Any] = None
+        self._trigger_callback: Callable[[dict[str, Any]], None] | None = None
+        self._stop_event: asyncio.Event | None = None
+        self._listener_task: asyncio.Task | None = None
+        self._ws_connection: Any | None = None
         self._running: bool = False
         self._connected_logged: bool = False
         self._ws_url_with_token: str = ""
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the plugin from agenarc.json config."""
         self.ws_url = config.get("ws_url", self.ws_url)
         self.token = config.get("token", self.token)
@@ -67,7 +67,7 @@ class QQ_Event_Plugin:
         self.accept_group = config.get("accept_group", self.accept_group)
 
     @property
-    def config_schema(self) -> Dict[str, Any]:
+    def config_schema(self) -> dict[str, Any]:
         """Return configuration schema for documentation."""
         return {
             "ws_url": {
@@ -114,7 +114,7 @@ class QQ_Event_Plugin:
             }
         }
 
-    async def start(self, trigger_callback: Callable[[Dict[str, Any]], None]) -> None:
+    async def start(self, trigger_callback: Callable[[dict[str, Any]], None]) -> None:
         """
         Start listening for QQ messages.
 
@@ -161,7 +161,7 @@ class QQ_Event_Plugin:
                     await self._listener_task
             except asyncio.CancelledError:
                 logger.debug("Listener task cancelled during stop")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._listener_task.cancel()
 
     async def _listen_websocket(self) -> None:
@@ -191,7 +191,7 @@ class QQ_Event_Plugin:
                 break
             except asyncio.CancelledError:
                 return
-            except Exception as e:
+            except Exception:
                 # If stop was requested or we're not running, exit immediately
                 if self._stop_event.is_set() or not self._running:
                     break
@@ -258,7 +258,7 @@ class QQ_Event_Plugin:
         except json.JSONDecodeError as e:
             logger.error(f"[QQ Plugin] Failed to parse message: {e}")
 
-    def _extract_text_from_segments(self, segments: List[Dict]) -> str:
+    def _extract_text_from_segments(self, segments: list[dict]) -> str:
         """Extract plain text from OneBot message segments."""
         text_parts = []
         for segment in segments:
@@ -284,7 +284,7 @@ class QQ_Event_Plugin:
             else:
                 # For unknown types, try to extract any text
                 if isinstance(data, dict):
-                    for key, value in data.items():
+                    for _key, value in data.items():
                         if isinstance(value, str):
                             text_parts.append(value)
 
