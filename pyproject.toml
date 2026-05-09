@@ -2,46 +2,53 @@
 name = "agenarc"
 version = "0.1.0"
 description = "Directed-graph Agent Orchestration Engine"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Rycbartbad" },
 ]
+keywords = ["agent", "orchestration", "graph", "workflow", "llm", "ai"]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 
 dependencies = [
-    # 核心
-    "pyyaml",             # config.yaml 加载
-    "jsonschema",         # 协议 JSON Schema 校验
-    "openai",             # LLM_Task 算子
-
-    # 插件系统（可选但为运行必须的）
-    "websockets",         # Script_Node developer mode + QQ 插件
+    "pyyaml>=6.0",
+    "jsonschema>=4.20",
+    "openai>=1.0",
 ]
 
 [project.optional-dependencies]
 llm = [
-    "anthropic",          # Anthropic_Task_Operator
+    "anthropic>=0.30",
 ]
 plugins = [
-    "watchdog",           # HotPluginLoader 文件监听
-    "aiohttp",            # ExternalPluginLoader HTTP
-    "websockets",         # QQ 事件插件
+    "watchdog>=4.0",
+    "aiohttp>=3.9",
+    "websockets>=12.0",
 ]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
-    "pytest-cov",
-]
-test = [
-    "pytest>=8",
-    "pytest-asyncio>=0.24",
-    "pytest-cov",
+    "pytest-cov>=5.0",
+    "ruff>=0.3",
+    "mypy>=1.8",
 ]
 euchea = [
-    "keyboard",           # 全局热键
-    "markitdown",         # PDF→MD
-    "pdfplumber",         # PDF 备选
-    "PyMuPDF",            # PDF 备选
+    "keyboard>=0.13",
+    "markitdown>=0.1",
+    "pdfplumber>=0.10",
+    "PyMuPDF>=1.23",
 ]
 
 [project.scripts]
@@ -58,6 +65,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["agenarc*"]
 
+[tool.setuptools.package-data]
+agenarc = ["visualization/static/*", "prompts/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
@@ -70,11 +80,14 @@ filterwarnings = [
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 
-[dependency-groups]
-dev = [
-    "pytest>=8",
-    "pytest-asyncio>=0.24",
-    "pytest-cov",
-]
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
