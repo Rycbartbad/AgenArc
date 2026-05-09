@@ -53,11 +53,18 @@ class Config:
         if env_overrides:
             self._apply_env_overrides()
 
+    _instance_lock: "threading.Lock" = None
+
     @classmethod
     def get_instance(cls) -> "Config":
-        """Get singleton instance."""
+        """Get singleton instance with thread safety."""
         if cls._instance is None:
-            cls._instance = Config()
+            import threading
+            if cls._instance_lock is None:
+                cls._instance_lock = threading.Lock()
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = Config()
         return cls._instance
 
     def _load_config(self) -> None:
@@ -91,19 +98,22 @@ class Config:
 
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides."""
-        # OpenAI
-        if os.environ.get("AGENARC_OPENAI_API_KEY"):
-            self._config.setdefault("openai", {})["api_key"] = os.environ["AGENARC_OPENAI_API_KEY"]
-        if os.environ.get("AGENARC_OPENAI_BASE_URL"):
-            self._config.setdefault("openai", {})["base_url"] = os.environ["AGENARC_OPENAI_BASE_URL"]
-        if os.environ.get("AGENARC_OPENAI_MODEL"):
-            self._config.setdefault("openai", {})["default_model"] = os.environ["AGENARC_OPENAI_MODEL"]
-
-        # Anthropic
-        if os.environ.get("AGENARC_ANTHROPIC_API_KEY"):
-            self._config.setdefault("anthropic", {})["api_key"] = os.environ["AGENARC_ANTHROPIC_API_KEY"]
-        if os.environ.get("AGENARC_ANTHROPIC_MODEL"):
-            self._config.setdefault("anthropic", {})["default_model"] = os.environ["AGENARC_ANTHROPIC_MODEL"]
+        # Generic provider pattern: AGENARC_{NAME}_API_KEY, AGENARC_{NAME}_BASE_URL, AGENARC_{NAME}_MODEL
+        _suffix_map = {
+            "api_key": "api_key",
+            "base_url": "base_url",
+            "model": "default_model",
+        }
+        for var_name, val in os.environ.items():
+            if var_name.startswith("AGENARC_"):
+                var_lower = var_name[len("AGENARC_"):].lower()
+                parts = var_lower.split("_")
+                for suffix, config_key in _suffix_map.items():
+                    suffix_parts = suffix.split("_")
+                    if len(parts) >= len(suffix_parts) and parts[-len(suffix_parts):] == suffix_parts:
+                        provider = "_".join(parts[:-len(suffix_parts)])
+                        self._config.setdefault(provider, {})[config_key] = val
+                        break
 
         # General
         if os.environ.get("AGENARC_CHECKPOINT_DIR"):
