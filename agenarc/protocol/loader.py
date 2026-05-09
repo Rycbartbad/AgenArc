@@ -143,8 +143,8 @@ class ProtocolLoader:
             import jsonschema
             jsonschema.validate(instance=data, schema=AGENARC_SCHEMA)
         except ImportError:
-            # jsonschema not installed, skip validation
-            pass
+            import warnings
+            warnings.warn("jsonschema not installed. Protocol validation skipped. Install with: pip install jsonschema")
         except jsonschema.ValidationError as e:
             raise SchemaValidationError(f"Schema validation failed: {e.message}")
 
@@ -192,6 +192,7 @@ class ProtocolLoader:
         """
         expanded_nodes = list(nodes)
         expanded_edges = list(edges)
+        exist_ids = {n.id for n in nodes}
 
         for node in nodes:
             config = node.metadata.get("config", {})
@@ -199,6 +200,9 @@ class ProtocolLoader:
 
             if not output_to_context:
                 continue
+
+            # Validate output ports exist on source node
+            source_output_names = {p.name for p in node.outputs}
 
             # Create a Context_Set node for each output_to_context entry
             for ctx_key, mapping in output_to_context.items():
@@ -211,8 +215,25 @@ class ProtocolLoader:
 
                 output_port = ref[len("outputs."):]
 
+                # Validate output port exists
+                if source_output_names and output_port not in source_output_names:
+                    import warnings
+                    warnings.warn(
+                        f"output_to_context references port '{output_port}' "
+                        f"on node '{node.id}' but node has outputs: {source_output_names}"
+                    )
+
                 # Generate unique ID for the Context_Set node
                 context_node_id = f"{node.id}_ctx_{ctx_key}"
+
+                # Check for collision with existing node IDs
+                if context_node_id in exist_ids:
+                    import warnings
+                    warnings.warn(
+                        f"Generated Context_Set node ID '{context_node_id}' "
+                        f"collides with existing node ID. Skipping."
+                    )
+                    continue
 
                 # Create the Context_Set node
                 # Store the context key name in config so Context_Set operator can read it
@@ -232,6 +253,7 @@ class ProtocolLoader:
                 )
                 expanded_nodes.append(context_node)
                 expanded_edges.append(context_edge)
+                exist_ids.add(context_node_id)
 
         return expanded_nodes, expanded_edges
 
@@ -253,6 +275,12 @@ class ProtocolLoader:
         outputs = [self._parse_port(p) for p in data.get("outputs", [])]
 
         config = NodeConfig(data=data.get("config", {}))
+
+        # For Router nodes, convert conditions from dicts to Condition objects
+        if node_type == NodeType.ROUTER and "conditions" in config.data:
+            raw_conditions = config.data["conditions"]
+            parsed_conditions = [self._parse_condition(c) for c in raw_conditions]
+            config.data["conditions"] = parsed_conditions
 
         error_handling = None
         if "errorHandling" in data:
@@ -339,7 +367,7 @@ class ProtocolLoader:
 
         return Condition(
             ref=data.get("ref"),
-            operator=self._condition_operators.get(data.get("operator")),
+            operator=self._condition_operators.get(data.get("operator", "").lower()),
             value=data.get("value"),
             output=data.get("output"),
             and_conditions=and_conditions,

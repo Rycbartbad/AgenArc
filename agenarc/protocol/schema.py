@@ -84,6 +84,10 @@ class ConditionOperator(str, Enum):
     NOT_MATCH_REGEX = "notMatchRegex"
 
 
+# Valid port types
+VALID_PORT_TYPES = {"any", "string", "number", "boolean", "object", "array"}
+
+
 @dataclass
 class Port:
     """Input or output port definition."""
@@ -91,6 +95,15 @@ class Port:
     type: str  # "any", "string", "number", "boolean", "object", "array"
     description: str = ""
     default: Any = None
+
+    def __post_init__(self) -> None:
+        """Validate port type on construction."""
+        if self.type not in VALID_PORT_TYPES:
+            import warnings
+            warnings.warn(
+                f"Invalid port type '{self.type}' for port '{self.name}'. "
+                f"Valid types: {', '.join(sorted(VALID_PORT_TYPES))}"
+            )
 
 
 @dataclass
