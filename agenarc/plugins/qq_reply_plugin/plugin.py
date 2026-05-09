@@ -26,7 +26,7 @@ class QQConnectionManager:
 
     _instance: Optional["QQConnectionManager"] = None
     _ws_connection: Any | None = None
-    _lock: asyncio.Lock = None
+    _lock: asyncio.Lock | None = None
     _ws_url: str = "ws://127.0.0.1:3001"
     _token: str = ""
 

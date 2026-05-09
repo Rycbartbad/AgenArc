@@ -103,3 +103,6 @@ strict = false
 ignore_missing_imports = true
 warn_unused_configs = true
 warn_redundant_casts = true
+check_untyped_defs = false
+no_implicit_optional = false
+disallow_untyped_defs = false

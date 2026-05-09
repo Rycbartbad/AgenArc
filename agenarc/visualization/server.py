@@ -22,7 +22,7 @@ WS_MAGIC = "258EAFA5-E914-47DA-95CA-5AB9DC11B85B"
 
 from agenarc.engine.executor import ExecutionEngine
 from agenarc.protocol.schema import Edge, Graph, Node, NodeConfig
-from agenarc.visualization.events import ExecutionEventEmitter
+from agenarc.visualization.events import ExecutionEvent, ExecutionEventEmitter
 from agenarc.visualization.state import GraphStateTracker, NodeStatus
 
 
@@ -77,7 +77,7 @@ class VisualizationServer:
         self._server: Any | None = None
         self._session_state: Any = None  # Persistent state for multi-turn
         self._is_serving = False
-        self._serve_status = {"status": "stopped", "plugins": [], "error": None}
+        self._serve_status: dict[str, Any] = {"status": "stopped", "plugins": [], "error": None}
         self._last_event_result: dict[str, Any] | None = None
         self._event_seq = 0
         self._serve_buffer: LiveBuffer | None = None
@@ -154,11 +154,11 @@ class VisualizationServer:
                     self._event_emitter.emit_node_error(node_id, exec_id, str(e))
                     raise
 
-            self.engine._execute_node_with_tracking = hooked_execute_node
+            setattr(self.engine, "_execute_node_with_tracking", hooked_execute_node)  # noqa: B010
 
         # Wire event emitter to broadcast via WebSocket
-        self._event_emitter.add_listener(
-            lambda event_type, data: asyncio.create_task(
+        def _on_execution_event(event_type: ExecutionEvent, data: dict[str, Any]) -> None:
+            asyncio.create_task(
                 self.broadcast(
                     {
                         "type": event_type.value if hasattr(event_type, "value") else str(event_type),
@@ -168,12 +168,13 @@ class VisualizationServer:
                     }
                 )
             )
-        )
+
+        self._event_emitter.add_listener(_on_execution_event)
 
     def _detach_from_engine(self) -> None:
         """Detach event hooks from ExecutionEngine."""
         if hasattr(self, "_original_execute_node"):
-            self.engine._execute_node_with_tracking = self._original_execute_node
+            setattr(self.engine, "_execute_node_with_tracking", self._original_execute_node)  # noqa: B010
 
     async def _handle_http(self, reader: Any, writer: Any) -> None:
         """Handle HTTP requests."""
@@ -345,7 +346,7 @@ class VisualizationServer:
             source_nodes = engine._find_source_nodes()
 
         # Detect event plugins from source nodes
-        detected = []
+        detected: list[dict[str, Any]] = []
         for node in source_nodes:
             if hasattr(node.type, "value") and node.type.value == "Plugin":
                 config = node.metadata.get("config", {})
@@ -464,7 +465,7 @@ class VisualizationServer:
             started.append(plugin_name)
 
         if started:
-            engine._event_trigger_callback = trigger_with_capture
+            setattr(engine, "_event_trigger_callback", trigger_with_capture)  # noqa: B010
             self._is_serving = True
 
         self._serve_status = {

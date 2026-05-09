@@ -70,7 +70,9 @@ class PluginManager:
             # Parse plugin.operator format
             parts = op_key.split(".", 1)
             if len(parts) == 2:
-                self._operators[op_key] = self._hot_loader.get_operator(parts[0], parts[1])
+                op = self._hot_loader.get_operator(parts[0], parts[1])
+                if op is not None:
+                    self._operators[op_key] = op
 
         self._initialized = True
         logger.info(f"PluginManager initialized with {len(self._plugins)} plugins")
@@ -206,7 +208,9 @@ class PluginManager:
                 if op_key.startswith(prefix):
                     parts = op_key.split(".", 1)
                     if len(parts) == 2:
-                        self._operators[op_key] = self._hot_loader.get_operator(parts[0], parts[1])
+                        op = self._hot_loader.get_operator(parts[0], parts[1])
+                        if op is not None:
+                            self._operators[op_key] = op
 
         return success
 

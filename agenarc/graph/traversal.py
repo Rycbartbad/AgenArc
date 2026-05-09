@@ -220,7 +220,7 @@ class GraphTraversal:
         cycles = []
         visited = set()
         rec_stack = set()
-        path = []
+        path: list[str] = []
 
         def dfs(node_id: str) -> None:
             if node_id not in self._adjacency:

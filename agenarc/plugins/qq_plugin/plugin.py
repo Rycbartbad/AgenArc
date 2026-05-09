@@ -47,7 +47,7 @@ class QQ_Event_Plugin:
         self.accept_group: bool = True
 
         # Internal state
-        self._trigger_callback: Callable[[dict[str, Any]], None] | None = None
+        self._trigger_callback: Callable[[dict[str, Any]], Any] | None = None
         self._stop_event: asyncio.Event | None = None
         self._listener_task: asyncio.Task | None = None
         self._ws_connection: Any | None = None
@@ -94,7 +94,7 @@ class QQ_Event_Plugin:
             "accept_group": {"type": "boolean", "default": True, "description": "Accept group messages"},
         }
 
-    async def start(self, trigger_callback: Callable[[dict[str, Any]], None]) -> None:
+    async def start(self, trigger_callback: Callable[[dict[str, Any]], Any]) -> None:
         """
         Start listening for QQ messages.
 
@@ -146,8 +146,11 @@ class QQ_Event_Plugin:
 
     async def _listen_websocket(self) -> None:
         """Main WebSocket listening loop."""
+        if self._stop_event is None:
+            return
+        stop_event: asyncio.Event = self._stop_event
         reconnect_count = 0
-        while not self._stop_event.is_set():
+        while not stop_event.is_set():
             try:
                 import websockets
 
@@ -162,24 +165,24 @@ class QQ_Event_Plugin:
                     reconnect_count += 1
 
                     async for raw_message in ws:
-                        if self._stop_event.is_set():
+                        if stop_event.is_set():
                             break
                         await self._handle_message(raw_message)
 
             except ImportError:
-                self._stop_event.set()
+                stop_event.set()
                 break
             except asyncio.CancelledError:
                 return
             except Exception:
                 # If stop was requested or we're not running, exit immediately
-                if self._stop_event.is_set() or not self._running:
+                if stop_event.is_set() or not self._running:
                     break
                 # Otherwise, try to reconnect
                 if self.auto_reconnect:
                     await asyncio.sleep(self.reconnect_interval)
                 else:
-                    self._stop_event.set()
+                    stop_event.set()
                     break
 
     async def _handle_message(self, raw_message: str) -> None:

@@ -91,7 +91,7 @@ class RouterOperator(IOperator):
 
         # Simple condition
         ref = condition.ref or "input"
-        operator = condition.operator
+        operator = condition.operator or ConditionOperator.EQ
         expected_value = condition.value
 
         # Resolve the actual value to compare

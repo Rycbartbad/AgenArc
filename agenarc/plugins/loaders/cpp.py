@@ -52,7 +52,7 @@ class CppPluginLoader:
         else:
             return ".so"
 
-    async def discover(self, search_path: Path, callback: Callable[[Any], None]) -> list[str]:
+    async def discover(self, search_path: Path, callback: Callable[[Any], Any]) -> list[str]:
         """
         Discover C++ plugins in a directory.
 
@@ -63,7 +63,7 @@ class CppPluginLoader:
         Returns:
             List of discovered plugin names
         """
-        discovered = []
+        discovered: list[Any] = []
 
         if not search_path.exists():
             return discovered
@@ -180,7 +180,8 @@ class CppPluginLoader:
                 if sys.platform == "win32":
                     ctypes.windll.kernel32.FreeLibrary(handle)
                 else:
-                    ctypes.cdll.dlclose(handle)
+                    dlclose_fn: Any = ctypes.cdll.dlclose
+                    dlclose_fn(handle)
             except Exception as e:
                 logger.error(f"Failed to unload library: {e}")
 

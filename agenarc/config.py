@@ -55,7 +55,7 @@ class Config:
         if env_overrides:
             self._apply_env_overrides()
 
-    _instance_lock: "threading.Lock" = None
+    _instance_lock: "threading.Lock | None" = None
 
     @classmethod
     def get_instance(cls) -> "Config":
@@ -134,7 +134,7 @@ class Config:
             Configuration value
         """
         keys = key.split(".")
-        value = self._config
+        value: Any = self._config
 
         for k in keys:
             if isinstance(value, dict):

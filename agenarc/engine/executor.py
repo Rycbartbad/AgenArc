@@ -136,6 +136,9 @@ class ExecutionEngine:
         # Running flag
         self._running: bool = False
 
+        # Router iteration tracking for cycle detection
+        self._router_iterations: dict[str, int] = {}
+
     def load_manifest(self, manifest_path: Any) -> None:
         """
         Load manifest.json from .agrc bundle.
@@ -478,8 +481,6 @@ class ExecutionEngine:
                         selected = [selected]
 
                     # Track iteration count per loop head to prevent infinite loops
-                    if not hasattr(self, "_router_iterations"):
-                        self._router_iterations = {}
                     router_key = f"router_{node_id}"
                     self._router_iterations[router_key] = self._router_iterations.get(router_key, 0) + 1
                     if self._router_iterations[router_key] > 100:

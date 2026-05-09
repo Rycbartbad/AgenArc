@@ -18,7 +18,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from agenarc.engine.evaluator import ASTEvaluator
-from agenarc.engine.state import ExecutionContext
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import MemoryMode, Port
 
@@ -171,7 +171,7 @@ class Memory_IO_Operator(IOperator):
         state = getattr(context, "_state", context)
 
         # Enable transaction mode if configured and not already enabled
-        if transactional and not state.in_transaction:
+        if transactional and isinstance(state, StateManager) and not state.in_transaction:
             state.enable_transaction()
 
         mode = context.get("_memory_mode", MemoryMode.READ.value)
@@ -179,7 +179,7 @@ class Memory_IO_Operator(IOperator):
         async with self._lock:
             if mode == MemoryMode.READ.value or mode == "read":
                 # In transactional mode, check pending writes first
-                if state.in_transaction:
+                if isinstance(state, StateManager) and state.in_transaction:
                     value = state.get_transactional(key)
                     if value is not None or key in state._transactional_pending:
                         return {"value": value, "success": True}
@@ -189,7 +189,7 @@ class Memory_IO_Operator(IOperator):
             elif mode == MemoryMode.WRITE.value or mode == "write":
                 value = inputs.get("value")
 
-                if state.in_transaction:
+                if isinstance(state, StateManager) and state.in_transaction:
                     # Add to pending writes (not yet committed)
                     state.set_transactional(key, value)
                 else:
@@ -203,7 +203,7 @@ class Memory_IO_Operator(IOperator):
                 return {"value": value, "success": True}
 
             elif mode == MemoryMode.DELETE.value or mode == "delete":
-                if state.in_transaction:
+                if isinstance(state, StateManager) and state.in_transaction:
                     # Mark for deletion in pending
                     state.set_transactional(key, None)
                 else:
@@ -387,10 +387,10 @@ class Script_Node_Operator(IOperator):
                 return False
         return True
 
-    def _build_context(self, context: ExecutionContext, inputs: dict[str, Any] = None) -> dict[str, Any]:
+    def _build_context(self, context: ExecutionContext, inputs: dict[str, Any] | None = None) -> dict[str, Any]:
         """Build context dictionary for evaluation."""
         # Get relevant values from execution context
-        eval_context = {
+        eval_context: dict[str, Any] = {
             # Access to context values
             "context": context,
             # Loop variables if available
@@ -417,7 +417,7 @@ class Script_Node_Operator(IOperator):
         script: str,
         context: ExecutionContext,
         eval_context: dict[str, Any],
-        inputs: dict[str, Any] = None,
+        inputs: dict[str, Any] | None = None,
         developer_mode: bool = False,
     ) -> Any:
         """
@@ -457,7 +457,7 @@ class Script_Node_Operator(IOperator):
             }
         else:
             # Safe mode: limited builtins
-            safe_globals = {
+            safe_globals: dict[str, object] = {
                 "__builtins__": {
                     "len": len,
                     "str": str,
@@ -637,7 +637,7 @@ class Context_Get_Operator(IOperator):
 from agenarc.operators.prompt_builder import Prompt_Builder_Operator  # noqa: F401
 
 # Registry of all built-in operators
-BUILTIN_OPERATORS: dict[str, type] = {
+BUILTIN_OPERATORS: dict[str, type | None] = {
     "Trigger": TriggerOperator,
     "Memory_I/O": Memory_IO_Operator,
     "Script_Node": Script_Node_Operator,

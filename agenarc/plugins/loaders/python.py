@@ -37,7 +37,7 @@ class PythonPluginLoader:
     def __init__(self):
         self._plugins: dict[str, Any] = {}  # module cache
 
-    async def discover(self, search_path: Path, callback: Callable[[Any], None]) -> list[str]:
+    async def discover(self, search_path: Path, callback: Callable[[Any], Any]) -> list[str]:
         """
         Discover Python plugins in a directory.
 
@@ -48,7 +48,7 @@ class PythonPluginLoader:
         Returns:
             List of discovered plugin names
         """
-        discovered = []
+        discovered: list[Any] = []
 
         if not search_path.exists():
             return discovered

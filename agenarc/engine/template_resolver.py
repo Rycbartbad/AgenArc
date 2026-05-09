@@ -279,8 +279,8 @@ def resolve_template_any(
 
 def resolve_vfs_path(
     value: str,
-    bundle_path_getter: Callable[[], "Path"],
-    permissions: dict[str, bool] | None = None,
+    bundle_path_getter: Callable[[], Path | None],
+    permissions: dict[str, str] | None = None,
 ) -> str:
     """
     Resolve VFS path (agrc://...) to actual file content.

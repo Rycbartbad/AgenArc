@@ -22,9 +22,9 @@ class ExternalPluginConfig:
     """Configuration for an external plugin."""
 
     protocol: str = "stdio"  # "stdio", "http", "grpc"
-    command: list[str] = None  # For stdio protocol
+    command: list[str] | None = None  # For stdio protocol
     url: str = ""  # For http/grpc protocols
-    env: dict[str, str] = None
+    env: dict[str, str] | None = None
     startup_timeout: float = 10.0
     request_timeout: float = 30.0
 
@@ -56,7 +56,7 @@ class ExternalPluginLoader:
         self._configs: dict[str, ExternalPluginConfig] = {}
         self._lock = threading.Lock()
 
-    async def discover(self, search_path: Path, callback: Callable[[Any], None]) -> list[str]:
+    async def discover(self, search_path: Path, callback: Callable[[Any], Any]) -> list[str]:
         """
         Discover external plugins in a directory.
 
@@ -67,7 +67,7 @@ class ExternalPluginLoader:
         Returns:
             List of discovered plugin names
         """
-        discovered = []
+        discovered: list[Any] = []
 
         if not search_path.exists():
             return discovered
@@ -249,10 +249,16 @@ class ExternalPluginLoader:
         try:
             # Send request
             request_json = json.dumps(request) + "\n"
+            if process.stdin is None:
+                logger.error(f"Plugin process stdin is None: {plugin_name}")
+                return None
             process.stdin.write(request_json)
             process.stdin.flush()
 
             # Read response
+            if process.stdout is None:
+                logger.error(f"Plugin process stdout is None: {plugin_name}")
+                return None
             response_line = await asyncio.wait_for(
                 asyncio.to_thread(process.stdout.readline),
                 timeout=30.0,

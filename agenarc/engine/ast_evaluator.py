@@ -319,7 +319,7 @@ class ASTEvaluator:
     def _set_parents(self, node: ast.AST) -> None:
         """Set parent references for all nodes in the AST tree."""
         for child in ast.iter_child_nodes(node):
-            child.parent = node
+            child.__dict__["parent"] = node
             self._set_parents(child)
 
     def evaluate(
@@ -385,7 +385,9 @@ class ASTEvaluator:
                 raise ASTEvaluatorError("Lambda functions are not allowed")
 
             # Check for Slice (allowed in subscript context)
-            if isinstance(node, ast.Slice) and not isinstance(node.parent, ast.Subscript):
+            if isinstance(node, ast.Slice) and not isinstance(
+                getattr(node, "parent", None), ast.Subscript
+            ):
                 raise ASTEvaluatorError("Standalone slice operations are not allowed")
 
     def _check_call(self, node: ast.Call) -> None:
@@ -433,10 +435,12 @@ class ASTEvaluator:
         if isinstance(node, ast.Set):
             return {self._eval_node(e, context) for e in node.elts}
         if isinstance(node, ast.Dict):
-            return {
-                self._eval_node(k, context): self._eval_node(v, context)
-                for k, v in zip(node.keys, node.values, strict=False)
-            }
+            result: dict[Any, Any] = {}
+            for k, v in zip(node.keys, node.values, strict=False):
+                if k is None:
+                    continue  # ** unpacking, key is None
+                result[self._eval_node(k, context)] = self._eval_node(v, context)
+            return result
 
         # Variables
         if isinstance(node, ast.Name):
@@ -469,10 +473,10 @@ class ASTEvaluator:
         # Unary operations
         if isinstance(node, ast.UnaryOp):
             operand = self._eval_node(node.operand, context)
-            op_func = self.UNARY_OPERATORS.get(type(node.op))
-            if op_func is None:
+            unary_op_func = self.UNARY_OPERATORS.get(type(node.op))
+            if unary_op_func is None:
                 raise ASTEvaluatorError(f"Unsupported unary operator: {node.op}")
-            return op_func(operand)
+            return unary_op_func(operand)
 
         # Comparison operations
         if isinstance(node, ast.Compare):
@@ -539,7 +543,7 @@ class ASTEvaluator:
         result_type: type = list,
     ) -> Any:
         """Evaluate list/set comprehension."""
-        result = result_type() if result_type in (set,) else []
+        result: list[Any] | set[Any] = result_type() if result_type in (set,) else []
 
         def process_generator(gen_idx: int, current_values: list[Any]) -> None:
             generator = generators[gen_idx]
@@ -549,7 +553,7 @@ class ASTEvaluator:
 
             for item in iterable:
                 # Check if condition
-                if generator.ifs and not all(self._eval_node(if_.test, context) for if_ in generator.ifs):
+                if generator.ifs and not all(self._eval_node(if_, context) for if_ in generator.ifs):
                     continue
 
                 # Bind the variable
@@ -560,7 +564,7 @@ class ASTEvaluator:
                 if gen_idx == len(generators) - 1:
                     # Last generator - produce element
                     value = self._eval_node(elt, context)
-                    if result_type is set:
+                    if isinstance(result, set):
                         result.add(value)
                     else:
                         result.append(value)
@@ -589,7 +593,7 @@ class ASTEvaluator:
             iterable = self._eval_node(generator.iter, context)
 
             for item in iterable:
-                if generator.ifs and not all(self._eval_node(if_.test, context) for if_ in generator.ifs):
+                if generator.ifs and not all(self._eval_node(if_, context) for if_ in generator.ifs):
                     continue
 
                 target = generator.target

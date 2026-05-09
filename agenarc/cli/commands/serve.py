@@ -153,7 +153,7 @@ async def _start_event_plugins(
         await plugin_manager.start_event_plugin(plugin_name, trigger_callback)
 
     # Store callback reference to prevent garbage collection
-    engine._event_trigger_callback = trigger_callback
+    setattr(engine, "_event_trigger_callback", trigger_callback)  # noqa: B010
 
 
 def command_serve(file: Path, mode: str = "async", verbose: bool = False) -> int:
