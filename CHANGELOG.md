@@ -2,6 +2,12 @@
 
 All notable changes to AgenArc will be documented in this file.
 
+## [0.6.1] - 2026-05-10
+
+### Added
+- GitHub Release with standalone Windows exe (PyInstaller)
+- `webbrowser.open()` auto-launch on `agenarc visualize`
+
 ## [0.6.0] - 2026-05-09
 
 ### Added

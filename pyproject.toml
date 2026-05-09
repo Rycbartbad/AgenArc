@@ -1,6 +1,6 @@
 [project]
 name = "agenarc"
-version = "0.5.0"
+version = "0.6.1"
 description = "Directed-graph Agent Orchestration Engine"
 readme = "README.md"
 requires-python = ">=3.11"
