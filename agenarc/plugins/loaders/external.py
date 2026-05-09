@@ -269,7 +269,7 @@ class ExternalPluginLoader:
 
             return json.loads(response_line)
 
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             logger.error(f"Timeout waiting for plugin response: {plugin_name}")
             return None
         except Exception as e:

@@ -141,7 +141,7 @@ class QQ_Event_Plugin:
                     await self._listener_task
             except asyncio.CancelledError:
                 logger.debug("Listener task cancelled during stop")
-            except (TimeoutError, asyncio.TimeoutError):
+            except TimeoutError:
                 self._listener_task.cancel()
 
     async def _listen_websocket(self) -> None:

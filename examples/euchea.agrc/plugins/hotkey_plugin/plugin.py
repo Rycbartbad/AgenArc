@@ -97,7 +97,7 @@ class HotkeyPlugin:
             import keyboard
         except ImportError:
             print(
-                "[hotkey] 请安装 keyboard: pip install keyboard",
+                "[hotkey] 请安装 keyboard: uv pip install keyboard",
                 flush=True,
             )
             return
