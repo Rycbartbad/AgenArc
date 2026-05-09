@@ -3,6 +3,7 @@ Command: visualize — Start visualization studio for agent editing and debuggin
 """
 
 import asyncio
+import contextlib
 import logging
 import webbrowser
 from pathlib import Path
@@ -104,10 +105,8 @@ def command_visualize(
 
     # Run server — single event loop for both start and stop
     def _open_browser_safe():
-        try:
+        with contextlib.suppress(Exception):
             webbrowser.open(url)
-        except Exception:
-            pass
 
     async def _run_visualize():
         print(f"  Studio  ->  {url}")
