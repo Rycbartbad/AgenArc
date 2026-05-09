@@ -3,7 +3,7 @@ name = "agenarc"
 version = "0.5.0"
 description = "Directed-graph Agent Orchestration Engine"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Rycbartbad" },
@@ -15,7 +15,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -78,7 +77,7 @@ filterwarnings = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]
@@ -99,7 +98,7 @@ ignore = ["N801", "N805", "N806", "N815", "N817"]
 "agenarc/plugins/event_plugin.py" = ["B027"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = false
 ignore_missing_imports = true
 warn_unused_configs = true
