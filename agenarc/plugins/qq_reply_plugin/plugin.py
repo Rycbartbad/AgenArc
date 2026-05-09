@@ -24,7 +24,7 @@ class QQConnectionManager:
     error that occurs when using short-lived connections.
     """
 
-    _instance: Optional['QQConnectionManager'] = None
+    _instance: Optional["QQConnectionManager"] = None
     _ws_connection: Any | None = None
     _lock: asyncio.Lock = None
     _ws_url: str = "ws://127.0.0.1:3001"
@@ -46,9 +46,11 @@ class QQConnectionManager:
     def _load_config(cls):
         """Load config from agenarc config file."""
         from pathlib import Path
+
         config_path = Path.home() / ".agenarc" / "config.yaml"
         if config_path.exists():
             import yaml
+
             with open(config_path) as f:
                 config = yaml.safe_load(f)
             qq_config = config.get("plugins", {}).get("qq", {})
@@ -64,6 +66,7 @@ class QQConnectionManager:
         async with cls._lock:
             if cls._ws_connection is None:
                 import websockets
+
                 full_url = cls._ws_url
                 if cls._token:
                     full_url = f"{cls._ws_url}?access_token={cls._token}"
@@ -76,12 +79,7 @@ class QQConnectionManager:
             return cls._ws_connection
 
     @classmethod
-    async def send_message(
-        cls,
-        action: str,
-        params: dict[str, Any],
-        timeout: float = 5.0
-    ) -> dict[str, Any]:
+    async def send_message(cls, action: str, params: dict[str, Any], timeout: float = 5.0) -> dict[str, Any]:
         """
         Send a message via the shared connection.
 
@@ -99,7 +97,7 @@ class QQConnectionManager:
 
         ws = await cls.get_connection()
         echo_id = f"qq_reply_{id(params)}"
-        payload = json.dumps({'action': action, 'params': params, 'echo': echo_id})
+        payload = json.dumps({"action": action, "params": params, "echo": echo_id})
 
         await ws.send(payload)
 
@@ -107,14 +105,14 @@ class QQConnectionManager:
             resp = await asyncio.wait_for(ws.recv(), timeout=timeout)
             resp_data = json.loads(resp)
 
-            if resp_data.get('echo') == echo_id:
-                if resp_data.get('status') == 'ok':
-                    return {'success': True, 'data': resp_data.get('data')}
+            if resp_data.get("echo") == echo_id:
+                if resp_data.get("status") == "ok":
+                    return {"success": True, "data": resp_data.get("data")}
                 else:
                     return {
-                        'success': False,
-                        'error': resp_data.get('message') or resp_data.get('wording'),
-                        'data': resp_data.get('data')
+                        "success": False,
+                        "error": resp_data.get("message") or resp_data.get("wording"),
+                        "data": resp_data.get("data"),
                     }
         except TimeoutError:
             logger.warning("Timeout waiting for QQ reply response")
@@ -123,10 +121,10 @@ class QQConnectionManager:
             logger.error(f"[QQ_Reply] Response error: {e}")
             # Connection is broken, clear it so next call creates a new one
             cls._ws_connection = None
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
         # Assume success if no error response
-        return {'success': True}
+        return {"success": True}
 
     @classmethod
     async def close(cls):
@@ -181,36 +179,28 @@ class QQ_Reply_Operator(IOperator):
             Port(name="error", type="string", description="Error message if failed"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: Any
-    ) -> dict[str, Any]:
-        message = inputs.get('message', '')
-        user_id = inputs.get('user_id')
-        group_id = inputs.get('group_id', 0)
-        message_type = inputs.get('message_type', 'private')
+    async def execute(self, inputs: dict[str, Any], context: Any) -> dict[str, Any]:
+        message = inputs.get("message", "")
+        user_id = inputs.get("user_id")
+        group_id = inputs.get("group_id", 0)
+        message_type = inputs.get("message_type", "private")
 
         if not message:
-            return {'success': False, 'data': None, 'error': 'Empty message'}
+            return {"success": False, "data": None, "error": "Empty message"}
 
         # Determine action and params
-        action = 'send_private_msg' if message_type == 'private' else 'send_group_msg'
-        params: dict[str, Any] = {'message': str(message)}
+        action = "send_private_msg" if message_type == "private" else "send_group_msg"
+        params: dict[str, Any] = {"message": str(message)}
 
-        if message_type == 'private':
-            params['user_id'] = user_id
+        if message_type == "private":
+            params["user_id"] = user_id
         else:
-            params['group_id'] = group_id
+            params["group_id"] = group_id
 
         # Send message
         try:
             result = await QQConnectionManager.send_message(action, params)
-            return {
-                'success': result.get('success', False),
-                'data': result.get('data'),
-                'error': result.get('error')
-            }
+            return {"success": result.get("success", False), "data": result.get("data"), "error": result.get("error")}
         except Exception as e:
             logger.error(f"[QQ_Reply] Error: {e}")
-            return {'success': False, 'data': None, 'error': str(e)}
+            return {"success": False, "data": None, "error": str(e)}

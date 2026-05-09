@@ -17,6 +17,7 @@ from typing import Any
 
 class TemplateError(Exception):
     """Raised when template resolution fails."""
+
     pass
 
 
@@ -24,11 +25,12 @@ class TemplateError(Exception):
 # Control Flow Resolution ({% if %}, {% for %})
 # ============================================================
 
+
 def _get_context_value(key: str, context_getter: Callable[[str], Any]) -> Any:
     """Get value from context, handling dot access (shared helper)."""
     key = key.strip()
-    if '.' in key:
-        parts = key.split('.')
+    if "." in key:
+        parts = key.split(".")
         obj = context_getter(parts[0])
         for part in parts[1:]:
             if obj is None:
@@ -57,7 +59,7 @@ def resolve_control_flow(
     Returns:
         String with control flow blocks resolved to their rendered content.
     """
-    if not isinstance(text, str) or ('{%' not in text):
+    if not isinstance(text, str) or ("{%" not in text):
         return text
 
     # Process for loops first (they may contain if blocks inside)
@@ -70,16 +72,14 @@ def resolve_control_flow(
 
 def _resolve_if_blocks(text: str, context_getter: Callable[[str], Any]) -> str:
     """Process {% if KEY %}...{% else %}...{% endif %} blocks iteratively."""
-    pattern = re.compile(
-        r'\{%\s*if\s+(.+?)\s*%\}(.*?)(?:\{%\s*else\s*%\}(.*?))?\{%\s*endif\s*%\}',
-        re.DOTALL
-    )
+    pattern = re.compile(r"\{%\s*if\s+(.+?)\s*%\}(.*?)(?:\{%\s*else\s*%\}(.*?))?\{%\s*endif\s*%\}", re.DOTALL)
 
     while pattern.search(text):
+
         def _replace_if(m):
             condition_key = m.group(1).strip()
             true_content = m.group(2)
-            false_content = m.group(3) or ''
+            false_content = m.group(3) or ""
             value = _get_context_value(condition_key, context_getter)
             return true_content if value else false_content
 
@@ -90,12 +90,10 @@ def _resolve_if_blocks(text: str, context_getter: Callable[[str], Any]) -> str:
 
 def _resolve_for_loops(text: str, context_getter: Callable[[str], Any]) -> str:
     """Process {% for VAR in LIST_KEY %}...{% endfor %} blocks iteratively."""
-    pattern = re.compile(
-        r'\{%\s+for\s+(\w+)\s+in\s+(.+?)\s*%\}(.*?)\{%\s+endfor\s*%\}',
-        re.DOTALL
-    )
+    pattern = re.compile(r"\{%\s+for\s+(\w+)\s+in\s+(.+?)\s*%\}(.*?)\{%\s+endfor\s*%\}", re.DOTALL)
 
     while pattern.search(text):
+
         def _replace_for(m):
             var_name = m.group(1).strip()
             list_key = m.group(2).strip()
@@ -103,28 +101,28 @@ def _resolve_for_loops(text: str, context_getter: Callable[[str], Any]) -> str:
 
             items = _get_context_value(list_key, context_getter)
             if items is None:
-                return ''
+                return ""
             if isinstance(items, (str, bytes, dict)):
-                return ''
+                return ""
             try:
                 items = list(items)
             except TypeError:
-                return ''
+                return ""
 
             results = []
             for idx, item in enumerate(items):
                 item_text = content
                 # Replace {{ var }} and {{var}} with item value
-                item_text = item_text.replace('{{ ' + var_name + ' }}', str(item))
-                item_text = item_text.replace('{{' + var_name + '}}', str(item))
+                item_text = item_text.replace("{{ " + var_name + " }}", str(item))
+                item_text = item_text.replace("{{" + var_name + "}}", str(item))
                 # Loop variables
-                item_text = item_text.replace('{{loop.iteration}}', str(idx + 1))
-                item_text = item_text.replace('{{ loop.iteration }}', str(idx + 1))
-                item_text = item_text.replace('{{loop.current_item}}', str(item))
-                item_text = item_text.replace('{{ loop.current_item }}', str(item))
+                item_text = item_text.replace("{{loop.iteration}}", str(idx + 1))
+                item_text = item_text.replace("{{ loop.iteration }}", str(idx + 1))
+                item_text = item_text.replace("{{loop.current_item}}", str(item))
+                item_text = item_text.replace("{{ loop.current_item }}", str(item))
                 results.append(item_text)
 
-            return ''.join(results)
+            return "".join(results)
 
         text = pattern.sub(_replace_for, text, count=1)
 
@@ -174,7 +172,7 @@ def resolve_template(
     text = resolve_control_flow(text, context_getter)
 
     # Pattern matches {{key}} where key is any characters except }
-    pattern = re.compile(r'\{\{([^}]+)\}\}')
+    pattern = re.compile(r"\{\{([^}]+)\}\}")
 
     def get_value(key: str) -> Any:
         """Get value from context, handling nested attribute access."""
@@ -202,15 +200,15 @@ def resolve_template(
             # If resolved value contains templates, recursively resolve
             # Decrement depth to prevent infinite loops
             max_depth -= 1
-            if '{{' in resolved and '}}' in resolved:
+            if "{{" in resolved and "}}" in resolved:
                 resolved = resolve_template(resolved, context_getter, allow_missing, max_depth)
 
             return resolved
 
-        except (KeyError, AttributeError):
+        except (KeyError, AttributeError) as e:
             if allow_missing:
                 return ""
-            raise TemplateError(f"Template key not found: {key}")
+            raise TemplateError(f"Template key not found: {key}") from e
 
     return pattern.sub(replacer, text)
 
@@ -243,8 +241,7 @@ def resolve_template_dict(
             result[key] = resolve_template_dict(value, context_getter, allow_missing, max_depth)
         elif isinstance(value, list):
             result[key] = [
-                resolve_template(item, context_getter, allow_missing, max_depth)
-                if isinstance(item, str) else item
+                resolve_template(item, context_getter, allow_missing, max_depth) if isinstance(item, str) else item
                 for item in value
             ]
         else:
@@ -275,10 +272,7 @@ def resolve_template_any(
     elif isinstance(value, dict):
         return resolve_template_dict(value, context_getter, allow_missing, max_depth)
     elif isinstance(value, list):
-        return [
-            resolve_template_any(item, context_getter, allow_missing, max_depth)
-            for item in value
-        ]
+        return [resolve_template_any(item, context_getter, allow_missing, max_depth) for item in value]
     else:
         return value
 

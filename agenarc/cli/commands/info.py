@@ -31,7 +31,9 @@ def command_info(file: Path) -> int:
         graph = loader.load(protocol_path)
 
         # Try to load manifest for additional info
-        manifest_path = protocol_path / "manifest.json" if protocol_path.is_dir() else protocol_path.parent / "manifest.json"
+        manifest_path = (
+            protocol_path / "manifest.json" if protocol_path.is_dir() else protocol_path.parent / "manifest.json"
+        )
         manifest_name = ""
         manifest_description = ""
         manifest_author = ""

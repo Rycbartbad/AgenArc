@@ -52,11 +52,7 @@ class Prompt_Builder_Operator(IOperator):
             Port(name="messages", type="array", description="Conversation messages list"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         user_msg = inputs.get("user")
         assistant_msg = inputs.get("assistant")
 
@@ -81,7 +77,10 @@ class Prompt_Builder_Operator(IOperator):
             if last_role == "user" and user_msg is not None:
                 return {"messages": messages, "error": "Cannot add user message after user (alternation violation)"}
             if last_role == "assistant" and assistant_msg is not None:
-                return {"messages": messages, "error": "Cannot add assistant message after assistant (alternation violation)"}
+                return {
+                    "messages": messages,
+                    "error": "Cannot add assistant message after assistant (alternation violation)",
+                }
 
         # Append the appropriate message
         if user_msg is not None:

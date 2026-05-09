@@ -20,14 +20,16 @@ logger = logging.getLogger(__name__)
 
 class ReloadStrategy(Enum):
     """Plugin reload strategy."""
-    ATOMIC = auto()      # Atomic swap (zero-downtime)
-    GRACEFUL = auto()    # Wait for current operations to complete
-    IMMEDIATE = auto()   # Immediate reload (may cause brief downtime)
+
+    ATOMIC = auto()  # Atomic swap (zero-downtime)
+    GRACEFUL = auto()  # Wait for current operations to complete
+    IMMEDIATE = auto()  # Immediate reload (may cause brief downtime)
 
 
 @dataclass
 class PluginInfo:
     """Plugin metadata and status."""
+
     name: str
     version: str
     path: Path
@@ -40,9 +42,10 @@ class PluginInfo:
 @dataclass
 class HotReloadConfig:
     """Configuration for hot reloading."""
+
     watch_paths: list[Path] = field(default_factory=list)
     reload_strategy: ReloadStrategy = ReloadStrategy.ATOMIC
-    debounce_ms: int = 500          # Debounce file change events
+    debounce_ms: int = 500  # Debounce file change events
     scan_interval_seconds: float = 5.0  # Periodic scan interval
     max_retries: int = 3
     retry_delay_seconds: float = 1.0
@@ -91,11 +94,7 @@ class FileWatcher:
             self._watchdog_observer = Observer()
             for path in self._paths:
                 if path.exists():
-                    self._watchdog_observer.schedule(
-                        self._watchdog_handler,
-                        str(path),
-                        recursive=True
-                    )
+                    self._watchdog_observer.schedule(self._watchdog_handler, str(path), recursive=True)
             self._watchdog_observer.start()
             logger.info("File watcher started (using watchdog)")
             return

@@ -18,13 +18,13 @@ Permission Model (rwx):
 - Only directories with non-"---" permission are accessible
 """
 
-
 from pathlib import Path
 from typing import Any
 
 
 class VFSError(Exception):
     """Raised for VFS-related errors."""
+
     pass
 
 
@@ -69,11 +69,7 @@ class VFS:
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
     MAX_TEMPLATE_SIZE = 1024 * 1024  # 1MB
 
-    def __init__(
-        self,
-        bundle_path: Path,
-        permissions: dict[str, str] | None = None
-    ):
+    def __init__(self, bundle_path: Path, permissions: dict[str, str] | None = None):
         """
         Initialize VFS with bundle path.
 
@@ -215,7 +211,7 @@ class VFS:
             raise VFSError(f"Invalid VFS path: must start with {self.VFS_SCHEME}")
 
         # Remove scheme
-        path = vfs_path[len(self.VFS_SCHEME):]
+        path = vfs_path[len(self.VFS_SCHEME) :]
 
         # Split into directory and filename
         parts = path.split("/")
@@ -246,7 +242,7 @@ class VFS:
             return
         if filename in (".", ".."):
             raise VFSError("Invalid filename")
-        illegal = set('/\\\0')
+        illegal = set("/\\\0")
         if any(c in illegal for c in filename):
             raise VFSError("Filename contains illegal characters")
 
@@ -304,7 +300,7 @@ class VFS:
         try:
             return real_path.read_text(encoding=encoding)
         except Exception as e:
-            raise VFSError(f"Failed to read {vfs_path}: {e}")
+            raise VFSError(f"Failed to read {vfs_path}: {e}") from e
 
     def write(self, vfs_path: str, content: str = "", encoding: str = "utf-8") -> None:
         """
@@ -344,7 +340,7 @@ class VFS:
             # Clean up temp file on failure
             if tmp_path is not None and tmp_path.exists():
                 tmp_path.unlink()
-            raise VFSError(f"Failed to write: {e}")
+            raise VFSError(f"Failed to write: {e}") from e
 
     def exists(self, vfs_path: str) -> bool:
         """
@@ -386,7 +382,7 @@ class VFS:
             vfs_dir = self.VFS_SCHEME + vfs_dir
 
         # Extract VFS path without scheme, strip trailing slashes
-        vfs_path = vfs_dir[len(self.VFS_SCHEME):].rstrip("/")
+        vfs_path = vfs_dir[len(self.VFS_SCHEME) :].rstrip("/")
 
         # Handle VFS root: list top-level contents
         if not vfs_path:
@@ -447,6 +443,7 @@ class VFS:
 
         # Use unique placeholders to prevent double-replacement injection
         import uuid
+
         placeholders = {}
         for key, value in context.items():
             placeholder = f"__PH_{uuid.uuid4().hex}__"
@@ -472,7 +469,7 @@ class VFS:
         if not vfs_dir.startswith(self.VFS_SCHEME):
             vfs_dir = self.VFS_SCHEME + vfs_dir
 
-        vfs_path = vfs_dir[len(self.VFS_SCHEME):].strip("/")
+        vfs_path = vfs_dir[len(self.VFS_SCHEME) :].strip("/")
 
         if not vfs_path:
             raise VFSError("Cannot create root directory")
@@ -527,10 +524,11 @@ class VFS:
         # For destination, build path directly without full parsing
         if not dst.startswith(self.VFS_SCHEME):
             dst = self.VFS_SCHEME + dst
-        dst_vfs_path = dst[len(self.VFS_SCHEME):].strip("/")
+        dst_vfs_path = dst[len(self.VFS_SCHEME) :].strip("/")
         dst_path = self._bundle_path / dst_vfs_path
 
         import shutil
+
         shutil.move(str(src_path), str(dst_path))
 
     def metadata(self, vfs_path: str) -> dict:

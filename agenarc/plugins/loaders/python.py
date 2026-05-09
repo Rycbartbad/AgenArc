@@ -37,11 +37,7 @@ class PythonPluginLoader:
     def __init__(self):
         self._plugins: dict[str, Any] = {}  # module cache
 
-    async def discover(
-        self,
-        search_path: Path,
-        callback: Callable[[Any], None]
-    ) -> list[str]:
+    async def discover(self, search_path: Path, callback: Callable[[Any], None]) -> list[str]:
         """
         Discover Python plugins in a directory.
 
@@ -151,14 +147,19 @@ class PythonPluginLoader:
 
         # Also look for any IOperator subclasses in the module
         from agenarc.operators.operator import IOperator
+
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
-            if isinstance(attr, type) and issubclass(attr, IOperator) and attr is not IOperator:
-                if attr_name not in operators:
-                    try:
-                        operators[attr_name] = attr()
-                    except Exception as e:
-                        logger.error(f"Failed to instantiate {attr_name}: {e}")
+            if (
+                isinstance(attr, type)
+                and issubclass(attr, IOperator)
+                and attr is not IOperator
+                and attr_name not in operators
+            ):
+                try:
+                    operators[attr_name] = attr()
+                except Exception as e:
+                    logger.error(f"Failed to instantiate {attr_name}: {e}")
 
         return operators
 

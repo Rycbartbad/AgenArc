@@ -21,7 +21,7 @@ async def _start_event_plugins(
     engine: ExecutionEngine,
     plugin_manager: PluginManager,
     selected_plugins: list[str] | None = None,
-    plugin_configs: dict[str, dict[str, Any]] | None = None
+    plugin_configs: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """
     Start event plugins and register them with the plugin manager.
@@ -68,6 +68,7 @@ async def _start_event_plugins(
                 class_path = built_in_plugins[plugin_name]
                 module_path, class_name = class_path.rsplit(".", 1)
                 import importlib as _il
+
                 module = _il.import_module(module_path)
                 plugin_class = getattr(module, class_name)
                 plugin_instance = plugin_class()
@@ -81,6 +82,7 @@ async def _start_event_plugins(
             if plugins_root.exists():
                 import importlib.util as _util
                 import json as _json
+
                 found = False
                 for subdir in plugins_root.iterdir():
                     if not subdir.is_dir():
@@ -107,9 +109,7 @@ async def _start_event_plugins(
                     if not entry_path.exists():
                         print(f"[CLI] Plugin '{plugin_name}' entry not found: {entry_path}")
                         break
-                    spec = _util.spec_from_file_location(
-                        f"_bundle_plugin_{plugin_name}", entry_path
-                    )
+                    spec = _util.spec_from_file_location(f"_bundle_plugin_{plugin_name}", entry_path)
                     if spec is None or spec.loader is None:
                         print(f"[CLI] Failed to create module spec for '{plugin_name}'")
                         break
@@ -135,6 +135,7 @@ async def _start_event_plugins(
         plugin_cfg = {}
         try:
             from agenarc.config import get_config
+
             config = get_config()
             file_config = config.get(f"plugins.{plugin_name}", {})
             if file_config:
@@ -142,7 +143,7 @@ async def _start_event_plugins(
         except Exception as e:
             logger.warning("Failed to read plugin config for %s: %s", plugin_name, e)
 
-        if hasattr(plugin_instance, 'configure'):
+        if hasattr(plugin_instance, "configure"):
             plugin_instance.configure(plugin_cfg)
 
         # Register with plugin manager
@@ -155,11 +156,7 @@ async def _start_event_plugins(
     engine._event_trigger_callback = trigger_callback
 
 
-def command_serve(
-    file: Path,
-    mode: str = "async",
-    verbose: bool = False
-) -> int:
+def command_serve(file: Path, mode: str = "async", verbose: bool = False) -> int:
     """
     Start agent as a background service with event plugins.
 
@@ -186,11 +183,9 @@ def command_serve(
 
     # Create engine with bundle path for embedded plugin discovery
     import agenarc
+
     package_plugins_dir = str(Path(agenarc.__file__).parent / "plugins")
-    plugin_manager = PluginManager(
-        plugin_dirs=[package_plugins_dir],
-        bundle_paths=[bundle_path] if bundle_path else []
-    )
+    plugin_manager = PluginManager(plugin_dirs=[package_plugins_dir], bundle_paths=[bundle_path] if bundle_path else [])
     engine = ExecutionEngine(plugin_manager=plugin_manager)
 
     # Register built-in operators
@@ -215,11 +210,9 @@ def command_serve(
         engine.set_bundle_path(bundle_path)
 
     # Choose execution mode
-    {
-        "sync": ExecutionMode.SYNC,
-        "async": ExecutionMode.ASYNC,
-        "parallel": ExecutionMode.PARALLEL
-    }.get(mode, ExecutionMode.ASYNC)
+    {"sync": ExecutionMode.SYNC, "async": ExecutionMode.ASYNC, "parallel": ExecutionMode.PARALLEL}.get(
+        mode, ExecutionMode.ASYNC
+    )
 
     # Create event loop and start event plugins
     loop = asyncio.new_event_loop()
@@ -232,6 +225,7 @@ def command_serve(
     def signal_handler(sig, frame):
         """Handle Ctrl+C by setting stop event."""
         import sys
+
         stop_event.set()
         loop.call_soon(loop.stop)
         sys.stdout.flush()
@@ -268,10 +262,7 @@ def command_serve(
 
         # Stop all event plugins
         try:
-            await asyncio.wait_for(
-                plugin_manager.stop_all_event_plugins(),
-                timeout=5.0
-            )
+            await asyncio.wait_for(plugin_manager.stop_all_event_plugins(), timeout=5.0)
         except TimeoutError:
             logger.warning("Timeout stopping event plugins during shutdown")
         except Exception as e:
@@ -279,10 +270,7 @@ def command_serve(
 
         # Shutdown plugin manager
         try:
-            await asyncio.wait_for(
-                plugin_manager.shutdown(),
-                timeout=5.0
-            )
+            await asyncio.wait_for(plugin_manager.shutdown(), timeout=5.0)
         except TimeoutError:
             logger.warning("Timeout shutting down plugin manager")
         except Exception as e:
@@ -297,6 +285,7 @@ def command_serve(
             loop.run_until_complete(shutdown_with_timeout())
     finally:
         import sys
+
         sys.stdout.flush()
         sys.stderr.flush()
         if not loop.is_closed():

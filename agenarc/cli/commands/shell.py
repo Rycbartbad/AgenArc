@@ -22,13 +22,7 @@ logger = logging.getLogger(__name__)
 class InteractiveREPL:
     """Interactive REPL for AgenArc agent execution with session persistence."""
 
-    def __init__(
-        self,
-        engine: ExecutionEngine,
-        protocol_path: Path,
-        verbose: bool = False,
-        show_logs: bool = False
-    ):
+    def __init__(self, engine: ExecutionEngine, protocol_path: Path, verbose: bool = False, show_logs: bool = False):
         self.engine = engine
         self.protocol_path = protocol_path
         self.verbose = verbose
@@ -84,10 +78,7 @@ class InteractiveREPL:
             self.engine._state = StateManager()
             source_nodes = self.engine._find_source_nodes()
             graph_id = source_nodes[0].id if source_nodes else "agent"
-            self.engine._state.initialize(
-                self.engine._execution_id or "reset",
-                graph_id
-            )
+            self.engine._state.initialize(self.engine._execution_id or "reset", graph_id)
             print("Session reset (new conversation started).")
             return True
 
@@ -148,15 +139,10 @@ class InteractiveREPL:
             # In shell mode, Trigger acts as the entry point that normalizes input
             # Reuse session StateManager across calls so context persists (multi-turn)
             if self._session_state is None:
-                self._session_state = StateManager(
-                    auto_checkpoint=self.engine.enable_checkpoint
-                )
+                self._session_state = StateManager(auto_checkpoint=self.engine.enable_checkpoint)
                 source_nodes = self.engine._find_source_nodes()
                 graph_id = source_nodes[0].id if source_nodes else "shell"
-                self._session_state.initialize(
-                    self.engine._execution_id or "session",
-                    graph_id
-                )
+                self._session_state.initialize(self.engine._execution_id or "session", graph_id)
                 self._session_initialized = False
             else:
                 self._session_initialized = True
@@ -222,7 +208,7 @@ class InteractiveREPL:
             if self.show_logs and node_results:
                 print("\n--- Execution Logs ---")
                 for node_id, result in node_results.items():
-                    status_name = result.status.name if hasattr(result.status, 'name') else str(result.status)
+                    status_name = result.status.name if hasattr(result.status, "name") else str(result.status)
                     print(f"[{node_id}] {status_name}")
                     if result.outputs:
                         for key, value in result.outputs.items():
@@ -241,12 +227,7 @@ class InteractiveREPL:
         print(f"Executed {len(self._history)} commands.")
 
 
-def command_shell(
-    file: Path,
-    mode: str = "async",
-    verbose: bool = False,
-    show_logs: bool = False
-) -> int:
+def command_shell(file: Path, mode: str = "async", verbose: bool = False, show_logs: bool = False) -> int:
     """
     Start an interactive shell for agent execution.
 
@@ -291,12 +272,7 @@ def command_shell(
         engine.set_bundle_path(bundle_path)
 
     # Start interactive shell
-    repl = InteractiveREPL(
-        engine=engine,
-        protocol_path=protocol_path,
-        verbose=verbose,
-        show_logs=show_logs
-    )
+    repl = InteractiveREPL(engine=engine, protocol_path=protocol_path, verbose=verbose, show_logs=show_logs)
 
     repl.run()
 

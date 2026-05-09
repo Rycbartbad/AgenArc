@@ -16,6 +16,7 @@ from agenarc.protocol.schema import Port
 def _get_llm_config():
     """Lazy import config to avoid circular dependency."""
     from agenarc.config import get_config
+
     return get_config()
 
 
@@ -106,6 +107,7 @@ class LLM_Task_Operator(IOperator):
         """Get or create the LLM client."""
         try:
             from openai import AsyncOpenAI
+
             config = _get_llm_config()
 
             # Use provided values or fall back to config
@@ -129,11 +131,8 @@ class LLM_Task_Operator(IOperator):
                 )
 
             return self._clients[client_key]
-        except ImportError:
-            raise ImportError(
-                "OpenAI library not installed. "
-                "Install with: pip install openai"
-            )
+        except ImportError as e:
+            raise ImportError("OpenAI library not installed. Install with: pip install openai") from e
 
     def _get_provider_order(self, node_config: dict[str, Any]) -> list[str]:
         """Get ordered list of providers to try (node config overrides global)."""
@@ -149,7 +148,9 @@ class LLM_Task_Operator(IOperator):
         _get_llm_config()
         return ["openai", "deepseek"]
 
-    async def _stream_response(self, client, model: str, messages: list[dict], temperature: float) -> AsyncIterator[str]:
+    async def _stream_response(
+        self, client, model: str, messages: list[dict], temperature: float
+    ) -> AsyncIterator[str]:
         """Yield response chunks via streaming."""
         stream = await client.chat.completions.create(
             model=model,
@@ -162,11 +163,7 @@ class LLM_Task_Operator(IOperator):
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         """
         Execute LLM inference with streaming and provider fallback.
 
@@ -195,7 +192,7 @@ class LLM_Task_Operator(IOperator):
         if not messages:
             return {
                 "response": "",
-                "error": {"type": "validation_error", "message": "Empty messages list", "retryable": False}
+                "error": {"type": "validation_error", "message": "Empty messages list", "retryable": False},
             }
 
         # Build API messages: system prompt + conversation history
@@ -260,11 +257,15 @@ class LLM_Task_Operator(IOperator):
                 continue
 
         # All providers failed
-        error_info = _normalize_error(last_error) if last_error else {
-            "type": "unknown_error",
-            "message": "All providers failed",
-            "retryable": False,
-        }
+        error_info = (
+            _normalize_error(last_error)
+            if last_error
+            else {
+                "type": "unknown_error",
+                "message": "All providers failed",
+                "retryable": False,
+            }
+        )
 
         return {
             "response": "",
@@ -274,4 +275,3 @@ class LLM_Task_Operator(IOperator):
     async def validate(self, inputs: dict[str, Any]) -> bool:
         """Validate inputs before execution."""
         return "messages" in inputs
-

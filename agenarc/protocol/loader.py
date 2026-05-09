@@ -32,11 +32,13 @@ from agenarc.protocol.schema import (
 
 class LoaderError(Exception):
     """Raised when protocol loading fails."""
+
     pass
 
 
 class SchemaValidationError(LoaderError):
     """Raised when JSON does not match the schema."""
+
     pass
 
 
@@ -110,10 +112,7 @@ class ProtocolLoader:
 
         # .agrc ZIP file - should be extracted before loading
         if path.suffix == ".agrc":
-            raise LoaderError(
-                f".agrc files must be extracted first. "
-                f"Use CLI to run: agenarc run {path}"
-            )
+            raise LoaderError(f".agrc files must be extracted first. Use CLI to run: agenarc run {path}")
 
         raise LoaderError(f"Unsupported file type: {path.suffix}")
 
@@ -144,15 +143,17 @@ class ProtocolLoader:
         """
         try:
             import jsonschema
+
             jsonschema.validate(instance=data, schema=AGENARC_SCHEMA)
         except ImportError:
             global _jsonschema_available
             if _jsonschema_available is None:
                 _jsonschema_available = False
-                logger.warning("jsonschema not installed. Protocol validation skipped. "
-                               "Install with: pip install jsonschema")
+                logger.warning(
+                    "jsonschema not installed. Protocol validation skipped. Install with: pip install jsonschema"
+                )
         except jsonschema.ValidationError as e:
-            raise SchemaValidationError(f"Schema validation failed: {e.message}")
+            raise SchemaValidationError(f"Schema validation failed: {e.message}") from e
 
     def _parse_graph(self, data: dict[str, Any]) -> Graph:
         """
@@ -176,11 +177,7 @@ class ProtocolLoader:
             edges=edges,
         )
 
-    def _expand_output_to_context(
-        self,
-        nodes: list[Node],
-        edges: list[Edge]
-    ) -> tuple[list[Node], list[Edge]]:
+    def _expand_output_to_context(self, nodes: list[Node], edges: list[Edge]) -> tuple[list[Node], list[Edge]]:
         """
         Expand output_to_context shorthand in node configs into Context_Set nodes.
 
@@ -219,14 +216,16 @@ class ProtocolLoader:
                 if not ref.startswith("outputs."):
                     continue
 
-                output_port = ref[len("outputs."):]
+                output_port = ref[len("outputs.") :]
 
                 # Validate output port exists
                 if source_output_names and output_port not in source_output_names:
                     import warnings
+
                     warnings.warn(
                         f"output_to_context references port '{output_port}' "
-                        f"on node '{node.id}' but node has outputs: {source_output_names}", stacklevel=2
+                        f"on node '{node.id}' but node has outputs: {source_output_names}",
+                        stacklevel=2,
                     )
 
                 # Generate unique ID for the Context_Set node
@@ -235,9 +234,10 @@ class ProtocolLoader:
                 # Check for collision with existing node IDs
                 if context_node_id in exist_ids:
                     import warnings
+
                     warnings.warn(
-                        f"Generated Context_Set node ID '{context_node_id}' "
-                        f"collides with existing node ID. Skipping.", stacklevel=2
+                        f"Generated Context_Set node ID '{context_node_id}' collides with existing node ID. Skipping.",
+                        stacklevel=2,
                     )
                     continue
 
@@ -292,9 +292,7 @@ class ProtocolLoader:
         if "errorHandling" in data:
             eh_data = data["errorHandling"]
             error_handling = ErrorHandling(
-                strategy=self._error_strategies.get(
-                    eh_data.get("strategy", "abort"), ErrorStrategy.ABORT
-                ),
+                strategy=self._error_strategies.get(eh_data.get("strategy", "abort"), ErrorStrategy.ABORT),
                 maxRetries=eh_data.get("maxRetries", 0),
                 errorPort=eh_data.get("errorPort", "error"),
                 fallbackNode=eh_data.get("fallbackNode"),

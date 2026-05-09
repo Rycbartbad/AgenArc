@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExternalPluginConfig:
     """Configuration for an external plugin."""
+
     protocol: str = "stdio"  # "stdio", "http", "grpc"
     command: list[str] = None  # For stdio protocol
     url: str = ""  # For http/grpc protocols
@@ -55,11 +56,7 @@ class ExternalPluginLoader:
         self._configs: dict[str, ExternalPluginConfig] = {}
         self._lock = threading.Lock()
 
-    async def discover(
-        self,
-        search_path: Path,
-        callback: Callable[[Any], None]
-    ) -> list[str]:
+    async def discover(self, search_path: Path, callback: Callable[[Any], None]) -> list[str]:
         """
         Discover external plugins in a directory.
 
@@ -151,11 +148,7 @@ class ExternalPluginLoader:
 
         return operators
 
-    async def _load_stdio_plugin(
-        self,
-        plugin_name: str,
-        config: ExternalPluginConfig
-    ) -> dict[str, Any]:
+    async def _load_stdio_plugin(self, plugin_name: str, config: ExternalPluginConfig) -> dict[str, Any]:
         """Load a stdio-based external plugin."""
         if not config.command:
             logger.error(f"No command specified for stdio plugin: {plugin_name}")
@@ -208,11 +201,7 @@ class ExternalPluginLoader:
             logger.error(f"Failed to load stdio plugin {plugin_name}: {e}")
             return {}
 
-    async def _load_http_plugin(
-        self,
-        plugin_name: str,
-        config: ExternalPluginConfig
-    ) -> dict[str, Any]:
+    async def _load_http_plugin(self, plugin_name: str, config: ExternalPluginConfig) -> dict[str, Any]:
         """Load an HTTP-based external plugin."""
         if not config.url:
             logger.error(f"No URL specified for HTTP plugin: {plugin_name}")
@@ -221,11 +210,11 @@ class ExternalPluginLoader:
         try:
             # Health check
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{config.url}/health", timeout=5) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Plugin health check failed: {resp.status}")
-                        return {}
+
+            async with aiohttp.ClientSession() as session, session.get(f"{config.url}/health", timeout=5) as resp:
+                if resp.status != 200:
+                    logger.error(f"Plugin health check failed: {resp.status}")
+                    return {}
 
             # Get operator list
             async with aiohttp.ClientSession() as session, session.get(f"{config.url}/operators") as resp:
@@ -250,11 +239,7 @@ class ExternalPluginLoader:
             logger.error(f"Failed to load HTTP plugin {plugin_name}: {e}")
             return {}
 
-    async def _send_stdio_request(
-        self,
-        plugin_name: str,
-        request: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    async def _send_stdio_request(self, plugin_name: str, request: dict[str, Any]) -> dict[str, Any] | None:
         """Send a JSON-RPC request to a stdio plugin."""
         process = self._processes.get(plugin_name)
         if not process or process.poll() is not None:
@@ -350,11 +335,15 @@ class ExternalPluginLoader:
             raise ValueError(f"Unknown plugin: {plugin_name}")
 
         import aiohttp
-        async with aiohttp.ClientSession() as session, session.post(
-            f"{config.url}/operators/{operator_name}/{method}",
-            json=params,
-            timeout=aiohttp.ClientTimeout(total=config.request_timeout),
-        ) as resp:
+
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                f"{config.url}/operators/{operator_name}/{method}",
+                json=params,
+                timeout=aiohttp.ClientTimeout(total=config.request_timeout),
+            ) as resp,
+        ):
             if resp.status != 200:
                 text = await resp.text()
                 raise RuntimeError(f"HTTP {resp.status}: {text}")

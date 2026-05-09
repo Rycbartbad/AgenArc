@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 
 class NodeStatus(Enum):
     """Node execution status."""
+
     PENDING = auto()
     RUNNING = auto()
     COMPLETED = auto()
@@ -52,6 +53,7 @@ class NodeStatus(Enum):
 
 class ExecutionMode(Enum):
     """Execution mode."""
+
     SYNC = auto()
     ASYNC = auto()
     PARALLEL = auto()
@@ -60,6 +62,7 @@ class ExecutionMode(Enum):
 @dataclass
 class ExecutionResult:
     """Result of a node execution."""
+
     node_id: str
     status: NodeStatus
     outputs: dict[str, Any] = field(default_factory=dict)
@@ -70,6 +73,7 @@ class ExecutionResult:
 @dataclass
 class GraphResult:
     """Result of a complete graph execution."""
+
     execution_id: str
     status: str  # "success", "failed", "partial"
     node_results: dict[str, ExecutionResult] = field(default_factory=dict)
@@ -163,20 +167,14 @@ class ExecutionEngine:
                 allow_flow_modification=permissions_data.get("allow_flow_modification", False),
                 allow_manifest_modification=permissions_data.get("allow_manifest_modification", False),
                 allowed_modules=permissions_data.get("allowed_modules", []),
-                autonomy_level=AutonomyLevel(
-                    permissions_data.get("autonomy_level", "level_1")
-                ),
+                autonomy_level=AutonomyLevel(permissions_data.get("autonomy_level", "level_1")),
                 gas_budget=permissions_data.get("gas_budget", 1000),
                 max_memory_mb=permissions_data.get("max_memory_mb", 128),
             )
         except Exception as e:
             logger.warning("Failed to load manifest, using defaults: %s", e)
 
-    def register_builtin_operator(
-        self,
-        node_type: str,
-        operator_class: type
-    ) -> None:
+    def register_builtin_operator(self, node_type: str, operator_class: type) -> None:
         """
         Register a built-in operator class for a node type.
 
@@ -211,10 +209,7 @@ class ExecutionEngine:
 
         # Only data edges (with sourcePort) count
         target_nodes = {edge.target for edge in self._graph.edges if edge.sourcePort}
-        source_nodes = [
-            node for node in self._graph.nodes
-            if node.id not in target_nodes
-        ]
+        source_nodes = [node for node in self._graph.nodes if node.id not in target_nodes]
         return source_nodes
 
     def _get_entry_nodes(self) -> list[Node]:
@@ -236,11 +231,7 @@ class ExecutionEngine:
 
         return source_nodes
 
-    def load_protocol(
-        self,
-        source: Any,
-        validate: bool = True
-    ) -> None:
+    def load_protocol(self, source: Any, validate: bool = True) -> None:
         """
         Load and validate a protocol.
 
@@ -268,9 +259,7 @@ class ExecutionEngine:
             raise ValueError(f"Graph validation errors: {', '.join(errors)}")
 
         # Reset execution state
-        self._node_statuses = {
-            node.id: NodeStatus.PENDING for node in self._graph.nodes
-        }
+        self._node_statuses = {node.id: NodeStatus.PENDING for node in self._graph.nodes}
         self._node_errors = {}
 
     def get_operator(self, node: Node) -> Optional["IOperator"]:
@@ -308,9 +297,7 @@ class ExecutionEngine:
         return None
 
     async def execute(
-        self,
-        initial_inputs: dict[str, Any] = None,
-        mode: ExecutionMode = ExecutionMode.ASYNC
+        self, initial_inputs: dict[str, Any] = None, mode: ExecutionMode = ExecutionMode.ASYNC
     ) -> GraphResult:
         """
         Execute the loaded graph.
@@ -358,7 +345,7 @@ class ExecutionEngine:
             self._state.set_global("_bundle_path", self._bundle_path)
             # Convert permissions to dict if it's a Permissions object
             perms = self._permissions
-            if hasattr(perms, 'allow_script_read'):
+            if hasattr(perms, "allow_script_read"):
                 perms = {
                     "allow_script_read": perms.allow_script_read,
                     "allow_script_write": perms.allow_script_write,
@@ -398,7 +385,7 @@ class ExecutionEngine:
                 status="failed",
                 node_results=self._build_node_results(),
                 error=e,
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
             )
 
         finally:
@@ -425,7 +412,7 @@ class ExecutionEngine:
             status=status,
             node_results=self._build_node_results(),
             final_outputs=self._collect_final_outputs(),
-            duration_ms=duration_ms
+            duration_ms=duration_ms,
         )
 
     async def _execute_sync(self, entry_nodes: list[Node]) -> None:
@@ -462,9 +449,7 @@ class ExecutionEngine:
             entry_nodes: Entry point node(s)
         """
         executed: set[str] = set()
-        pending: set[str] = {
-            node.id for node in self._graph.nodes
-        }
+        pending: set[str] = {node.id for node in self._graph.nodes}
 
         while pending and self._running:
             # Find nodes ready to execute
@@ -473,9 +458,7 @@ class ExecutionEngine:
             if not ready:
                 if pending:
                     remaining = list(pending)
-                    raise RuntimeError(
-                        f"Deadlock detected. Remaining nodes: {remaining}"
-                    )
+                    raise RuntimeError(f"Deadlock detected. Remaining nodes: {remaining}")
                 break
 
             # Execute ready nodes
@@ -495,7 +478,7 @@ class ExecutionEngine:
                         selected = [selected]
 
                     # Track iteration count per loop head to prevent infinite loops
-                    if not hasattr(self, '_router_iterations'):
+                    if not hasattr(self, "_router_iterations"):
                         self._router_iterations = {}
                     router_key = f"router_{node_id}"
                     self._router_iterations[router_key] = self._router_iterations.get(router_key, 0) + 1
@@ -539,11 +522,7 @@ class ExecutionEngine:
                 return edge.target
         return None
 
-    def _topological_sort_subset(
-        self,
-        node_ids: set[str],
-        exclude: set[str]
-    ) -> list[str]:
+    def _topological_sort_subset(self, node_ids: set[str], exclude: set[str]) -> list[str]:
         """
         Topological sort of a subset of nodes.
 
@@ -556,8 +535,7 @@ class ExecutionEngine:
         """
         # Build subgraph
         subgraph_adj = {
-            n: [t for t in self._adjacency.get(n, []) if t in node_ids and t not in exclude]
-            for n in node_ids
+            n: [t for t in self._adjacency.get(n, []) if t in node_ids and t not in exclude] for n in node_ids
         }
 
         in_degree = {n: 0 for n in node_ids if n not in exclude}
@@ -592,9 +570,7 @@ class ExecutionEngine:
         """
         semaphore = asyncio.Semaphore(self.max_parallel)
         executed: set[str] = set()
-        pending: set[str] = {
-            node.id for node in self._graph.nodes
-        }
+        pending: set[str] = {node.id for node in self._graph.nodes}
 
         async def execute_with_semaphore(node: Node) -> None:
             async with semaphore:
@@ -610,9 +586,7 @@ class ExecutionEngine:
             if not ready:
                 if pending:
                     remaining = list(pending)
-                    raise RuntimeError(
-                        f"Deadlock detected. Remaining nodes: {remaining}"
-                    )
+                    raise RuntimeError(f"Deadlock detected. Remaining nodes: {remaining}")
                 break
 
             # Launch parallel tasks
@@ -695,8 +669,7 @@ class ExecutionEngine:
         # Strip sensitive keys (api_key, token, secret, password) from context
         # LLM_Task etc. read credentials from config.py directly, not from context
         _sensitive_keys = {"api_key", "key", "token", "secret", "password"}
-        node_config = {k: v for k, v in node_config.items()
-                       if not any(s in k.lower() for s in _sensitive_keys)}
+        node_config = {k: v for k, v in node_config.items() if not any(s in k.lower() for s in _sensitive_keys)}
         context.set("_node_type", node.type.value)
         context.set("_node_config", node_config)
 
@@ -709,10 +682,11 @@ class ExecutionEngine:
             context.set("_router_default", node_config.get("default", ""))
         elif node.type.value == "Join":
             context.set("_join_strategy", node_config.get("strategy", "merge"))
-            incoming = [
-                {"source": e.source, "sourcePort": e.sourcePort}
-                for e in self._graph.get_incoming_edges(node.id)
-            ] if self._graph else []
+            incoming = (
+                [{"source": e.source, "sourcePort": e.sourcePort} for e in self._graph.get_incoming_edges(node.id)]
+                if self._graph
+                else []
+            )
             context.set("_incoming_edges", incoming)
 
         # Create checkpoint before execution
@@ -740,10 +714,7 @@ class ExecutionEngine:
             return None
 
     async def _safe_execute(
-        self,
-        operator: "IOperator",
-        inputs: dict[str, Any],
-        context: ExecutionContext
+        self, operator: "IOperator", inputs: dict[str, Any], context: ExecutionContext
     ) -> dict[str, Any]:
         """
         Safely execute operator with timeout.
@@ -756,23 +727,15 @@ class ExecutionEngine:
         Returns:
             Operator outputs
         """
-        timeout = self._operator_timeout if hasattr(self, '_operator_timeout') else 300
+        timeout = self._operator_timeout if hasattr(self, "_operator_timeout") else 300
 
         try:
-            result = await asyncio.wait_for(
-                operator.execute(inputs, context),
-                timeout=timeout
-            )
+            result = await asyncio.wait_for(operator.execute(inputs, context), timeout=timeout)
             return result or {}
-        except TimeoutError:
-            raise TimeoutError(f"Operator execution timed out after {timeout}s")
+        except TimeoutError as e:
+            raise TimeoutError(f"Operator execution timed out after {timeout}s") from e
 
-    async def _handle_node_error(
-        self,
-        node: Node,
-        error: Exception,
-        context: ExecutionContext
-    ) -> None:
+    async def _handle_node_error(self, node: Node, error: Exception, context: ExecutionContext) -> None:
         """
         Handle node execution error.
 
@@ -827,12 +790,7 @@ class ExecutionEngine:
             # Re-raise to abort execution
             raise error
 
-    async def _handle_fallback(
-        self,
-        node: Node,
-        error_handling: ErrorHandling,
-        context: ExecutionContext
-    ) -> None:
+    async def _handle_fallback(self, node: Node, error_handling: ErrorHandling, context: ExecutionContext) -> None:
         """
         Handle fallback for a failed node.
 
@@ -898,10 +856,7 @@ class ExecutionEngine:
         for node_id, status in self._node_statuses.items():
             outputs = self._state.get_node_outputs(node_id) if self._state else {}
             results[node_id] = ExecutionResult(
-                node_id=node_id,
-                status=status,
-                outputs=outputs,
-                error=self._node_errors.get(node_id)
+                node_id=node_id, status=status, outputs=outputs, error=self._node_errors.get(node_id)
             )
         return results
 

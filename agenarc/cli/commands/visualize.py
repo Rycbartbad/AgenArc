@@ -17,11 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def command_visualize(
-    file: Path,
-    host: str = "127.0.0.1",
-    port: int = 8765,
-    mode: str = "async",
-    verbose: bool = False
+    file: Path, host: str = "127.0.0.1", port: int = 8765, mode: str = "async", verbose: bool = False
 ) -> int:
     """
     Start visualization studio for agent editing and debugging.
@@ -49,11 +45,11 @@ def command_visualize(
 
     # Create engine with global + package plugin directories
     import agenarc
+
     package_plugins_dir = str(Path(agenarc.__file__).parent / "plugins")
     global_plugins_dir = str(Path("~/.agenarc/plugins").expanduser())
     plugin_manager = PluginManager(
-        plugin_dirs=[global_plugins_dir, package_plugins_dir],
-        bundle_paths=[bundle_path] if bundle_path else []
+        plugin_dirs=[global_plugins_dir, package_plugins_dir], bundle_paths=[bundle_path] if bundle_path else []
     )
     engine = ExecutionEngine(plugin_manager=plugin_manager)
 

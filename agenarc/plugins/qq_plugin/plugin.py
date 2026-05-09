@@ -70,48 +70,28 @@ class QQ_Event_Plugin:
     def config_schema(self) -> dict[str, Any]:
         """Return configuration schema for documentation."""
         return {
-            "ws_url": {
-                "type": "string",
-                "default": "ws://127.0.0.1:3001",
-                "description": "NapCat WebSocket address"
-            },
+            "ws_url": {"type": "string", "default": "ws://127.0.0.1:3001", "description": "NapCat WebSocket address"},
             "token": {
                 "type": "string",
                 "default": "",
-                "description": "NapCat token (if required, found in NapCat webui config)"
+                "description": "NapCat token (if required, found in NapCat webui config)",
             },
-            "auto_reconnect": {
-                "type": "boolean",
-                "default": True,
-                "description": "Auto reconnect on disconnect"
-            },
-            "reconnect_interval": {
-                "type": "integer",
-                "default": 5,
-                "description": "Reconnect interval in seconds"
-            },
+            "auto_reconnect": {"type": "boolean", "default": True, "description": "Auto reconnect on disconnect"},
+            "reconnect_interval": {"type": "integer", "default": 5, "description": "Reconnect interval in seconds"},
             "filter_groups": {
                 "type": "array",
                 "items": {"type": "integer"},
                 "default": [],
-                "description": "Only accept messages from these group IDs"
+                "description": "Only accept messages from these group IDs",
             },
             "filter_users": {
                 "type": "array",
                 "items": {"type": "integer"},
                 "default": [],
-                "description": "Only accept messages from these user IDs"
+                "description": "Only accept messages from these user IDs",
             },
-            "accept_private": {
-                "type": "boolean",
-                "default": True,
-                "description": "Accept private messages"
-            },
-            "accept_group": {
-                "type": "boolean",
-                "default": True,
-                "description": "Accept group messages"
-            }
+            "accept_private": {"type": "boolean", "default": True, "description": "Accept private messages"},
+            "accept_group": {"type": "boolean", "default": True, "description": "Accept group messages"},
         }
 
     async def start(self, trigger_callback: Callable[[dict[str, Any]], None]) -> None:

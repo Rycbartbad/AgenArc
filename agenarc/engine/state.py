@@ -22,6 +22,7 @@ from typing import Any
 @dataclass
 class Checkpoint:
     """Represents a point-in-time snapshot of execution state."""
+
     id: str
     label: str
     timestamp: float
@@ -43,11 +44,7 @@ class CheckpointManager:
         ~/.agenarc/checkpoints/<execution_id>/<checkpoint_id>.json
     """
 
-    def __init__(
-        self,
-        checkpoint_dir: Path | None = None,
-        max_checkpoints: int = 100
-    ):
+    def __init__(self, checkpoint_dir: Path | None = None, max_checkpoints: int = 100):
         """
         Initialize CheckpointManager.
 
@@ -161,10 +158,7 @@ class CheckpointManager:
     def delete_all_checkpoints(self, execution_id: str) -> None:
         """Delete all checkpoints for an execution."""
         # Clear memory
-        to_remove = [
-            cid for cid, cp in self._checkpoints.items()
-            if cp.metadata.get("execution_id") == execution_id
-        ]
+        to_remove = [cid for cid, cp in self._checkpoints.items() if cp.metadata.get("execution_id") == execution_id]
         for cid in to_remove:
             del self._checkpoints[cid]
 
@@ -242,6 +236,7 @@ class CheckpointManager:
 @dataclass
 class StateChange:
     """Represents a state change event."""
+
     scope: str  # "global", "local", "checkpoint", "restore"
     node_id: str | None = None
     key: str | None = None
@@ -356,12 +351,7 @@ class StateManager:
         """
         old_value = self._global.get(key)
         self._global[key] = value
-        self._notify(StateChange(
-            scope="global",
-            key=key,
-            old_value=old_value,
-            new_value=value
-        ))
+        self._notify(StateChange(scope="global", key=key, old_value=old_value, new_value=value))
 
     def get(self, key: str, default: Any = None) -> Any:
         """Alias for get_global."""
@@ -412,12 +402,7 @@ class StateManager:
 
     # ========== Local State ==========
 
-    def get_local(
-        self,
-        node_id: str,
-        key: str,
-        default: Any = None
-    ) -> Any:
+    def get_local(self, node_id: str, key: str, default: Any = None) -> Any:
         """
         Get value from node's local state.
 
@@ -432,12 +417,7 @@ class StateManager:
         node_state = self._local.get(node_id, {})
         return node_state.get(key, default)
 
-    def set_local(
-        self,
-        node_id: str,
-        key: str,
-        value: Any
-    ) -> None:
+    def set_local(self, node_id: str, key: str, value: Any) -> None:
         """
         Set value in node's local state.
 
@@ -452,13 +432,7 @@ class StateManager:
         old_value = self._local[node_id].get(key)
         self._local[node_id][key] = value
 
-        self._notify(StateChange(
-            scope="local",
-            node_id=node_id,
-            key=key,
-            old_value=old_value,
-            new_value=value
-        ))
+        self._notify(StateChange(scope="local", node_id=node_id, key=key, old_value=old_value, new_value=value))
 
     def get_node_state(self, node_id: str) -> dict[str, Any]:
         """
@@ -472,11 +446,7 @@ class StateManager:
         """
         return self._local.get(node_id, {}).copy()
 
-    def set_node_state(
-        self,
-        node_id: str,
-        state: dict[str, Any]
-    ) -> None:
+    def set_node_state(self, node_id: str, state: dict[str, Any]) -> None:
         """
         Set entire local state for a node.
 
@@ -485,12 +455,7 @@ class StateManager:
             state: State dictionary
         """
         self._local[node_id] = state.copy()
-        self._notify(StateChange(
-            scope="local",
-            node_id=node_id,
-            key="*",
-            new_value=state
-        ))
+        self._notify(StateChange(scope="local", node_id=node_id, key="*", new_value=state))
 
     def clear_node_state(self, node_id: str) -> None:
         """
@@ -502,21 +467,11 @@ class StateManager:
         if node_id in self._local:
             old_state = self._local[node_id].copy()
             del self._local[node_id]
-            self._notify(StateChange(
-                scope="local",
-                node_id=node_id,
-                key="*",
-                old_value=old_state,
-                new_value=None
-            ))
+            self._notify(StateChange(scope="local", node_id=node_id, key="*", old_value=old_state, new_value=None))
 
     # ========== Node Output Storage ==========
 
-    def store_output(
-        self,
-        node_id: str,
-        outputs: dict[str, Any]
-    ) -> None:
+    def store_output(self, node_id: str, outputs: dict[str, Any]) -> None:
         """
         Store node outputs for downstream consumption.
 
@@ -590,10 +545,7 @@ class StateManager:
             label=label or f"checkpoint_{len(self._checkpoints)}",
             timestamp=time.time(),
             global_state=self._global.copy(),
-            local_states={
-                node_id: state.copy()
-                for node_id, state in self._local.items()
-            }
+            local_states={node_id: state.copy() for node_id, state in self._local.items()},
         )
 
         self._checkpoints[checkpoint_id] = checkpoint
@@ -607,10 +559,7 @@ class StateManager:
         while len(self._checkpoints) > self._max_checkpoints:
             self._checkpoints.popitem(last=False)
 
-        self._notify(StateChange(
-            scope="checkpoint",
-            checkpoint_id=checkpoint_id
-        ))
+        self._notify(StateChange(scope="checkpoint", checkpoint_id=checkpoint_id))
 
         return checkpoint_id
 
@@ -637,15 +586,9 @@ class StateManager:
         self._global = checkpoint.global_state.copy()
 
         # Restore local states
-        self._local = {
-            node_id: state.copy()
-            for node_id, state in checkpoint.local_states.items()
-        }
+        self._local = {node_id: state.copy() for node_id, state in checkpoint.local_states.items()}
 
-        self._notify(StateChange(
-            scope="restore",
-            checkpoint_id=checkpoint_id
-        ))
+        self._notify(StateChange(scope="restore", checkpoint_id=checkpoint_id))
 
         return True
 
@@ -694,11 +637,8 @@ class StateManager:
             "execution_id": self._execution_id,
             "graph_id": self._graph_id,
             "global": self._global.copy(),
-            "local": {
-                node_id: state.copy()
-                for node_id, state in self._local.items()
-            },
-            "checkpoint_ids": list(self._checkpoints.keys())
+            "local": {node_id: state.copy() for node_id, state in self._local.items()},
+            "checkpoint_ids": list(self._checkpoints.keys()),
         }
 
     def restore_snapshot(self, snapshot: dict[str, Any]) -> None:
@@ -711,10 +651,7 @@ class StateManager:
         self._execution_id = snapshot.get("execution_id", "")
         self._graph_id = snapshot.get("graph_id", "")
         self._global = snapshot.get("global", {}).copy()
-        self._local = {
-            node_id: state.copy()
-            for node_id, state in snapshot.get("local", {}).items()
-        }
+        self._local = {node_id: state.copy() for node_id, state in snapshot.get("local", {}).items()}
 
     # ========== Listeners ==========
 
@@ -744,6 +681,7 @@ class StateManager:
                 listener(change)
             except Exception as e:
                 import logging
+
                 logging.error(f"State listener error: {e}")
 
     # ========== Context Access ==========
@@ -846,7 +784,8 @@ class ExecutionContext:
                     f"data races in PARALLEL mode. Declare it in "
                     f"manifest.json context.large_object_keys or use "
                     f"context.set() instead of direct mutation.",
-                    RuntimeWarning, stacklevel=2
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
                 # Update tracking to avoid repeated warnings
                 self._state._origin_ids[key] = current_id

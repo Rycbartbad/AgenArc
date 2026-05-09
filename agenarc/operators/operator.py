@@ -78,11 +78,7 @@ class IOperator(ABC):
         pass
 
     @abstractmethod
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: "ExecutionContext"
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: "ExecutionContext") -> dict[str, Any]:
         """
         Execute the operator.
 

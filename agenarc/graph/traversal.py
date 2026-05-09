@@ -11,11 +11,13 @@ from agenarc.protocol.schema import Graph, Node
 
 class CycleError(Exception):
     """Raised when a cycle is detected in the graph."""
+
     pass
 
 
 class DisconnectedGraphError(Exception):
     """Raised when graph has nodes not reachable from entry point."""
+
     pass
 
 
@@ -107,11 +109,7 @@ class GraphTraversal:
         dfs(start_node_id)
         return order
 
-    def get_ready_nodes(
-        self,
-        executed: set[str],
-        pending: set[str]
-    ) -> list[str]:
+    def get_ready_nodes(self, executed: set[str], pending: set[str]) -> list[str]:
         """
         Get nodes that are ready to execute.
 
@@ -154,10 +152,7 @@ class GraphTraversal:
         # Only data edges (with sourcePort) count — control-flow edges (e.g. →trigger for session)
         # without sourcePort should not block source node detection.
         target_nodes = {edge.target for edge in self.graph.edges if edge.sourcePort}
-        source_nodes = [
-            node for node in self.graph.nodes
-            if node.id not in target_nodes
-        ]
+        source_nodes = [node for node in self.graph.nodes if node.id not in target_nodes]
         return source_nodes
 
     def find_path(self, source: str, target: str) -> list[str] | None:
@@ -340,7 +335,7 @@ class GraphTraversal:
 
             # Router condition-output matching
             if src_node and src_node.type.name == "ROUTER" and edge.sourcePort:
-                conditions = src_node.config.get("conditions", []) if hasattr(src_node.config, 'get') else []
+                conditions = src_node.config.get("conditions", []) if hasattr(src_node.config, "get") else []
                 cond_outputs = [c.get("output") for c in conditions if isinstance(c, dict)]
                 if cond_outputs and edge.sourcePort not in cond_outputs:
                     errors.append(
@@ -382,8 +377,6 @@ class GraphTraversal:
 
         # Check global errorNode exists if specified
         if self.graph.errorNode and self.graph.errorNode not in node_map:
-            errors.append(
-                f"Global errorNode '{self.graph.errorNode}' not found in nodes list"
-            )
+            errors.append(f"Global errorNode '{self.graph.errorNode}' not found in nodes list")
 
         return errors

@@ -52,11 +52,7 @@ class CppPluginLoader:
         else:
             return ".so"
 
-    async def discover(
-        self,
-        search_path: Path,
-        callback: Callable[[Any], None]
-    ) -> list[str]:
+    async def discover(self, search_path: Path, callback: Callable[[Any], None]) -> list[str]:
         """
         Discover C++ plugins in a directory.
 

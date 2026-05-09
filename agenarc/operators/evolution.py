@@ -52,26 +52,19 @@ class Asset_Reader_Operator(IOperator):
             Port(name="success", type="boolean", description="Whether read succeeded"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         vfs_path = inputs.get("path", "")
         encoding = inputs.get("encoding", "utf-8")
 
         if not vfs_path:
-            return {
-                "content": "",
-                "metadata": {},
-                "success": False
-            }
+            return {"content": "", "metadata": {}, "success": False}
 
         # Get bundle path from context
         bundle_path = context.get("_bundle_path")
         if not bundle_path:
             # Try to get from config or default
             from agenarc.config import get_config
+
             config = get_config()
             config.get("agent.checkpoint_dir", "~/.agenarc")
             # For now, try current directory
@@ -96,21 +89,13 @@ class Asset_Reader_Operator(IOperator):
                     "modified": stat.st_mtime,
                     "path": vfs_path,
                 },
-                "success": True
+                "success": True,
             }
 
         except VFSError as e:
-            return {
-                "content": "",
-                "metadata": {"error": str(e)},
-                "success": False
-            }
+            return {"content": "", "metadata": {"error": str(e)}, "success": False}
         except Exception as e:
-            return {
-                "content": "",
-                "metadata": {"error": str(e)},
-                "success": False
-            }
+            return {"content": "", "metadata": {"error": str(e)}, "success": False}
 
 
 class Asset_Writer_Operator(IOperator):
@@ -155,22 +140,14 @@ class Asset_Writer_Operator(IOperator):
             Port(name="error", type="string", description="Error message if failed"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         vfs_path = inputs.get("path", "")
         content = inputs.get("content", "")
         operation = inputs.get("operation", "create")
         encoding = inputs.get("encoding", "utf-8")
 
         if not vfs_path:
-            return {
-                "success": False,
-                "path": "",
-                "error": "Path is required"
-            }
+            return {"success": False, "path": "", "error": "Path is required"}
 
         # Get bundle path from context
         bundle_path = context.get("_bundle_path")
@@ -187,56 +164,26 @@ class Asset_Writer_Operator(IOperator):
             if operation == "delete":
                 # Check immutable_nodes
                 if self._is_immutable(vfs_path, context):
-                    return {
-                        "success": False,
-                        "path": vfs_path,
-                        "error": "Path is immutable"
-                    }
+                    return {"success": False, "path": vfs_path, "error": "Path is immutable"}
                 # For delete, we'd need to implement it in VFS
-                return {
-                    "success": False,
-                    "path": vfs_path,
-                    "error": "Delete not implemented yet"
-                }
+                return {"success": False, "path": vfs_path, "error": "Delete not implemented yet"}
 
             # Check immutable_nodes
             if self._is_immutable(vfs_path, context):
-                return {
-                    "success": False,
-                    "path": vfs_path,
-                    "error": "Cannot write to immutable path"
-                }
+                return {"success": False, "path": vfs_path, "error": "Cannot write to immutable path"}
 
             # Atomic write
-            if operation == "create":
-                # Check if exists
-                if vfs.exists(vfs_path):
-                    return {
-                        "success": False,
-                        "path": vfs_path,
-                        "error": "File already exists"
-                    }
+            if operation == "create" and vfs.exists(vfs_path):
+                return {"success": False, "path": vfs_path, "error": "File already exists"}
 
             vfs.write(vfs_path, content, encoding)
 
-            return {
-                "success": True,
-                "path": vfs_path,
-                "error": None
-            }
+            return {"success": True, "path": vfs_path, "error": None}
 
         except VFSError as e:
-            return {
-                "success": False,
-                "path": vfs_path,
-                "error": str(e)
-            }
+            return {"success": False, "path": vfs_path, "error": str(e)}
         except Exception as e:
-            return {
-                "success": False,
-                "path": vfs_path,
-                "error": str(e)
-            }
+            return {"success": False, "path": vfs_path, "error": str(e)}
 
     def _is_immutable(self, vfs_path: str, context: ExecutionContext) -> bool:
         """Check if path is in immutable_nodes list."""
@@ -279,11 +226,7 @@ class Runtime_Reload_Operator(IOperator):
             Port(name="error", type="string", description="Error message if failed"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         target = inputs.get("target", "both")
 
         try:
@@ -292,6 +235,7 @@ class Runtime_Reload_Operator(IOperator):
             if target in ("plugins", "both"):
                 # Reload plugin manager
                 from agenarc.plugins.manager import PluginManager
+
                 plugin_manager = PluginManager()
                 plugin_manager.discover_plugins()
                 reloaded.append("plugins")
@@ -307,18 +251,10 @@ class Runtime_Reload_Operator(IOperator):
                             # and reload if changed
                             reloaded.append(f"scripts/{script_file.name}")
 
-            return {
-                "success": True,
-                "reloaded_scripts": reloaded,
-                "error": None
-            }
+            return {"success": True, "reloaded_scripts": reloaded, "error": None}
 
         except Exception as e:
-            return {
-                "success": False,
-                "reloaded_scripts": [],
-                "error": str(e)
-            }
+            return {"success": False, "reloaded_scripts": [], "error": str(e)}
 
 
 def get_evolution_operators() -> dict[str, type]:

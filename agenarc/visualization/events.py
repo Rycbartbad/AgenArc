@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ExecutionEvent(StrEnum):
     """Event types for execution visualization."""
+
     NODE_START = "node:start"
     NODE_COMPLETE = "node:complete"
     NODE_ERROR = "node:error"
@@ -37,26 +38,16 @@ class ExecutionEventEmitter:
     def __init__(self):
         self._listeners: list[Callable[[ExecutionEvent, dict[str, Any]], None]] = []
 
-    def add_listener(
-        self,
-        callback: Callable[[ExecutionEvent, dict[str, Any]], None]
-    ) -> None:
+    def add_listener(self, callback: Callable[[ExecutionEvent, dict[str, Any]], None]) -> None:
         """Add an event listener."""
         self._listeners.append(callback)
 
-    def remove_listener(
-        self,
-        callback: Callable[[ExecutionEvent, dict[str, Any]], None]
-    ) -> None:
+    def remove_listener(self, callback: Callable[[ExecutionEvent, dict[str, Any]], None]) -> None:
         """Remove an event listener."""
         if callback in self._listeners:
             self._listeners.remove(callback)
 
-    def emit(
-        self,
-        event_type: ExecutionEvent,
-        data: dict[str, Any]
-    ) -> None:
+    def emit(self, event_type: ExecutionEvent, data: dict[str, Any]) -> None:
         """Emit event to all listeners."""
         for listener in self._listeners:
             try:
@@ -64,88 +55,81 @@ class ExecutionEventEmitter:
             except Exception as e:
                 logger.warning("Event listener error: %s", e)
 
-    def emit_node_start(
-        self,
-        node_id: str,
-        execution_id: str
-    ) -> None:
+    def emit_node_start(self, node_id: str, execution_id: str) -> None:
         """Emit node start event."""
-        self.emit(ExecutionEvent.NODE_START, {
-            "nodeId": node_id,
-            "executionId": execution_id,
-        })
+        self.emit(
+            ExecutionEvent.NODE_START,
+            {
+                "nodeId": node_id,
+                "executionId": execution_id,
+            },
+        )
 
-    def emit_node_complete(
-        self,
-        node_id: str,
-        execution_id: str,
-        outputs: dict[str, Any]
-    ) -> None:
+    def emit_node_complete(self, node_id: str, execution_id: str, outputs: dict[str, Any]) -> None:
         """Emit node complete event."""
-        self.emit(ExecutionEvent.NODE_COMPLETE, {
-            "nodeId": node_id,
-            "executionId": execution_id,
-            "outputs": outputs,
-        })
+        self.emit(
+            ExecutionEvent.NODE_COMPLETE,
+            {
+                "nodeId": node_id,
+                "executionId": execution_id,
+                "outputs": outputs,
+            },
+        )
 
-    def emit_node_error(
-        self,
-        node_id: str,
-        execution_id: str,
-        error: str
-    ) -> None:
+    def emit_node_error(self, node_id: str, execution_id: str, error: str) -> None:
         """Emit node error event."""
-        self.emit(ExecutionEvent.NODE_ERROR, {
-            "nodeId": node_id,
-            "executionId": execution_id,
-            "error": error,
-        })
+        self.emit(
+            ExecutionEvent.NODE_ERROR,
+            {
+                "nodeId": node_id,
+                "executionId": execution_id,
+                "error": error,
+            },
+        )
 
-    def emit_node_skip(
-        self,
-        node_id: str,
-        execution_id: str
-    ) -> None:
+    def emit_node_skip(self, node_id: str, execution_id: str) -> None:
         """Emit node skip event."""
-        self.emit(ExecutionEvent.NODE_SKIP, {
-            "nodeId": node_id,
-            "executionId": execution_id,
-        })
+        self.emit(
+            ExecutionEvent.NODE_SKIP,
+            {
+                "nodeId": node_id,
+                "executionId": execution_id,
+            },
+        )
 
-    def emit_execution_start(
-        self,
-        execution_id: str
-    ) -> None:
+    def emit_execution_start(self, execution_id: str) -> None:
         """Emit execution start event."""
-        self.emit(ExecutionEvent.EXECUTION_START, {
-            "executionId": execution_id,
-        })
+        self.emit(
+            ExecutionEvent.EXECUTION_START,
+            {
+                "executionId": execution_id,
+            },
+        )
 
-    def emit_execution_end(
-        self,
-        execution_id: str,
-        status: str
-    ) -> None:
+    def emit_execution_end(self, execution_id: str, status: str) -> None:
         """Emit execution end event."""
-        self.emit(ExecutionEvent.EXECUTION_END, {
-            "executionId": execution_id,
-            "status": status,
-        })
+        self.emit(
+            ExecutionEvent.EXECUTION_END,
+            {
+                "executionId": execution_id,
+                "status": status,
+            },
+        )
 
-    def emit_context_update(
-        self,
-        context: dict[str, Any]
-    ) -> None:
+    def emit_context_update(self, context: dict[str, Any]) -> None:
         """Emit context update event."""
-        self.emit(ExecutionEvent.CONTEXT_UPDATE, {
-            "context": context,
-        })
+        self.emit(
+            ExecutionEvent.CONTEXT_UPDATE,
+            {
+                "context": context,
+            },
+        )
 
-    def emit_checkpoint_save(
-        self,
-        checkpoint_id: str
-    ) -> None:
+    def emit_checkpoint_save(self, checkpoint_id: str) -> None:
         """Emit checkpoint save event."""
-        self.emit(ExecutionEvent.CHECKPOINT_SAVE, {
-            "checkpointId": checkpoint_id,
-        })
+        self.emit(
+            ExecutionEvent.CHECKPOINT_SAVE,
+            {
+                "checkpointId": checkpoint_id,
+            },
+        )

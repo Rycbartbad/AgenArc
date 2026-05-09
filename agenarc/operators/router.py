@@ -51,11 +51,7 @@ class RouterOperator(IOperator):
         # Output ports are determined by edges with matching sourcePort values.
         return []
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         input_value = inputs.get("input")
 
         # Get conditions from config
@@ -81,30 +77,17 @@ class RouterOperator(IOperator):
         outputs["_selected"] = selected
         return outputs
 
-    def _evaluate_condition(
-        self,
-        condition: Condition,
-        input_value: Any,
-        context: ExecutionContext
-    ) -> bool:
+    def _evaluate_condition(self, condition: Condition, input_value: Any, context: ExecutionContext) -> bool:
         """Evaluate a single condition."""
         # Handle compound conditions
         if condition.and_conditions:
-            return all(
-                self._evaluate_condition(c, input_value, context)
-                for c in condition.and_conditions
-            )
+            return all(self._evaluate_condition(c, input_value, context) for c in condition.and_conditions)
 
         if condition.or_conditions:
-            return any(
-                self._evaluate_condition(c, input_value, context)
-                for c in condition.or_conditions
-            )
+            return any(self._evaluate_condition(c, input_value, context) for c in condition.or_conditions)
 
         if condition.not_condition:
-            return not self._evaluate_condition(
-                condition.not_condition, input_value, context
-            )
+            return not self._evaluate_condition(condition.not_condition, input_value, context)
 
         # Simple condition
         ref = condition.ref or "input"
@@ -130,12 +113,7 @@ class RouterOperator(IOperator):
 
         return self._compare_values(actual_value, operator, expected_value)
 
-    def _compare_values(
-        self,
-        actual: Any,
-        operator: ConditionOperator,
-        expected: Any
-    ) -> bool:
+    def _compare_values(self, actual: Any, operator: ConditionOperator, expected: Any) -> bool:
         """Compare actual value with expected using operator."""
         if operator == ConditionOperator.EQ:
             return actual == expected

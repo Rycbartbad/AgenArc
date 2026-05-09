@@ -53,11 +53,7 @@ class JoinOperator(IOperator):
             Port(name="output", type="any", description="Merged output"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: "ExecutionContext"
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: "ExecutionContext") -> dict[str, Any]:
         strategy = context.get("_join_strategy", self._default_strategy)
         context.get("_node_id", "join")
 

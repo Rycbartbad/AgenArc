@@ -7,11 +7,7 @@ from pathlib import Path
 from . import pack_bundle
 
 
-def command_pack(
-    source: Path,
-    output: Path | None = None,
-    verbose: bool = False
-) -> int:
+def command_pack(source: Path, output: Path | None = None, verbose: bool = False) -> int:
     """
     Pack a directory into a .agrc ZIP bundle.
 

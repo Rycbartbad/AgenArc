@@ -80,11 +80,7 @@ class TriggerOperator(IOperator):
             Port(name="token", type="string", description="Event token (for authentication)"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         # Trigger normalizes the initial payload into standardized event fields
         payload = context.get("payload", {})
 
@@ -153,20 +149,16 @@ class Memory_IO_Operator(IOperator):
     def get_input_ports(self) -> list[Port]:
         return [
             Port(name="key", type="string", description="Storage key"),
-            Port(name="value", type="any", description="Value to write", default=None)
+            Port(name="value", type="any", description="Value to write", default=None),
         ]
 
     def get_output_ports(self) -> list[Port]:
         return [
             Port(name="value", type="any", description="Read value"),
-            Port(name="success", type="boolean", description="Operation success")
+            Port(name="success", type="boolean", description="Operation success"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         key = inputs.get("key")
         if not key:
             return {"value": None, "success": False}
@@ -176,7 +168,7 @@ class Memory_IO_Operator(IOperator):
         transactional = node_config.get("transactional", False)
 
         # Get the underlying state manager (handles both ExecutionContext and raw StateManager)
-        state = getattr(context, '_state', context)
+        state = getattr(context, "_state", context)
 
         # Enable transaction mode if configured and not already enabled
         if transactional and not state.in_transaction:
@@ -236,8 +228,6 @@ class Memory_IO_Operator(IOperator):
             logger.warning("Failed to persist Memory_I/O to disk for key '%s': %s", key, e)
 
 
-
-
 class Script_Node_Operator(IOperator):
     """
     Script Node operator - execute inline Python scripts.
@@ -274,7 +264,7 @@ class Script_Node_Operator(IOperator):
     def get_input_ports(self) -> list[Port]:
         return [
             Port(name="script", type="string", description="Python script to execute"),
-            Port(name="timeout", type="number", description="Timeout in seconds", default=30)
+            Port(name="timeout", type="number", description="Timeout in seconds", default=30),
         ]
 
     def get_output_ports(self) -> list[Port]:
@@ -284,11 +274,7 @@ class Script_Node_Operator(IOperator):
             Port(name="error", type="string", description="Error message if failed"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         # Script can come from inputs (edge) or from node config
         script = inputs.get("script", "")
 
@@ -307,12 +293,7 @@ class Script_Node_Operator(IOperator):
         # Use "developer" only explicitly for full Python access
         node_config = context.get("_node_config", {})
         explicit_trust = node_config.get("script_trust_level", None)
-        if explicit_trust is not None:
-            # Node config explicitly sets trust level
-            trust_level = explicit_trust
-        else:
-            # Default to trusted - restricts builtins to safe subset
-            trust_level = "trusted"
+        trust_level = explicit_trust if explicit_trust is not None else "trusted"
 
         # Get resource limits from manifest permissions
         gas_budget = context.get("_gas_budget", 1000)
@@ -344,7 +325,7 @@ class Script_Node_Operator(IOperator):
                         "result": None,
                         "success": False,
                         "error": "Script_Node in 'locked' mode only supports expressions. "
-                                 "Use 'trusted' or 'developer' mode for statements."
+                        "Use 'trusted' or 'developer' mode for statements.",
                     }
 
             # In "trusted" or "developer" mode: allow statements with restrictions
@@ -355,8 +336,7 @@ class Script_Node_Operator(IOperator):
                 # Execute as statements (for context modifications)
                 # In "developer" mode, use less restricted globals
                 result = await self._execute_statements(
-                    script_stripped, context, eval_context, inputs,
-                    trust_level == "developer"
+                    script_stripped, context, eval_context, inputs, trust_level == "developer"
                 )
                 return {"result": result, "success": True, "error": None}
 
@@ -366,12 +346,33 @@ class Script_Node_Operator(IOperator):
     def _is_expression(self, script: str) -> bool:
         """Check if script is a single expression (not statements)."""
         import ast
+
         # Simple heuristic: doesn't contain newlines or semicolons
         # and looks like an expression
         if "\n" in script or ";" in script:
             return False
         # Check for common statement keywords
-        statement_keywords = ["if ", "for ", "while ", "def ", "class ", "return ", "import ", "try ", "with ", "as ", "assert ", "pass ", "break ", "continue ", "raise ", "yield ", "del ", "global ", "nonlocal "]
+        statement_keywords = [
+            "if ",
+            "for ",
+            "while ",
+            "def ",
+            "class ",
+            "return ",
+            "import ",
+            "try ",
+            "with ",
+            "as ",
+            "assert ",
+            "pass ",
+            "break ",
+            "continue ",
+            "raise ",
+            "yield ",
+            "del ",
+            "global ",
+            "nonlocal ",
+        ]
         for keyword in statement_keywords:
             if script.startswith(keyword):
                 return False
@@ -417,7 +418,7 @@ class Script_Node_Operator(IOperator):
         context: ExecutionContext,
         eval_context: dict[str, Any],
         inputs: dict[str, Any] = None,
-        developer_mode: bool = False
+        developer_mode: bool = False,
     ) -> Any:
         """
         Execute script as statements with context access.
@@ -497,10 +498,7 @@ class Script_Node_Operator(IOperator):
         # Use script_globals as both globals AND locals (single namespace)
         # so that _result assignments from the script are captured correctly.
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: exec(script, script_globals)
-        )
+        await loop.run_in_executor(None, lambda: exec(script, script_globals))
 
         return script_globals.get("_result")
 
@@ -529,20 +527,16 @@ class Log_Node_Operator(IOperator):
     def get_input_ports(self) -> list[Port]:
         return [
             Port(name="message", type="string", description="Log message", default=""),
-            Port(name="data", type="any", description="Data to log", default=None)
+            Port(name="data", type="any", description="Data to log", default=None),
         ]
 
     def get_output_ports(self) -> list[Port]:
         return [
             Port(name="message", type="string", description="Pass through message"),
-            Port(name="data", type="any", description="Pass through data")
+            Port(name="data", type="any", description="Pass through data"),
         ]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         message = inputs.get("message", "")
         data = inputs.get("data")
 
@@ -553,10 +547,7 @@ class Log_Node_Operator(IOperator):
                 log_output += f" {data}"
             logger.info(f"{log_output}")
 
-        return {
-            "message": message,
-            "data": data
-        }
+        return {"message": message, "data": data}
 
 
 class Context_Set_Operator(IOperator):
@@ -582,19 +573,13 @@ class Context_Set_Operator(IOperator):
     def get_input_ports(self) -> list[Port]:
         return [
             Port(name="key", type="string", description="Context key"),
-            Port(name="value", type="any", description="Value to set")
+            Port(name="value", type="any", description="Value to set"),
         ]
 
     def get_output_ports(self) -> list[Port]:
-        return [
-            Port(name="success", type="boolean", description="Operation success")
-        ]
+        return [Port(name="success", type="boolean", description="Operation success")]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         key = inputs.get("key")
         value = inputs.get("value")
 
@@ -632,19 +617,13 @@ class Context_Get_Operator(IOperator):
     def get_input_ports(self) -> list[Port]:
         return [
             Port(name="key", type="string", description="Context key"),
-            Port(name="default", type="any", description="Default value", default=None)
+            Port(name="default", type="any", description="Default value", default=None),
         ]
 
     def get_output_ports(self) -> list[Port]:
-        return [
-            Port(name="value", type="any", description="Retrieved value")
-        ]
+        return [Port(name="value", type="any", description="Retrieved value")]
 
-    async def execute(
-        self,
-        inputs: dict[str, Any],
-        context: ExecutionContext
-    ) -> dict[str, Any]:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
         key = inputs.get("key")
         default = inputs.get("default")
 
@@ -676,6 +655,7 @@ def _register_llm_operators():
     """Register LLM operators from llm.py."""
     try:
         from agenarc.operators.llm import LLM_Task_Operator
+
         BUILTIN_OPERATORS["LLM_Task"] = LLM_Task_Operator
     except ImportError as e:
         logger.warning("LLM operators not available (import failed): %s", e)
@@ -685,6 +665,7 @@ def _register_router_operator():
     """Register Router operator from router.py."""
     try:
         from agenarc.operators.router import RouterOperator
+
         BUILTIN_OPERATORS["Router"] = RouterOperator
     except ImportError as e:
         logger.warning("Router operator not available (import failed): %s", e)
@@ -694,6 +675,7 @@ def _register_join_operator():
     """Register Join operator from join.py."""
     try:
         from agenarc.operators.join import JoinOperator
+
         BUILTIN_OPERATORS["Join"] = JoinOperator
     except ImportError as e:
         logger.warning("Join operator not available (import failed): %s", e)
@@ -703,6 +685,7 @@ def _register_evolution_operators():
     """Register evolution operators (Asset_Reader, Asset_Writer, Runtime_Reload)."""
     try:
         from agenarc.operators.evolution import get_evolution_operators
+
         evolution_ops = get_evolution_operators()
         for name, op_class in evolution_ops.items():
             BUILTIN_OPERATORS[name] = op_class

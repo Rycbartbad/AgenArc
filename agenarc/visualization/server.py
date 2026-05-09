@@ -28,15 +28,20 @@ from agenarc.visualization.state import GraphStateTracker, NodeStatus
 
 class LiveBuffer:
     """Thread-safe line buffer for real-time stdout capture."""
+
     def __init__(self):
         self._lines = []
+
     def write(self, text):
         if text:
             self._lines.append(text)
+
     def flush(self):
         pass
+
     def get_since(self, index):
         return self._lines[index:]
+
     @property
     def length(self):
         return len(self._lines)
@@ -92,11 +97,7 @@ class VisualizationServer:
         """Start the visualization server."""
         self._running = True
         self._attach_to_engine()
-        self._server = await asyncio.start_server(
-            self._handle_http,
-            self.host,
-            self.port
-        )
+        self._server = await asyncio.start_server(self._handle_http, self.host, self.port)
         addr = self._server.sockets[0].getsockname()
         host_str = addr[0]
         # Normalize IPv6 loopback for display
@@ -125,7 +126,7 @@ class VisualizationServer:
     def _attach_to_engine(self) -> None:
         """Attach event hooks to ExecutionEngine."""
         # Hook into engine's node execution methods
-        original_execute = getattr(self.engine, '_execute_node_with_tracking', None)
+        original_execute = getattr(self.engine, "_execute_node_with_tracking", None)
 
         if original_execute:
             self._original_execute_node = original_execute
@@ -141,10 +142,10 @@ class VisualizationServer:
                     self._state_tracker.record_node_output(node_id, result)
                     self._event_emitter.emit_node_complete(node_id, exec_id, result)
                     # Capture context snapshot for visualization
-                    if self.engine._state and hasattr(self.engine._state, '_global'):
+                    if self.engine._state and hasattr(self.engine._state, "_global"):
                         self._state_tracker.capture_context_snapshot(
                             dict(self.engine._state._global),
-                            {nid: dict(st) for nid, st in self.engine._state._local.items()}
+                            {nid: dict(st) for nid, st in self.engine._state._local.items()},
                         )
                     return result
                 except Exception as e:
@@ -157,24 +158,28 @@ class VisualizationServer:
 
         # Wire event emitter to broadcast via WebSocket
         self._event_emitter.add_listener(
-            lambda event_type, data: asyncio.create_task(self.broadcast({
-                "type": event_type.value if hasattr(event_type, 'value') else str(event_type),
-                "nodeId": data.get("nodeId", ""),
-                "data": data,
-                "timestamp": datetime.datetime.now().isoformat(),
-            }))
+            lambda event_type, data: asyncio.create_task(
+                self.broadcast(
+                    {
+                        "type": event_type.value if hasattr(event_type, "value") else str(event_type),
+                        "nodeId": data.get("nodeId", ""),
+                        "data": data,
+                        "timestamp": datetime.datetime.now().isoformat(),
+                    }
+                )
+            )
         )
 
     def _detach_from_engine(self) -> None:
         """Detach event hooks from ExecutionEngine."""
-        if hasattr(self, '_original_execute_node'):
+        if hasattr(self, "_original_execute_node"):
             self.engine._execute_node_with_tracking = self._original_execute_node
 
     async def _handle_http(self, reader: Any, writer: Any) -> None:
         """Handle HTTP requests."""
         try:
             request_line = await reader.readline()
-            if not request_line or request_line.strip() == b'':
+            if not request_line or request_line.strip() == b"":
                 writer.close()
                 return
             parts = request_line.decode().strip().split()
@@ -188,16 +193,16 @@ class VisualizationServer:
             headers = {}
             while True:
                 line = await reader.readline()
-                if line == b'\r\n':
+                if line == b"\r\n":
                     break
                 decoded = line.decode().strip()
-                if ':' in decoded:
-                    key, value = decoded.split(':', 1)
+                if ":" in decoded:
+                    key, value = decoded.split(":", 1)
                     headers[key.lower().strip()] = value.strip()
 
             # Read body if present
-            content_length = int(headers.get('content-length', 0))
-            body = await reader.read(content_length) if content_length > 0 else b''
+            content_length = int(headers.get("content-length", 0))
+            body = await reader.read(content_length) if content_length > 0 else b""
 
             # WebSocket upgrade — handle before normal routing
             if method == "GET" and path == "/ws":
@@ -222,13 +227,7 @@ class VisualizationServer:
             except Exception as e:
                 logger.warning("Failed to close connection: %s", e)
 
-    async def _route_request(
-        self,
-        method: str,
-        path: str,
-        headers: dict[str, str],
-        body: bytes
-    ) -> bytes:
+    async def _route_request(self, method: str, path: str, headers: dict[str, str], body: bytes) -> bytes:
         """Route HTTP request to appropriate handler."""
         # CORS preflight
         if method == "OPTIONS":
@@ -271,7 +270,7 @@ class VisualizationServer:
 
         # GET /api/node/{id}/outputs
         elif method == "GET" and path.startswith("/api/node/"):
-            parts = path.split('/')
+            parts = path.split("/")
             if len(parts) >= 4 and parts[3]:
                 node_id = parts[3]
                 return self._json_response(self._get_node_outputs(node_id))
@@ -293,13 +292,15 @@ class VisualizationServer:
             vfs_path = None
             if self.bundle_path:
                 vfs_path = f"agrc://  {self.bundle_path}"
-            return self._json_response({
-                "status": "ok",
-                "vfs": vfs_path,
-                "bundlePath": str(self.bundle_path) if self.bundle_path else None,
-                "nodeCount": len(self.engine._graph.nodes) if self.engine._graph else 0,
-                "edgeCount": len(self.engine._graph.edges) if self.engine._graph else 0,
-            })
+            return self._json_response(
+                {
+                    "status": "ok",
+                    "vfs": vfs_path,
+                    "bundlePath": str(self.bundle_path) if self.bundle_path else None,
+                    "nodeCount": len(self.engine._graph.nodes) if self.engine._graph else 0,
+                    "edgeCount": len(self.engine._graph.edges) if self.engine._graph else 0,
+                }
+            )
 
         # GET /api/serve (status) and POST /api/serve (start)
         elif path == "/api/serve":
@@ -340,13 +341,13 @@ class VisualizationServer:
 
         # Find Plugin source nodes
         source_nodes = []
-        if hasattr(engine, '_find_source_nodes'):
+        if hasattr(engine, "_find_source_nodes"):
             source_nodes = engine._find_source_nodes()
 
         # Detect event plugins from source nodes
         detected = []
         for node in source_nodes:
-            if hasattr(node.type, 'value') and node.type.value == "Plugin":
+            if hasattr(node.type, "value") and node.type.value == "Plugin":
                 config = node.metadata.get("config", {})
                 plugin_name = config.get("plugin", "")
                 if plugin_name and plugin_name not in [d["name"] for d in detected]:
@@ -369,6 +370,7 @@ class VisualizationServer:
         async def trigger_with_capture(event_data):
             import sys as _sys
             import uuid
+
             buf = self._serve_buffer
             buf_idx_before = buf.length
             old_stdout = _sys.stdout
@@ -382,6 +384,7 @@ class VisualizationServer:
                 _sys.stdout = old_stdout
                 logger.error(f"[Serve] Graph execution error: {e}")
                 import traceback
+
                 traceback.print_exc()
                 _sys.stdout = buf
             finally:
@@ -389,7 +392,7 @@ class VisualizationServer:
                 self._state_tracker.end_execution("completed")
             # Store last result for frontend polling
             try:
-                if engine._state and hasattr(engine._state, '_local'):
+                if engine._state and hasattr(engine._state, "_local"):
                     node_outputs = {}
                     errors = []
                     for node_id, data in engine._state._local.items():
@@ -403,7 +406,7 @@ class VisualizationServer:
                     self._last_event_result = {
                         "id": self._event_seq,
                         "status": "executed",
-                        "timestamp": __import__('time').time(),
+                        "timestamp": __import__("time").time(),
                         "node_outputs": node_outputs,
                         "errors": errors,
                         "log": captured,
@@ -430,9 +433,7 @@ class VisualizationServer:
                         if entry_path.exists():
                             ops = manifest.get("operators", [])
                             if ops:
-                                spec = _util.spec_from_file_location(
-                                    f"_serve_plugin_{plugin_name}", entry_path
-                                )
+                                spec = _util.spec_from_file_location(f"_serve_plugin_{plugin_name}", entry_path)
                                 if spec and spec.loader:
                                     module = _util.module_from_spec(spec)
                                     spec.loader.exec_module(module)
@@ -447,9 +448,10 @@ class VisualizationServer:
                 continue
 
             # Configure
-            if hasattr(plugin_instance, 'configure'):
+            if hasattr(plugin_instance, "configure"):
                 try:
                     from agenarc.config import get_config
+
                     cfg = get_config()
                     plugin_cfg = cfg.get(f"plugins.{plugin_name}", {})
                     plugin_instance.configure(plugin_cfg)
@@ -476,9 +478,9 @@ class VisualizationServer:
         """Convert a Node to a dict. Plugin ports from agenarc.json manifest."""
         base = {
             "id": n.id,
-            "type": n.type.value if hasattr(n.type, 'value') else str(n.type),
-            "label": getattr(n, 'label', ''),
-            "config": n.config.data if hasattr(n, 'config') and hasattr(n.config, 'data') else {},
+            "type": n.type.value if hasattr(n.type, "value") else str(n.type),
+            "label": getattr(n, "label", ""),
+            "config": n.config.data if hasattr(n, "config") and hasattr(n.config, "data") else {},
             "inputs": [],
             "outputs": [],
         }
@@ -487,7 +489,7 @@ class VisualizationServer:
         # For Plugin nodes, read ports from agenarc.json manifest
         if n.type.value == "Plugin":
             try:
-                config = n.config.data if hasattr(n, 'config') and hasattr(n.config, 'data') else {}
+                config = n.config.data if hasattr(n, "config") and hasattr(n.config, "data") else {}
                 plugin_name = config.get("plugin", "")
                 function_name = config.get("function", "")
                 if plugin_name and self.engine.plugin_manager:
@@ -508,7 +510,7 @@ class VisualizationServer:
         # For Join nodes, output ports are dynamic based on incoming edges (passthrough)
         if is_join:
             try:
-                if self.engine._graph and hasattr(self.engine._graph, 'edges'):
+                if self.engine._graph and hasattr(self.engine._graph, "edges"):
                     dynamic_out = []
                     seen = set()
                     for edge in self.engine._graph.edges:
@@ -554,21 +556,18 @@ class VisualizationServer:
         graph = self.engine._graph
         try:
             return {
-                "version": getattr(graph, 'version', '1.0.0'),
+                "version": getattr(graph, "version", "1.0.0"),
                 "bundlePath": str(self.bundle_path) if self.bundle_path else None,
-                "nodes": [
-                    self._node_to_dict(n)
-                    for n in (getattr(graph, 'nodes', []) or [])
-                ],
+                "nodes": [self._node_to_dict(n) for n in (getattr(graph, "nodes", []) or [])],
                 "edges": [
                     {
                         "source": e.source,
-                        "sourcePort": getattr(e, 'sourcePort', ''),
+                        "sourcePort": getattr(e, "sourcePort", ""),
                         "target": e.target,
-                        "targetPort": getattr(e, 'targetPort', ''),
+                        "targetPort": getattr(e, "targetPort", ""),
                     }
-                    for e in (getattr(graph, 'edges', []) or [])
-                ]
+                    for e in (getattr(graph, "edges", []) or [])
+                ],
             }
         except (AttributeError, TypeError):
             return {"version": "1.0.0", "nodes": [], "edges": []}
@@ -603,6 +602,7 @@ class VisualizationServer:
             # Convert frontend edges to backend Edge objects
             # Use serializeEdges logic: pair data+control edges by (source, target)
             from collections import defaultdict
+
             by_pair = defaultdict(list)
             for e in data["edges"]:
                 key = (e["s"], e["t"])
@@ -612,23 +612,28 @@ class VisualizationServer:
             for (src, tgt), pair in by_pair.items():
                 data_edge = next((e for e in pair if e.get("flowType") == "data"), None)
                 if data_edge:
-                    converted_edges.append(Edge(
-                        source=src,
-                        sourcePort=data_edge.get("sp", ""),
-                        target=tgt,
-                        targetPort=data_edge.get("tp", ""),
-                    ))
+                    converted_edges.append(
+                        Edge(
+                            source=src,
+                            sourcePort=data_edge.get("sp", ""),
+                            target=tgt,
+                            targetPort=data_edge.get("tp", ""),
+                        )
+                    )
                 else:
                     ctrl = next((e for e in pair if e.get("flowType") == "control"), None)
                     if ctrl:
-                        converted_edges.append(Edge(
-                            source=src,
-                            sourcePort=ctrl.get("sp", ""),
-                            target=tgt,
-                        ))
+                        converted_edges.append(
+                            Edge(
+                                source=src,
+                                sourcePort=ctrl.get("sp", ""),
+                                target=tgt,
+                            )
+                        )
 
             # Rebuild engine graph
             from agenarc.graph.traversal import GraphTraversal
+
             new_graph = Graph(
                 version=self.engine._graph.version if self.engine._graph else "1.0.0",
                 nodes=converted_nodes,
@@ -661,6 +666,7 @@ class VisualizationServer:
             return  # No known path to write to
 
         from agenarc.protocol.schema import NodeType as NT
+
         type_reverse = {t: t.value for t in NT}
 
         try:
@@ -671,7 +677,7 @@ class VisualizationServer:
                         "id": n.id,
                         "type": type_reverse.get(n.type, str(n.type)),
                         "label": n.label,
-                        "config": n.config.data if hasattr(n.config, 'data') else {},
+                        "config": n.config.data if hasattr(n.config, "data") else {},
                     }
                     for n in graph.nodes
                 ],
@@ -721,20 +727,13 @@ class VisualizationServer:
         self._event_emitter.emit_execution_start(execution_id)
 
         try:
-            result = await asyncio.wait_for(
-                self.engine.execute(initial_inputs),
-                timeout=300
-            )
+            result = await asyncio.wait_for(self.engine.execute(initial_inputs), timeout=300)
 
             # Record all node outputs in state tracker
             for node_id, exec_res in result.node_results.items():
                 if exec_res.status == EngineNodeStatus.COMPLETED:
-                    self._state_tracker.update_node_status(
-                        node_id, NodeStatus.COMPLETED
-                    )
-                    self._state_tracker.record_node_output(
-                        node_id, exec_res.outputs
-                    )
+                    self._state_tracker.update_node_status(node_id, NodeStatus.COMPLETED)
+                    self._state_tracker.record_node_output(node_id, exec_res.outputs)
 
             self._state_tracker.end_execution(result.status)
             self._event_emitter.emit_execution_end(execution_id, result.status)
@@ -764,10 +763,9 @@ class VisualizationServer:
         finally:
             # Capture context snapshot for the Context panel
             # (engine._state still holds the full state at this point)
-            if self.engine._state and hasattr(self.engine._state, '_global'):
+            if self.engine._state and hasattr(self.engine._state, "_global"):
                 self._state_tracker.capture_context_snapshot(
-                    dict(self.engine._state._global),
-                    {nid: dict(st) for nid, st in self.engine._state._local.items()}
+                    dict(self.engine._state._global), {nid: dict(st) for nid, st in self.engine._state._local.items()}
                 )
 
     def _stop_execution(self) -> None:
@@ -810,14 +808,11 @@ class VisualizationServer:
             state = self.engine._state
 
             # Global context: all keys in _global except internal (_) keys
-            if hasattr(state, '_global') and state._global:
-                result["global"] = {
-                    k: v for k, v in state._global.items()
-                    if not k.startswith('_')
-                }
+            if hasattr(state, "_global") and state._global:
+                result["global"] = {k: v for k, v in state._global.items() if not k.startswith("_")}
 
             # Node outputs: from _local[nid]["_outputs"]
-            if hasattr(state, '_local') and state._local:
+            if hasattr(state, "_local") and state._local:
                 node_outputs = {}
                 for node_id, local_data in state._local.items():
                     if isinstance(local_data, dict) and "_outputs" in local_data:
@@ -868,14 +863,14 @@ class VisualizationServer:
 
     def _ws_frame(self, text: str) -> bytes:
         """Create a WebSocket text frame (opcode 0x1)."""
-        data = text.encode('utf-8')
+        data = text.encode("utf-8")
         length = len(data)
         if length < 126:
-            return b'\x81' + bytes([length]) + data
+            return b"\x81" + bytes([length]) + data
         elif length < 65536:
-            return b'\x81\x7e' + length.to_bytes(2, 'big') + data
+            return b"\x81\x7e" + length.to_bytes(2, "big") + data
         else:
-            return b'\x81\x7f' + length.to_bytes(8, 'big') + data
+            return b"\x81\x7f" + length.to_bytes(8, "big") + data
 
     async def _handle_ws_client(self, reader, writer):
         """Handle WebSocket client connection."""
@@ -901,10 +896,7 @@ class VisualizationServer:
 
         try:
             if not filepath.exists() or not filepath.is_file():
-                return self._json_response(
-                    {"error": f"Static file '{filename}' not found"},
-                    status=404
-                )
+                return self._json_response({"error": f"Static file '{filename}' not found"}, status=404)
 
             # Handle text files with encoding
             if mime.startswith("text/") or mime == "application/javascript":
@@ -924,11 +916,7 @@ class VisualizationServer:
         except Exception as e:
             return self._json_response({"error": str(e)}, status=500)
 
-    def _json_response(
-        self,
-        data: dict[str, Any],
-        status: int = 200
-    ) -> bytes:
+    def _json_response(self, data: dict[str, Any], status: int = 200) -> bytes:
         """Generate JSON HTTP response."""
         body = json.dumps(data, ensure_ascii=False).encode()
         status_text = "OK" if status == 200 else "Not Found" if status == 404 else "Internal Server Error"

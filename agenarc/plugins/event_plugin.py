@@ -96,15 +96,11 @@ class TriggerCallback:
     Helper class to manage trigger callbacks and graph execution.
     """
 
-    def __init__(
-        self,
-        engine: Any,
-        state_manager: Any | None = None,
-        execution_mode: Any = None
-    ):
+    def __init__(self, engine: Any, state_manager: Any | None = None, execution_mode: Any = None):
         self.engine = engine
         self.state_manager = state_manager
         from agenarc.engine.executor import ExecutionMode
+
         self.execution_mode = execution_mode if execution_mode is not None else ExecutionMode.ASYNC
         self._running = False
         self._lock = asyncio.Lock()
@@ -134,13 +130,8 @@ class TriggerCallback:
                 graph_id = self._get_graph_id()
 
                 if self._session_state is None:
-                    self._session_state = StateManager(
-                        auto_checkpoint=self.engine.enable_checkpoint
-                    )
-                    self._session_state.initialize(
-                        self.engine._execution_id or "event_session",
-                        graph_id
-                    )
+                    self._session_state = StateManager(auto_checkpoint=self.engine.enable_checkpoint)
+                    self._session_state.initialize(self.engine._execution_id or "event_session", graph_id)
                 state = self._session_state
 
                 # Attach state to engine
@@ -152,6 +143,7 @@ class TriggerCallback:
             except Exception as e:
                 logger.error(f"[TriggerCallback] Error executing graph: {e}")
                 import traceback
+
                 traceback.print_exc()
 
     def start(self) -> None:

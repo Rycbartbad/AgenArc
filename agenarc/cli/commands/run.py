@@ -14,12 +14,7 @@ from agenarc.protocol.loader import LoaderError
 from . import _install_bundle_plugins, _resolve_bundle_path, print_error, print_success
 
 
-def command_run(
-    file: Path,
-    input_json: str | None = None,
-    mode: str = "async",
-    verbose: bool = False
-) -> int:
+def command_run(file: Path, input_json: str | None = None, mode: str = "async", verbose: bool = False) -> int:
     """
     Execute an agent bundle or protocol file.
 
@@ -76,11 +71,9 @@ def command_run(
         engine.set_bundle_path(bundle_path)
 
     # Choose execution mode
-    exec_mode = {
-        "sync": ExecutionMode.SYNC,
-        "async": ExecutionMode.ASYNC,
-        "parallel": ExecutionMode.PARALLEL
-    }.get(mode, ExecutionMode.ASYNC)
+    exec_mode = {"sync": ExecutionMode.SYNC, "async": ExecutionMode.ASYNC, "parallel": ExecutionMode.PARALLEL}.get(
+        mode, ExecutionMode.ASYNC
+    )
 
     # Execute
     if verbose:
@@ -92,6 +85,7 @@ def command_run(
         print_error(f"Execution failed: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 

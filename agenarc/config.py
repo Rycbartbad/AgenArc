@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
@@ -61,6 +62,7 @@ class Config:
         """Get singleton instance with thread safety."""
         if cls._instance is None:
             import threading
+
             if cls._instance_lock is None:
                 cls._instance_lock = threading.Lock()
             with cls._instance_lock:
@@ -107,12 +109,12 @@ class Config:
         }
         for var_name, val in os.environ.items():
             if var_name.startswith("AGENARC_"):
-                var_lower = var_name[len("AGENARC_"):].lower()
+                var_lower = var_name[len("AGENARC_") :].lower()
                 parts = var_lower.split("_")
                 for suffix, config_key in _suffix_map.items():
                     suffix_parts = suffix.split("_")
-                    if len(parts) >= len(suffix_parts) and parts[-len(suffix_parts):] == suffix_parts:
-                        provider = "_".join(parts[:-len(suffix_parts)])
+                    if len(parts) >= len(suffix_parts) and parts[-len(suffix_parts) :] == suffix_parts:
+                        provider = "_".join(parts[: -len(suffix_parts)])
                         self._config.setdefault(provider, {})[config_key] = val
                         break
 
@@ -184,7 +186,11 @@ class Config:
             return {
                 "api_key": provider_config.get("api_key"),
                 "base_url": provider_config.get("base_url"),
-                "default_model": provider_config.get("default_model") or provider_config.get("models", [""])[0] if provider_config.get("models") else "",
+                "default_model": (
+                    provider_config.get("default_model") or provider_config.get("models", [""])[0]
+                    if provider_config.get("models")
+                    else ""
+                ),
             }
 
         # Fallback to legacy top-level config

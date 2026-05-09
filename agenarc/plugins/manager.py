@@ -85,16 +85,9 @@ class PluginManager:
             # Discover using hot loader's Python loader
             # Pass the plugins_dir (parent directory containing plugin subdirs), not individual plugin dirs
             if self._hot_loader and self._hot_loader._python_loader:
-                await self._hot_loader._python_loader.discover(
-                    plugins_dir, self._hot_loader._on_plugin_discovered
-                )
+                await self._hot_loader._python_loader.discover(plugins_dir, self._hot_loader._on_plugin_discovered)
 
-    def register_operator(
-        self,
-        plugin_name: str,
-        function_name: str,
-        operator: "IOperator"
-    ) -> None:
+    def register_operator(self, plugin_name: str, function_name: str, operator: "IOperator") -> None:
         """
         Register an operator manually.
 
@@ -106,11 +99,7 @@ class PluginManager:
         key = plugin_name if not function_name else f"{plugin_name}.{function_name}"
         self._operators[key] = operator
 
-    def get_operator(
-        self,
-        plugin_name: str,
-        function_name: str = ""
-    ) -> Optional["IOperator"]:
+    def get_operator(self, plugin_name: str, function_name: str = "") -> Optional["IOperator"]:
         """
         Get an operator by plugin and function name.
 
@@ -164,6 +153,7 @@ class PluginManager:
             Dict of the full agenarc.json contents, or None if not found
         """
         import json as _json
+
         info = self._plugins.get(plugin_name)
         if not info:
             return None
@@ -182,6 +172,7 @@ class PluginManager:
         Note: This is called automatically during initialize().
         """
         import warnings
+
         warnings.warn(
             "discover_plugins() is deprecated. Plugin discovery is automatic during initialize().",
             DeprecationWarning,
@@ -268,11 +259,7 @@ class PluginManager:
         """
         self._event_plugins[plugin_name] = plugin_instance
 
-    async def start_event_plugin(
-        self,
-        plugin_name: str,
-        trigger_callback: Any
-    ) -> bool:
+    async def start_event_plugin(self, plugin_name: str, trigger_callback: Any) -> bool:
         """
         Start an event plugin.
 
@@ -288,7 +275,7 @@ class PluginManager:
             logger.warning(f"Event plugin '{plugin_name}' not found")
             return False
 
-        if not hasattr(plugin, 'start'):
+        if not hasattr(plugin, "start"):
             logger.warning(f"Plugin '{plugin_name}' is not an event plugin (no start method)")
             return False
 
@@ -313,7 +300,7 @@ class PluginManager:
         if not plugin:
             return False
 
-        if not hasattr(plugin, 'stop'):
+        if not hasattr(plugin, "stop"):
             return True  # No stop method, assume not running
 
         try:

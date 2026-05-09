@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 class NodeType(StrEnum):
     """Node type enumeration."""
+
     TRIGGER = "Trigger"
     LLM_TASK = "LLM_Task"
     ROUTER = "Router"
@@ -28,6 +29,7 @@ class NodeType(StrEnum):
 
 class ErrorStrategy(StrEnum):
     """Error handling strategies."""
+
     RETRY = "retry"
     FALLBACK = "fallback"
     SKIP = "skip"
@@ -36,6 +38,7 @@ class ErrorStrategy(StrEnum):
 
 class TriggerSource(StrEnum):
     """Trigger source types."""
+
     MANUAL = "manual"
     WEBHOOK = "webhook"
     SCHEDULE = "schedule"
@@ -44,6 +47,7 @@ class TriggerSource(StrEnum):
 
 class MemoryMode(StrEnum):
     """Memory I/O modes."""
+
     READ = "read"
     WRITE = "write"
     DELETE = "delete"
@@ -59,6 +63,7 @@ class AutonomyLevel(StrEnum):
     level_2 (Autonomous): Agent can modify flow.json and trigger Runtime_Reload.
     level_3 (Self-Evolving): Agent has full power including manifest.json and plugin installation.
     """
+
     LEVEL_0_ZERO_KNOWLEDGE = "level_0"
     LEVEL_1_SUPERVISED = "level_1"
     LEVEL_2_AUTONOMOUS = "level_2"
@@ -67,6 +72,7 @@ class AutonomyLevel(StrEnum):
 
 class ConditionOperator(StrEnum):
     """Condition operators."""
+
     EQ = "eq"
     NE = "ne"
     GT = "gt"
@@ -91,6 +97,7 @@ VALID_PORT_TYPES = {"any", "string", "number", "boolean", "object", "array"}
 @dataclass
 class Port:
     """Input or output port definition."""
+
     name: str
     type: str  # "any", "string", "number", "boolean", "object", "array"
     description: str = ""
@@ -100,9 +107,11 @@ class Port:
         """Validate port type on construction."""
         if self.type not in VALID_PORT_TYPES:
             import warnings
+
             warnings.warn(
                 f"Invalid port type '{self.type}' for port '{self.name}'. "
-                f"Valid types: {', '.join(sorted(VALID_PORT_TYPES))}", stacklevel=2
+                f"Valid types: {', '.join(sorted(VALID_PORT_TYPES))}",
+                stacklevel=2,
             )
 
 
@@ -113,6 +122,7 @@ class Permissions:
 
     Controls what the Agent can read/write within its .agrc bundle.
     """
+
     allow_arc_access: bool = True  # AI perception only (level_0 = AI unaware of agrc://)
     allow_script_read: bool = True
     allow_script_write: bool = False
@@ -133,6 +143,7 @@ class ImmutableAnchor:
 
     Even in level_3, these nodes cannot be modified or deleted.
     """
+
     node_id: str
     reason: str = ""
 
@@ -144,6 +155,7 @@ class Manifest:
 
     Contains metadata and permissions for the Agent asset bundle.
     """
+
     name: str = ""
     version: str = "1.0.0"
     entry: str = "flow.json"
@@ -159,6 +171,7 @@ class Manifest:
 @dataclass
 class ErrorHandling:
     """Node error handling configuration."""
+
     strategy: ErrorStrategy = ErrorStrategy.ABORT
     maxRetries: int = 0
     errorPort: str = "error"
@@ -168,6 +181,7 @@ class ErrorHandling:
 @dataclass
 class Condition:
     """Condition expression for Router."""
+
     ref: str | None = None
     operator: ConditionOperator | None = None
     value: Any = None
@@ -181,6 +195,7 @@ class Condition:
 @dataclass
 class NodeConfig:
     """Node-specific configuration storage."""
+
     data: dict[str, Any] = field(default_factory=dict)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -203,6 +218,7 @@ class Node:
 
     Represents an atomic unit of work in the Agent flow.
     """
+
     id: str
     type: NodeType
     label: str
@@ -234,6 +250,7 @@ class Edge:
     Edges only carry control-flow semantics (execution order).
     Data is passed through global Context.
     """
+
     source: str
     target: str
     sourcePort: str = ""
@@ -247,6 +264,7 @@ class Edge:
 @dataclass
 class GraphMetadata:
     """Metadata for the graph."""
+
     name: str = ""
     description: str = ""
     author: str = ""
@@ -262,6 +280,7 @@ class Graph:
 
     This is the root structure loaded from flow.json.
     """
+
     version: str = "1.0.0"
     errorNode: str = ""  # Global error handler node ID
 
@@ -292,11 +311,7 @@ AGENARC_SCHEMA = {
     "type": "object",
     "required": ["version", "nodes", "edges"],
     "properties": {
-        "version": {
-            "type": "string",
-            "pattern": "^\\d+\\.\\d+\\.\\d+$",
-            "description": "Semantic version"
-        },
+        "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "Semantic version"},
         "nodes": {
             "type": "array",
             "items": {
@@ -304,10 +319,7 @@ AGENARC_SCHEMA = {
                 "required": ["id", "type", "label"],
                 "properties": {
                     "id": {"type": "string"},
-                    "type": {
-                        "type": "string",
-                        "enum": [t.value for t in NodeType]
-                    },
+                    "type": {"type": "string", "enum": [t.value for t in NodeType]},
                     "label": {"type": "string"},
                     "description": {"type": "string"},
                     "inputs": {
@@ -319,9 +331,9 @@ AGENARC_SCHEMA = {
                                 "name": {"type": "string"},
                                 "type": {"type": "string"},
                                 "description": {"type": "string"},
-                                "default": {}
-                            }
-                        }
+                                "default": {},
+                            },
+                        },
                     },
                     "outputs": {
                         "type": "array",
@@ -332,27 +344,24 @@ AGENARC_SCHEMA = {
                                 "name": {"type": "string"},
                                 "type": {"type": "string"},
                                 "description": {"type": "string"},
-                                "default": {}
-                            }
-                        }
+                                "default": {},
+                            },
+                        },
                     },
                     "config": {"type": "object"},
                     "errorHandling": {
                         "type": "object",
                         "properties": {
-                            "strategy": {
-                                "type": "string",
-                                "enum": [s.value for s in ErrorStrategy]
-                            },
+                            "strategy": {"type": "string", "enum": [s.value for s in ErrorStrategy]},
                             "maxRetries": {"type": "integer"},
                             "errorPort": {"type": "string"},
-                            "fallbackNode": {"type": "string"}
-                        }
+                            "fallbackNode": {"type": "string"},
+                        },
                     },
                     "checkpoint": {"type": "boolean"},
-                    "idempotent": {"type": "boolean"}
-                }
-            }
+                    "idempotent": {"type": "boolean"},
+                },
+            },
         },
         "edges": {
             "type": "array",
@@ -365,9 +374,9 @@ AGENARC_SCHEMA = {
                     "target": {"type": "string"},
                     "targetPort": {"type": "string"},
                     "label": {"type": "string"},
-                    "style": {"type": "string", "enum": ["solid", "dashed"]}
-                }
-            }
-        }
-    }
+                    "style": {"type": "string", "enum": ["solid", "dashed"]},
+                },
+            },
+        },
+    },
 }

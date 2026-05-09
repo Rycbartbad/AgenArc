@@ -2,7 +2,8 @@
 AST Safe Expression Evaluator
 
 Trust-based autonomous expression evaluator for Script_Node.
-Based on "trust AI" principle: Allow standard operations, only intercept kernel properties that could crash the interpreter.
+Based on "trust AI" principle: Allow standard operations, only intercept kernel
+properties that could crash the interpreter.
 
 Features:
 - Blacklist hybrid mode: Only intercept dangerous attributes like __globals__, __builtins__, func_code
@@ -22,16 +23,19 @@ from typing import Any
 
 class ASTEvaluatorError(Exception):
     """Raised when expression evaluation fails."""
+
     pass
 
 
 class GasExceededError(ASTEvaluatorError):
     """Raised when gas budget is exhausted."""
+
     pass
 
 
 class MemoryLimitError(ASTEvaluatorError):
     """Raised when SafeContext memory limit is exceeded."""
+
     pass
 
 
@@ -124,7 +128,7 @@ class SafeContext:
                 try:
                     tracemalloc.start()
                     snapshot = tracemalloc.take_snapshot()
-                    stats = snapshot.statistics('lineno')
+                    stats = snapshot.statistics("lineno")
                     total = sum(stat.size for stat in stats)
                     tracemalloc.stop()
                     self._current_memory += total
@@ -134,8 +138,7 @@ class SafeContext:
 
                 if self._current_memory > self._max_memory_bytes:
                     raise MemoryLimitError(
-                        f"Expression evaluation exceeded memory limit "
-                        f"({self._max_memory_bytes / 1024 / 1024:.1f} MB)"
+                        f"Expression evaluation exceeded memory limit ({self._max_memory_bytes / 1024 / 1024:.1f} MB)"
                     )
             self._tracked_ids.add(value_id)
 
@@ -310,8 +313,7 @@ class ASTEvaluator:
         self._gas_used += amount
         if self._gas_used > self._gas_budget:
             raise GasExceededError(
-                f"Expression evaluation exceeded gas budget ({self._gas_budget}). "
-                f"Possible infinite loop."
+                f"Expression evaluation exceeded gas budget ({self._gas_budget}). Possible infinite loop."
             )
 
     def _set_parents(self, node: ast.AST) -> None:
@@ -347,7 +349,7 @@ class ASTEvaluator:
         try:
             tree = ast.parse(expression, mode="eval")
         except SyntaxError as e:
-            raise ASTEvaluatorError(f"Invalid expression syntax: {e}")
+            raise ASTEvaluatorError(f"Invalid expression syntax: {e}") from e
 
         # Run full AST pre-check before evaluation
         self._set_parents(tree)
@@ -370,12 +372,13 @@ class ASTEvaluator:
                 self._check_attribute(node)
 
             # Check for comprehensions
-            if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
-                if "comprehensions" not in self._enabled_features:
-                    raise ASTEvaluatorError(
-                        "Comprehensions are not enabled. "
-                        "Use enable_feature('comprehensions') or autonomy_level >= 2."
-                    )
+            if (
+                isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp))
+                and "comprehensions" not in self._enabled_features
+            ):
+                raise ASTEvaluatorError(
+                    "Comprehensions are not enabled. Use enable_feature('comprehensions') or autonomy_level >= 2."
+                )
 
             # Check for Lambda
             if isinstance(node, ast.Lambda):
@@ -393,8 +396,7 @@ class ASTEvaluator:
             func_name = func.id
             if func_name not in self._builtins:
                 raise ASTEvaluatorError(
-                    f"Function '{func_name}' is not allowed. "
-                    f"Allowed: {list(self._builtins.keys())}"
+                    f"Function '{func_name}' is not allowed. Allowed: {list(self._builtins.keys())}"
                 )
 
         elif isinstance(func, ast.Attribute):
@@ -415,10 +417,7 @@ class ASTEvaluator:
         """Check if attribute access is allowed."""
         attr_name = node.attr
         if attr_name in DANGEROUS_ATTRIBUTES:
-            raise ASTEvaluatorError(
-                f"Attribute '{attr_name}' is not allowed. "
-                f"It can compromise interpreter safety."
-            )
+            raise ASTEvaluatorError(f"Attribute '{attr_name}' is not allowed. It can compromise interpreter safety.")
 
     def _eval_node(self, node: ast.AST, context: SafeContext) -> Any:
         """Recursively evaluate an AST node."""
@@ -454,9 +453,7 @@ class ASTEvaluator:
 
             # Final safety check at evaluation time
             if attr_name in DANGEROUS_ATTRIBUTES:
-                raise ASTEvaluatorError(
-                    f"Attribute '{attr_name}' is not allowed"
-                )
+                raise ASTEvaluatorError(f"Attribute '{attr_name}' is not allowed")
 
             return getattr(value, attr_name)
 
@@ -508,37 +505,19 @@ class ASTEvaluator:
 
         # List comprehensions
         if isinstance(node, ast.ListComp):
-            return self._eval_comprehension(
-                node.elt,
-                node.generators,
-                context
-            )
+            return self._eval_comprehension(node.elt, node.generators, context)
 
         # Set comprehensions
         if isinstance(node, ast.SetComp):
-            return self._eval_comprehension(
-                node.elt,
-                node.generators,
-                context,
-                result_type=set
-            )
+            return self._eval_comprehension(node.elt, node.generators, context, result_type=set)
 
         # Dict comprehensions
         if isinstance(node, ast.DictComp):
-            return self._eval_dict_comprehension(
-                node.key,
-                node.value,
-                node.generators,
-                context
-            )
+            return self._eval_dict_comprehension(node.key, node.value, node.generators, context)
 
         # Generator expressions
         if isinstance(node, ast.GeneratorExp):
-            return self._eval_comprehension(
-                node.elt,
-                node.generators,
-                context
-            )
+            return self._eval_comprehension(node.elt, node.generators, context)
 
         # Function calls
         if isinstance(node, ast.Call):
@@ -570,9 +549,8 @@ class ASTEvaluator:
 
             for item in iterable:
                 # Check if condition
-                if generator.ifs:
-                    if not all(self._eval_node(if_.test, context) for if_ in generator.ifs):
-                        continue
+                if generator.ifs and not all(self._eval_node(if_.test, context) for if_ in generator.ifs):
+                    continue
 
                 # Bind the variable
                 target = generator.target
@@ -582,7 +560,7 @@ class ASTEvaluator:
                 if gen_idx == len(generators) - 1:
                     # Last generator - produce element
                     value = self._eval_node(elt, context)
-                    if result_type == set:
+                    if result_type is set:
                         result.add(value)
                     else:
                         result.append(value)
@@ -611,9 +589,8 @@ class ASTEvaluator:
             iterable = self._eval_node(generator.iter, context)
 
             for item in iterable:
-                if generator.ifs:
-                    if not all(self._eval_node(if_.test, context) for if_ in generator.ifs):
-                        continue
+                if generator.ifs and not all(self._eval_node(if_.test, context) for if_ in generator.ifs):
+                    continue
 
                 target = generator.target
                 if isinstance(target, ast.Name):
