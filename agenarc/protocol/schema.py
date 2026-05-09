@@ -5,9 +5,17 @@ Defines JSON Schema for directed-graph Agent orchestration protocol.
 Based on ARCHITECTURE.md DSL specification.
 """
 
+import enum
 from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import Any, Optional
+
+try:
+    from enum import StrEnum
+except ImportError:
+    # Python 3.10 compatibility
+    class StrEnum(str, enum.Enum):
+        """Drop-in replacement for enum.StrEnum (added in Python 3.11)."""
+        pass
 
 
 class NodeType(StrEnum):
