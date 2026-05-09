@@ -3,6 +3,7 @@ Command: visualize — Start visualization studio for agent editing and debuggin
 """
 
 import asyncio
+import contextlib
 import logging
 import webbrowser
 from pathlib import Path
@@ -59,6 +60,15 @@ def command_visualize(
         if operator_class:
             engine.register_builtin_operator(node_type, operator_class)
 
+    print(r"""
+    ___                    ___
+   /   | ____ ____  ____  /   |  __________
+  / /| |/ __ `/ _ \/ __ \/ /| | / ___/ ___/
+ / ___ / /_/ /  __/ / / / ___ |/ /  / /__
+/_/  |_\__, /\___/_/ /_/_/  |_/_/   \___/
+      /____/
+""")
+
     # Load protocol
     print(f"Loading {protocol_path.name}...")
     try:
@@ -108,10 +118,8 @@ def command_visualize(
         try:
             await server.start()
             print("Server running. Press Ctrl+C to stop.")
-            try:
+            with contextlib.suppress(Exception):
                 webbrowser.open(url)
-            except Exception:
-                pass
         except asyncio.CancelledError:
             logger.debug("Visualization server task cancelled")
         finally:
