@@ -7,8 +7,8 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/agenarc?color=blue)](https://pypi.org/project/agenarc/)
 [![Python](https://img.shields.io/pypi/pyversions/agenarc)](https://pypi.org/project/agenarc/)
 [![License](https://img.shields.io/github/license/Rycbartbad/AgenArc)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-638%20passed-brightgreen)](https://github.com/Rycbartbad/AgenArc)
-[![Coverage](https://img.shields.io/badge/coverage-79%25-yellow)](https://github.com/Rycbartbad/AgenArc)
+[![Tests](https://img.shields.io/badge/tests-742%20passed-brightgreen)](https://github.com/Rycbartbad/AgenArc)
+[![Coverage](https://img.shields.io/badge/coverage-62%25-yellow)](https://github.com/Rycbartbad/AgenArc)
 
 </div>
 
@@ -213,8 +213,8 @@ agenarc/
 pip install -e ".[dev]"
 
 # Run tests
-pytest tests/                          # All (638 passed)
-pytest tests/ --cov=agenarc            # With coverage (~79%)
+pytest tests/                          # All (742 passed)
+pytest tests/ --cov=agenarc            # With coverage (~62%)
 pytest tests/unit/test_builtin_operators.py -v  # Single file
 
 # Lint & type check

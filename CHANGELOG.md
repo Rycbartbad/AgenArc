@@ -2,6 +2,16 @@
 
 All notable changes to AgenArc will be documented in this file.
 
+## [0.6.0] - 2026-05-09
+
+### Added
+- **Execution tracing**: TraceCollector engine with per-node timing, status, I/O snapshots, and token tracking
+- **Trace API**: GET /api/trace/latest, GET /api/trace/{id}, GET /api/trace/list, POST /api/trace/export
+- **Timeline panel**: Waterfall chart in visualization IDE — color-coded bars, auto-refresh, click-to-select, JSON export
+- **agenarc init**: Interactive configuration wizard with 12 provider presets, real-time model fetching, connection testing, and config.yaml generation
+- **Provider presets**: DeepSeek, OpenAI, Anthropic, Groq, OpenRouter, Ollama, 硅基流动, ZhipuAI, Moonshot, DashScope, 豆包, Custom
+- **742 tests** (up from 638) — 48 trace + 56 init tests
+
 ## [0.5.0] - 2026-05-09
 
 ### Added
