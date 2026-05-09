@@ -77,6 +77,9 @@
 | `Log` | Log and pass-through | `message` → `message` |
 | `Context_Set` | Set global context values | `key`, `value` → `success` |
 | `Context_Get` | Read global context values | `key` → `value` |
+| `Asset_Reader` | Read files from bundle via VFS | `path` → `content`, `success` |
+| `Asset_Writer` | Write files with atomic operations | `path`, `content` → `success` |
+| `Runtime_Reload` | Hot reload scripts and plugins at runtime | `target` → `success` |
 
 ---
 
