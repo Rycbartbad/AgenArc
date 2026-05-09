@@ -10,7 +10,6 @@ from enum import StrEnum
 from typing import Any, Optional
 
 
-
 class NodeType(StrEnum):
     """Node type enumeration."""
 
