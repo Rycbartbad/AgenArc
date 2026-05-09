@@ -264,7 +264,7 @@ def command_serve(file: Path, mode: str = "async", verbose: bool = False) -> int
         # Stop all event plugins
         try:
             await asyncio.wait_for(plugin_manager.stop_all_event_plugins(), timeout=5.0)
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             logger.warning("Timeout stopping event plugins during shutdown")
         except Exception as e:
             logger.warning("Failed to stop event plugins: %s", e)
@@ -272,7 +272,7 @@ def command_serve(file: Path, mode: str = "async", verbose: bool = False) -> int
         # Shutdown plugin manager
         try:
             await asyncio.wait_for(plugin_manager.shutdown(), timeout=5.0)
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             logger.warning("Timeout shutting down plugin manager")
         except Exception as e:
             logger.warning("Failed to shutdown plugin manager: %s", e)

@@ -754,7 +754,7 @@ class VisualizationServer:
                 },
                 "durationMs": result.duration_ms,
             }
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             self._state_tracker.end_execution("timeout")
             return {"status": "timeout", "error": "Execution timed out"}
         except Exception as e:
