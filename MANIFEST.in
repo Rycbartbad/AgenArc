@@ -1,0 +1,15 @@
+include README.md
+include CHANGELOG.md
+include AGENTS.md
+include CONTRIBUTING.md
+include LICENSE
+recursive-include agenarc/visualization/static *
+recursive-include agenarc/prompts *
+recursive-include examples *
+graft docs
+graft tests
+prune .github
+prune .venv
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store

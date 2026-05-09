@@ -183,6 +183,7 @@ class TestCppPluginLoaderLoad:
 class TestCppPluginLoaderUnload:
     """Tests for unload method."""
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="ctypes.windll only available on Windows")
     def test_unload_existing_library(self):
         """Test unloading existing library."""
         loader = CppPluginLoader()
@@ -206,6 +207,7 @@ class TestCppPluginLoaderUnload:
 
         assert result is False
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="ctypes.windll only available on Windows")
     def test_unload_library_error_windows(self):
         """Test unloading with Windows error."""
         loader = CppPluginLoader()

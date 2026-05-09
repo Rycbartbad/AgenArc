@@ -31,7 +31,12 @@ jobs:
         run: pytest
 
       - name: Lint with ruff
-        run: ruff check agenarc/
+        run: |
+          ruff check agenarc/
+          ruff format --check agenarc/
 
       - name: Type check with mypy
         run: mypy agenarc/
+
+      - name: Verify package can be imported
+        run: python -c "import agenarc; print(f'AgenArc v{agenarc.__version__}')"
