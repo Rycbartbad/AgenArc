@@ -950,7 +950,7 @@ class VisualizationServer:
         # Support PyInstaller bundled paths
         import sys
 
-        base = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
+        base = Path(getattr(sys, "_MEIPASS", ".")) if getattr(sys, "frozen", False) else Path(__file__).parent
         static_dir = base / "static"
         filepath = static_dir / filename
 

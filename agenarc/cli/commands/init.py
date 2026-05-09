@@ -464,7 +464,7 @@ def _offer_example_project() -> None:
     import sys
 
     if getattr(sys, "frozen", False):
-        base = Path(sys._MEIPASS)
+        base = Path(getattr(sys, "_MEIPASS", "."))
         example_candidates = [
             base / "examples" / "my_first_agent.agrc",
         ]
