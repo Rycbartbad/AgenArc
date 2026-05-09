@@ -753,7 +753,7 @@ class ExecutionEngine:
         try:
             result = await asyncio.wait_for(operator.execute(inputs, context), timeout=timeout)
             return result or {}
-        except TimeoutError as e:
+        except (TimeoutError, asyncio.TimeoutError) as e:
             raise TimeoutError(f"Operator execution timed out after {timeout}s") from e
 
     async def _handle_node_error(self, node: Node, error: Exception, context: ExecutionContext) -> None:
