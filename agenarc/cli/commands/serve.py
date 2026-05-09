@@ -195,7 +195,7 @@ def command_serve(file: Path, mode: str = "async", verbose: bool = False) -> int
 
     # Load protocol
     if verbose:
-        print(f"Loading agent from {protocol_path}...")
+        print(f"  Loading agent from {protocol_path}...")
 
     try:
         engine.load_protocol(protocol_path)

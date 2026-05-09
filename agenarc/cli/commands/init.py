@@ -460,13 +460,20 @@ def _offer_example_project() -> None:
         return
 
     # Find example source
-    # Try relative to script location first, then check common locations
-    script_dir = Path(__file__).resolve().parent.parent.parent.parent  # agenarc/
-    example_candidates = [
-        script_dir / "examples" / "my_first_agent.agrc",
-        Path.cwd() / "examples" / "my_first_agent.agrc",
-        Path(__file__).resolve().parent.parent.parent / "examples" / "my_first_agent.agrc",
-    ]
+    # Support PyInstaller bundled paths
+    import sys
+    if getattr(sys, "frozen", False):
+        base = Path(sys._MEIPASS)
+        example_candidates = [
+            base / "examples" / "my_first_agent.agrc",
+        ]
+    else:
+        script_dir = Path(__file__).resolve().parent.parent.parent.parent  # agenarc/
+        example_candidates = [
+            script_dir / "examples" / "my_first_agent.agrc",
+            Path.cwd() / "examples" / "my_first_agent.agrc",
+            Path(__file__).resolve().parent.parent.parent / "examples" / "my_first_agent.agrc",
+        ]
 
     example_src: Path | None = None
     for candidate in example_candidates:

@@ -43,6 +43,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.3",
     "mypy>=1.8",
+    "pyinstaller>=6.0",
 ]
 euchea = [
     "keyboard>=0.13",

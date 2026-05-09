@@ -947,7 +947,14 @@ class VisualizationServer:
 
     async def _serve_static(self, filename: str, mime: str) -> bytes:
         """Serve a static file from the visualization/static directory."""
-        static_dir = Path(__file__).parent / "static"
+        # Support PyInstaller bundled paths
+        import sys
+
+        if getattr(sys, "frozen", False):
+            base = Path(sys._MEIPASS)
+        else:
+            base = Path(__file__).parent
+        static_dir = base / "static"
         filepath = static_dir / filename
 
         try:

@@ -56,7 +56,7 @@ def command_run(file: Path, input_json: str | None = None, mode: str = "async", 
 
     # Load protocol
     if verbose:
-        print(f"Loading agent from {protocol_path}...")
+        print(f"  Loading agent from {protocol_path}...")
 
     try:
         engine.load_protocol(protocol_path)

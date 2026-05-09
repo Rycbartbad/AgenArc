@@ -70,7 +70,7 @@ def command_visualize(
 """)
 
     # Load protocol
-    print(f"Loading {protocol_path.name}...")
+    print(f"  Loading {protocol_path.name}...")
     try:
         engine.load_protocol(protocol_path)
     except LoaderError as e:
