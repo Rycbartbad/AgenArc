@@ -15,6 +15,7 @@ except ImportError:
     # Python 3.10 compatibility
     class StrEnum(str, enum.Enum):
         """Drop-in replacement for enum.StrEnum (added in Python 3.11)."""
+
         pass
 
 
