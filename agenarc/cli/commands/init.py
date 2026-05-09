@@ -517,6 +517,7 @@ def command_init() -> int:
         base_url = preset_base_url
         if provider_key == "custom":
             base_url = _input_custom_base_url()
+        assert base_url is not None  # non-custom providers always have a base_url
 
         # --- Step 3: Test connection & fetch models ---
         print()
