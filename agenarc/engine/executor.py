@@ -206,6 +206,9 @@ class ExecutionEngine:
         Returns:
             List of source nodes
         """
+        if self._graph is None:
+            return []
+
         if not self._graph.edges:
             # No edges at all - all nodes are source nodes
             return list(self._graph.nodes)
@@ -347,8 +350,8 @@ class ExecutionEngine:
         if self._bundle_path:
             self._state.set_global("_bundle_path", self._bundle_path)
             # Convert permissions to dict if it's a Permissions object
-            perms = self._permissions
-            if hasattr(perms, "allow_script_read"):
+            perms: dict[str, Any] | Permissions = self._permissions
+            if isinstance(perms, Permissions):
                 perms = {
                     "allow_script_read": perms.allow_script_read,
                     "allow_script_write": perms.allow_script_write,
@@ -425,6 +428,9 @@ class ExecutionEngine:
         Args:
             entry_nodes: Entry point node(s)
         """
+        if self._graph is None or self._traversal is None:
+            return
+
         # Collect execution orders from all entry nodes and merge
         all_order: list[str] = []
         seen: set[str] = set()
@@ -451,6 +457,9 @@ class ExecutionEngine:
         Args:
             entry_nodes: Entry point node(s)
         """
+        if self._graph is None or self._traversal is None:
+            return
+
         executed: set[str] = set()
         pending: set[str] = {node.id for node in self._graph.nodes}
 
@@ -518,6 +527,9 @@ class ExecutionEngine:
         Returns:
             Target node ID, or None if not found
         """
+        if self._graph is None:
+            return None
+
         for edge in self._graph.edges:
             if edge.source == source_node_id and edge.sourcePort == source_port:
                 return edge.target
@@ -569,6 +581,9 @@ class ExecutionEngine:
         Args:
             entry_nodes: Entry point node(s)
         """
+        if self._graph is None or self._traversal is None:
+            return
+
         semaphore = asyncio.Semaphore(self.max_parallel)
         executed: set[str] = set()
         pending: set[str] = {node.id for node in self._graph.nodes}
@@ -623,6 +638,9 @@ class ExecutionEngine:
         Returns:
             Node outputs dict, or None if node has no operator
         """
+        if self._state is None:
+            return None
+
         context = ExecutionContext(self._state)
 
         # Check for checkpoint restoration
@@ -644,16 +662,18 @@ class ExecutionEngine:
             return None
 
         # Create context getter for template resolution
+        _state = self._state
+
         def context_getter(key: str) -> Any:
-            return self._state.get_global(key)
+            return _state.get_global(key)
 
         # Create bundle path getter for VFS resolution
         def bundle_path_getter() -> Any:
-            return self._state.get_global("_bundle_path")
+            return _state.get_global("_bundle_path")
 
         # Create permissions getter
         def permissions_getter() -> Any:
-            return self._state.get_global("_vfs_permissions")
+            return _state.get_global("_vfs_permissions")
 
         # Resolve inputs (templates resolved at execution time for freshness)
         inputs = self._resolve_inputs(node)
@@ -800,6 +820,9 @@ class ExecutionEngine:
             error_handling: Error handling configuration
             context: Execution context
         """
+        if self._graph is None or self._state is None:
+            return
+
         if error_handling.fallbackNode:
             fallback = self._graph.get_node(error_handling.fallbackNode)
             if fallback:
@@ -819,6 +842,9 @@ class ExecutionEngine:
         Returns:
             Dictionary of input values
         """
+        if self._graph is None:
+            return {}
+
         inputs = {}
 
         # Find edges pointing to this node
@@ -828,7 +854,7 @@ class ExecutionEngine:
             # For Join nodes: edges without sourcePort auto-collect ALL outputs from source node
             if not edge.sourcePort:
                 if node.type.value == "Join":
-                    source_outputs = self._state.get_global(f"nodes.{edge.source}.outputs", {})
+                    source_outputs = self._state.get_global(f"nodes.{edge.source}.outputs", {}) if self._state else {}
                     if isinstance(source_outputs, dict):
                         for port_name, value in source_outputs.items():
                             inputs[port_name] = value
@@ -836,7 +862,7 @@ class ExecutionEngine:
 
             # Read from context using namespaced key
             key = f"nodes.{edge.source}.{edge.sourcePort}"
-            value = self._state.get_global(key)
+            value = self._state.get_global(key) if self._state else None
 
             if edge.targetPort:
                 inputs[edge.targetPort] = value
@@ -863,6 +889,9 @@ class ExecutionEngine:
 
     def _collect_final_outputs(self) -> dict[str, Any]:
         """Collect final outputs from terminal nodes."""
+        if self._graph is None:
+            return {}
+
         # Find nodes with no outgoing edges (terminal nodes)
         terminal_node_ids = set()
         for node in self._graph.nodes:

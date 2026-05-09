@@ -190,7 +190,8 @@ def command_serve(file: Path, mode: str = "async", verbose: bool = False) -> int
 
     # Register built-in operators
     for node_type, operator_class in BUILTIN_OPERATORS.items():
-        engine.register_builtin_operator(node_type, operator_class)
+        if operator_class is not None:
+            engine.register_builtin_operator(node_type, operator_class)
 
     # Load protocol
     if verbose:

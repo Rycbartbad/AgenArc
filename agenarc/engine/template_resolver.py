@@ -319,7 +319,7 @@ def resolve_vfs_and_template(
     value: Any,
     context_getter: Callable[[str], Any],
     bundle_path_getter: Callable[[], Any],
-    permissions: dict[str, bool] | None = None,
+    permissions: dict[str, str] | None = None,
     allow_missing: bool = False,
     max_depth: int = 10,
 ) -> Any:
