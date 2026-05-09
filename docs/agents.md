@@ -491,7 +491,7 @@ Plugin 作为事件源时，必须通过边连接到 Trigger，否则视为无�
 | `messages` | array | 完整的对话消息列表 |
 
 **行为**：
-- 追加 user 或 assistant 消息到 `nodes.{history}.messages`
+- 追加 user 或 assistant 消息到 `{history}.messages`
 - 安全检查：确保 user 和 assistant 交替出现
 - 超出 `max_history` 限制时，保留最新的消息
 - 不同 PB 节点可通过相同的 `history` 值共享对话历史
