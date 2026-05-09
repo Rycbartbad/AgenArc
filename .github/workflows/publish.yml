@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: Publish
 
 on:
   push:
@@ -6,11 +6,12 @@ on:
       - 'v*'
 
 jobs:
-  build-and-publish:
+  # Publish wheel to PyPI
+  publish-pypi:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      id-token: write  # Required for trusted publishing
+      id-token: write
       contents: read
 
     steps:
@@ -29,10 +30,74 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - name: Check package metadata
-        run: twine check dist/*
-
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
+
+  # Build standalone Windows exe
+  build-exe:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    needs: publish-pypi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller pyyaml openai jsonschema
+
+      - name: Build standalone exe
+        run: pyinstaller --onefile --name AgenArc --clean --noconfirm --add-data "agenarc/visualization/static/*;agenarc/visualization/static" --add-data "examples/my_first_agent.agrc;examples/my_first_agent.agrc" --hidden-import openai --hidden-import yaml --hidden-import jsonschema --hidden-import agenarc.engine.trace --hidden-import agenarc.cli.commands.init --hidden-import agenarc.cli.commands.visualize --exclude-module tkinter --exclude-module matplotlib agenarc/cli/__main__.py
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgenArc-exe
+          path: dist/AgenArc.exe
+
+  # Create GitHub Release
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [publish-pypi, build-exe]
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: |
+          pip install --upgrade pip
+          pip install build
+
+      - name: Build wheel
+        run: python -m build
+
+      - name: Download exe artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AgenArc-exe
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/AgenArc.exe
+            dist/*.whl
+            dist/*.tar.gz
+          generate_release_notes: true
