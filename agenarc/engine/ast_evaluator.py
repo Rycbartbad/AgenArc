@@ -385,9 +385,7 @@ class ASTEvaluator:
                 raise ASTEvaluatorError("Lambda functions are not allowed")
 
             # Check for Slice (allowed in subscript context)
-            if isinstance(node, ast.Slice) and not isinstance(
-                getattr(node, "parent", None), ast.Subscript
-            ):
+            if isinstance(node, ast.Slice) and not isinstance(getattr(node, "parent", None), ast.Subscript):
                 raise ASTEvaluatorError("Standalone slice operations are not allowed")
 
     def _check_call(self, node: ast.Call) -> None:
