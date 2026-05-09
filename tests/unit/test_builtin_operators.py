@@ -10,7 +10,6 @@ from agenarc.operators.builtin import (
     Context_Get_Operator,
     BUILTIN_OPERATORS,
     get_builtin_operator,
-    _autonomy_to_trust_level,
 )
 from agenarc.engine.state import StateManager
 
@@ -375,32 +374,9 @@ class TestScript_Node_Operator:
         assert result["success"] is True
 
 
-class TestAutonomyToTrustLevel:
-    """Tests for _autonomy_to_trust_level helper function."""
-
-    def test_level_0_returns_locked(self):
-        """level_0 should return locked trust level."""
-        assert _autonomy_to_trust_level(0) == "locked"
-
-    def test_level_1_returns_trusted(self):
-        """level_1 (Supervised) should return trusted trust level."""
-        assert _autonomy_to_trust_level(1) == "trusted"
-
-    def test_level_2_returns_developer(self):
-        """level_2 (Autonomous) should return developer trust level."""
-        assert _autonomy_to_trust_level(2) == "developer"
-
-    def test_level_3_returns_developer(self):
-        """level_3 should return developer trust level."""
-        assert _autonomy_to_trust_level(3) == "developer"
-
-    def test_level_beyond_3_returns_developer(self):
-        """level beyond 3 should return developer trust level."""
-        assert _autonomy_to_trust_level(99) == "developer"
-
 
 class TestScript_Node_TrustLevel:
-    """Tests for Script_Node trust level (defaults to developer, ignores manifest)."""
+    """Tests for Script_Node trust level (defaults to trusted, ignores manifest)."""
 
     @pytest.mark.asyncio
     async def test_default_is_developer(self):

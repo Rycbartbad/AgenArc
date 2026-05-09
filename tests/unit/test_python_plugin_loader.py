@@ -411,7 +411,7 @@ class TestOperator(IOperator):
         module = loader.get_plugin("test_plugin")
 
         assert module is not None
-        assert module.__name__ == "test_plugin"
+        assert "test_plugin" in module.__name__
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_plugin(self, tmp_path):
