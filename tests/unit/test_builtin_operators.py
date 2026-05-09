@@ -1,17 +1,18 @@
 """Unit tests for operators/builtin.py."""
 
 import pytest
+
+from agenarc.engine.state import StateManager
 from agenarc.operators.builtin import (
-    TriggerOperator,
+    BUILTIN_OPERATORS,
+    Context_Get_Operator,
+    Context_Set_Operator,
+    Log_Node_Operator,
     Memory_IO_Operator,
     Script_Node_Operator,
-    Log_Node_Operator,
-    Context_Set_Operator,
-    Context_Get_Operator,
-    BUILTIN_OPERATORS,
+    TriggerOperator,
     get_builtin_operator,
 )
-from agenarc.engine.state import StateManager
 
 
 def create_context():
@@ -201,10 +202,7 @@ class TestLog_Node_Operator:
         op = Log_Node_Operator()
         ctx = create_context()
 
-        result = await op.execute(
-            {"message": "test message", "data": {"key": "value"}},
-            ctx
-        )
+        result = await op.execute({"message": "test message", "data": {"key": "value"}}, ctx)
 
         assert result["message"] == "test message"
         assert result["data"] == {"key": "value"}
@@ -372,7 +370,6 @@ class TestScript_Node_Operator:
         result = await op.execute({"script": "x = 42"}, ctx)
 
         assert result["success"] is True
-
 
 
 class TestScript_Node_TrustLevel:

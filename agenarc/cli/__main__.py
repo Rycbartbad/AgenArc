@@ -24,6 +24,7 @@ from agenarc.cli.commands import (  # noqa: F401
     _install_bundle_plugins,
     _resolve_bundle_path,
     command_info,
+    command_init,
     command_run,
     command_serve,
     command_shell,
@@ -88,6 +89,10 @@ def create_parser() -> argparse.ArgumentParser:
     )
     visualize_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
+    # init command
+    init_parser = subparsers.add_parser("init", help="Interactive configuration wizard")
+    init_parser.set_defaults(func=command_init)
+
     # shell command
     shell_parser = subparsers.add_parser("shell", help="Interactive shell for agent execution")
     shell_parser.add_argument("file", type=Path, help="Path to agent bundle (.agrc) or protocol (.json)")
@@ -133,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_visualize(file=args.file, host=args.host, port=args.port, mode=args.mode, verbose=args.verbose)
     elif args.command == "serve":
         return command_serve(file=args.file, mode=args.mode, verbose=args.verbose)
+    elif args.command == "init":
+        return command_init()
     else:
         parser.print_help()
         return 0

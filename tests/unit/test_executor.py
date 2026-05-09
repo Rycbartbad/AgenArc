@@ -1,10 +1,10 @@
 """Unit tests for engine/executor.py."""
 
-import pytest
 import asyncio
-import json
-from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
+import contextlib
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from agenarc.engine.executor import (
     ExecutionEngine,
@@ -13,17 +13,12 @@ from agenarc.engine.executor import (
     GraphResult,
     NodeStatus,
 )
-from agenarc.protocol.loader import ProtocolLoader, LoaderError
+from agenarc.engine.state import StateManager
+from agenarc.protocol.loader import ProtocolLoader
 from agenarc.protocol.schema import (
-    Graph,
     Node,
     NodeType,
-    Edge,
-    Port,
-    ErrorHandling,
-    ErrorStrategy,
 )
-from agenarc.engine.state import StateManager
 
 
 def create_test_graph_dict(entry="trigger_1"):
@@ -152,7 +147,9 @@ class TestExecutionEngine:
         engine = ExecutionEngine()
 
         flow_file = tmp_path / "flow.json"
-        flow_file.write_text('{"version": "1.0.0", "entryPoint": "t1", "nodes": [{"id": "t1", "type": "Trigger", "label": "T"}], "edges": []}')
+        flow_file.write_text(
+            '{"version": "1.0.0", "entryPoint": "t1", "nodes": [{"id": "t1", "type": "Trigger", "label": "T"}], "edges": []}'
+        )
 
         engine.load_protocol(flow_file)
         assert engine._graph is not None
@@ -347,7 +344,7 @@ class TestExecutionEngine:
             asyncio.get_event_loop().call_later(0.1, engine.stop)
             return await engine.execute()
 
-        result = await run_and_stop()
+        await run_and_stop()
         assert engine._running is False
 
 
@@ -485,7 +482,7 @@ class TestSafeExecute:
         context = MagicMock()
 
         # Patch wait_for to simulate timeout
-        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
+        with patch("asyncio.wait_for", side_effect=TimeoutError()):
             with pytest.raises(TimeoutError, match="timed out"):
                 await engine._safe_execute(mock_op, {}, context)
 
@@ -516,7 +513,7 @@ class TestExecuteDeadlockDetection:
             "nodes": [
                 {"id": "a", "type": "Trigger", "label": "A"},
             ],
-            "edges": []
+            "edges": [],
         }
         engine.load_protocol(data)
 
@@ -544,7 +541,7 @@ class TestExecuteDeadlockDetection:
             "edges": [
                 {"source": "a", "target": "b"},
                 {"source": "b", "target": "c"},
-            ]
+            ],
         }
         engine.load_protocol(data)
 
@@ -573,7 +570,7 @@ class TestExecuteDeadlockDetection:
             "edges": [
                 {"source": "a", "target": "b"},
                 {"source": "a", "target": "c"},
-            ]
+            ],
         }
         engine.load_protocol(data)
 
@@ -602,10 +599,8 @@ class TestExecuteNodeErrorHandling:
 
         llm_node = engine._graph.get_node("llm_1")
 
-        try:
+        with contextlib.suppress(ValueError):
             await engine._execute_node(llm_node)
-        except ValueError:
-            pass
 
         assert llm_node.id in engine._node_errors
         assert isinstance(engine._node_errors[llm_node.id], ValueError)
@@ -627,10 +622,10 @@ class TestGetOperator:
             id="plugin_node",
             type=NodeType.PLUGIN,
             label="Plugin",
-            metadata={"config": {"plugin": "test", "function": "op"}}
+            metadata={"config": {"plugin": "test", "function": "op"}},
         )
 
-        result = engine.get_operator(plugin_node)
+        engine.get_operator(plugin_node)
 
         mock_pm.get_operator.assert_called_with("test", "op")
 
@@ -806,7 +801,7 @@ class TestHandleNodeError:
             "edges": [],
         }
         loader = ProtocolLoader(validate=False)
-        graph = loader.load_dict(data)
+        loader.load_dict(data)
 
         engine = ExecutionEngine()
         engine.load_protocol(data)

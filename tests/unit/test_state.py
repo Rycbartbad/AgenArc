@@ -1,11 +1,10 @@
 """Unit tests for engine/state.py."""
 
-import pytest
 from agenarc.engine.state import (
-    StateManager,
-    StateChange,
     Checkpoint,
     ExecutionContext,
+    StateChange,
+    StateManager,
 )
 
 
@@ -19,7 +18,7 @@ class TestCheckpoint:
             label="test checkpoint",
             timestamp=1000.0,
             global_state={"key": "value"},
-            local_states={"node1": {"out": 42}}
+            local_states={"node1": {"out": 42}},
         )
         assert checkpoint.id == "cp1"
         assert checkpoint.label == "test checkpoint"
@@ -33,12 +32,7 @@ class TestStateChange:
 
     def test_state_change_global(self):
         """Test StateChange for global scope."""
-        change = StateChange(
-            scope="global",
-            key="test_key",
-            old_value="old",
-            new_value="new"
-        )
+        change = StateChange(scope="global", key="test_key", old_value="old", new_value="new")
         assert change.scope == "global"
         assert change.key == "test_key"
         assert change.old_value == "old"
@@ -46,12 +40,7 @@ class TestStateChange:
 
     def test_state_change_local(self):
         """Test StateChange for local scope."""
-        change = StateChange(
-            scope="local",
-            node_id="node1",
-            key="output",
-            new_value=42
-        )
+        change = StateChange(scope="local", node_id="node1", key="output", new_value=42)
         assert change.scope == "local"
         assert change.node_id == "node1"
         assert change.key == "output"
@@ -59,10 +48,7 @@ class TestStateChange:
 
     def test_state_change_checkpoint(self):
         """Test StateChange for checkpoint scope."""
-        change = StateChange(
-            scope="checkpoint",
-            checkpoint_id="cp123"
-        )
+        change = StateChange(scope="checkpoint", checkpoint_id="cp123")
         assert change.scope == "checkpoint"
         assert change.checkpoint_id == "cp123"
 
@@ -222,8 +208,8 @@ class TestStateManager:
         sm = StateManager()
         sm.initialize("exec1", "graph1")
 
-        cp1 = sm.checkpoint("first")
-        cp2 = sm.checkpoint("second")
+        sm.checkpoint("first")
+        sm.checkpoint("second")
 
         checkpoints = sm.list_checkpoints()
         assert len(checkpoints) == 2

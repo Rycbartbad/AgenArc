@@ -1,11 +1,11 @@
 """Unit tests for plugins/loaders/python.py."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
-from agenarc.plugins.loaders.python import PythonPluginLoader
+
 from agenarc.plugins.hot_loader import PluginInfo
+from agenarc.plugins.loaders.python import PythonPluginLoader
 
 
 class TestPythonPluginLoaderDiscover:
@@ -141,12 +141,7 @@ class TestPythonPluginLoaderLoad:
         manifest = plugin_dir / "agenarc.json"
         manifest.write_text('{"name": "test_plugin", "entry": "nonexistent.py"}')
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         result = await loader.load(plugin_info)
@@ -162,7 +157,7 @@ class TestPythonPluginLoaderLoad:
         manifest.write_text('{"name": "test_plugin", "operators": ["TestOperator"]}')
 
         plugin_py = plugin_dir / "plugin.py"
-        plugin_py.write_text('''
+        plugin_py.write_text("""
 from agenarc.operators.operator import IOperator
 
 class TestOperator(IOperator):
@@ -178,14 +173,9 @@ class TestOperator(IOperator):
 
     async def execute(self, inputs, context):
         return {"result": "success"}
-''')
+""")
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         result = await loader.load(plugin_info)
@@ -202,7 +192,7 @@ class TestOperator(IOperator):
         manifest.write_text('{"name": "test_plugin"}')  # No operators listed
 
         plugin_py = plugin_dir / "plugin.py"
-        plugin_py.write_text('''
+        plugin_py.write_text("""
 from agenarc.operators.operator import IOperator
 
 class AutoDiscoveredOperator(IOperator):
@@ -218,14 +208,9 @@ class AutoDiscoveredOperator(IOperator):
 
     async def execute(self, inputs, context):
         return {}
-''')
+""")
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         result = await loader.load(plugin_info)
@@ -241,7 +226,7 @@ class AutoDiscoveredOperator(IOperator):
         manifest.write_text('{"name": "test_plugin", "operators": ["TestOperator"]}')
 
         plugin_py = plugin_dir / "plugin.py"
-        plugin_py.write_text('''
+        plugin_py.write_text("""
 from agenarc.operators.operator import IOperator
 
 class TestOperator(IOperator):
@@ -257,14 +242,9 @@ class TestOperator(IOperator):
 
     async def execute(self, inputs, context):
         return {}
-''')
+""")
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         await loader.load(plugin_info)
@@ -281,7 +261,7 @@ class TestOperator(IOperator):
         manifest.write_text('{"name": "test_plugin"}')  # No entry specified
 
         plugin_py = plugin_dir / "plugin.py"
-        plugin_py.write_text('''
+        plugin_py.write_text("""
 from agenarc.operators.operator import IOperator
 
 class TestOp(IOperator):
@@ -297,14 +277,9 @@ class TestOp(IOperator):
 
     async def execute(self, inputs, context):
         return {}
-''')
+""")
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         result = await loader.load(plugin_info)
@@ -324,7 +299,7 @@ class TestPythonPluginLoaderUnload:
         manifest.write_text('{"name": "test_plugin", "operators": ["TestOperator"]}')
 
         plugin_py = plugin_dir / "plugin.py"
-        plugin_py.write_text('''
+        plugin_py.write_text("""
 from agenarc.operators.operator import IOperator
 
 class TestOperator(IOperator):
@@ -340,14 +315,9 @@ class TestOperator(IOperator):
 
     async def execute(self, inputs, context):
         return {}
-''')
+""")
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         await loader.load(plugin_info)
@@ -380,7 +350,7 @@ class TestPythonPluginLoaderGetPlugin:
         manifest.write_text('{"name": "test_plugin", "operators": ["TestOperator"]}')
 
         plugin_py = plugin_dir / "plugin.py"
-        plugin_py.write_text('''
+        plugin_py.write_text("""
 from agenarc.operators.operator import IOperator
 
 class TestOperator(IOperator):
@@ -396,14 +366,9 @@ class TestOperator(IOperator):
 
     async def execute(self, inputs, context):
         return {}
-''')
+""")
 
-        plugin_info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=manifest,
-            loader_type="python"
-        )
+        plugin_info = PluginInfo(name="test_plugin", version="1.0.0", path=manifest, loader_type="python")
 
         loader = PythonPluginLoader()
         await loader.load(plugin_info)

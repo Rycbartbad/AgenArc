@@ -1,12 +1,12 @@
 """Unit tests for operators/llm.py."""
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.llm import (
     LLM_Task_Operator,
     _get_llm_config,
 )
-from agenarc.engine.state import StateManager, ExecutionContext
 
 
 def create_context():
@@ -115,6 +115,7 @@ class TestGetLLMConfig:
     def test_get_llm_config_returns_config(self):
         """Test _get_llm_config returns a config object."""
         from agenarc.config import Config
+
         Config._instance = None
         config = _get_llm_config()
         assert config is not None

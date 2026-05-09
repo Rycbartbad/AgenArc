@@ -1,13 +1,14 @@
 """Unit tests for template resolution in evaluator.py."""
 
 import pytest
+
 from agenarc.engine.evaluator import (
-    resolve_template,
-    resolve_template_dict,
-    resolve_template_any,
-    resolve_vfs_path,
-    resolve_vfs_and_template,
     TemplateError,
+    resolve_template,
+    resolve_template_any,
+    resolve_template_dict,
+    resolve_vfs_and_template,
+    resolve_vfs_path,
 )
 
 
@@ -140,6 +141,7 @@ class TestResolveVfsPath:
 
     def test_resolve_vfs_path_non_vfs(self):
         """Test that non-VFS strings are returned as-is."""
+
         def bundle_getter():
             return None
 
@@ -148,6 +150,7 @@ class TestResolveVfsPath:
 
     def test_resolve_vfs_path_no_bundle(self):
         """Test that missing bundle returns original value."""
+
         def bundle_getter():
             return None
 
@@ -172,6 +175,7 @@ class TestResolveVfsPath:
 
     def test_resolve_vfs_path_non_string(self):
         """Test that non-string values are returned as-is."""
+
         def bundle_getter():
             return "/path/to/bundle"
 
@@ -199,16 +203,12 @@ class TestResolveVfsAndTemplate:
         def bundle_getter():
             return str(bundle)
 
-        result = resolve_vfs_and_template(
-            "agrc://prompts/system.pt",
-            context_getter,
-            bundle_getter,
-            allow_missing=True
-        )
+        result = resolve_vfs_and_template("agrc://prompts/system.pt", context_getter, bundle_getter, allow_missing=True)
         assert result == "You are Alice's assistant."
 
     def test_resolve_template_only(self):
         """Test resolving template without VFS path."""
+
         def context_getter(key):
             lookup = {"user_name": "Alice"}
             return lookup.get(key)
@@ -216,12 +216,7 @@ class TestResolveVfsAndTemplate:
         def bundle_getter():
             return None
 
-        result = resolve_vfs_and_template(
-            "Hello {{user_name}}!",
-            context_getter,
-            bundle_getter,
-            allow_missing=True
-        )
+        result = resolve_vfs_and_template("Hello {{user_name}}!", context_getter, bundle_getter, allow_missing=True)
         assert result == "Hello Alice!"
 
     def test_resolve_vfs_and_template_dict(self, tmp_path):

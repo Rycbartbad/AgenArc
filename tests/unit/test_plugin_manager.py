@@ -1,11 +1,13 @@
 """Unit tests for plugins/manager.py."""
 
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
-from agenarc.plugins.manager import PluginManager
-from agenarc.plugins.hot_loader import PluginInfo, HotPluginLoader, ReloadStrategy
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from agenarc.operators.operator import IOperator
+from agenarc.plugins.hot_loader import HotPluginLoader, PluginInfo
+from agenarc.plugins.manager import PluginManager
 from agenarc.protocol.schema import Port
 
 
@@ -74,7 +76,7 @@ class TestPluginManagerInitialize:
     @pytest.mark.asyncio
     async def test_initialize_creates_hot_loader(self):
         """Test initialize creates HotPluginLoader."""
-        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+        with patch.object(HotPluginLoader, "initialize", new=AsyncMock()):
             manager = PluginManager()
             await manager.initialize()
 
@@ -84,7 +86,7 @@ class TestPluginManagerInitialize:
     @pytest.mark.asyncio
     async def test_initialize_with_multiple_plugin_dirs(self):
         """Test initialize configures hot loader with multiple paths."""
-        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+        with patch.object(HotPluginLoader, "initialize", new=AsyncMock()):
             manager = PluginManager(plugin_dirs=["~/.agenarc/plugins", "/usr/local/agenarc/plugins"])
             await manager.initialize()
 
@@ -107,11 +109,11 @@ class TestPluginManagerDiscoverBundlePlugins:
     @pytest.mark.asyncio
     async def test_discover_bundle_plugins_no_plugins_dir(self):
         """Test discover when bundle has no plugins directory."""
-        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+        with patch.object(HotPluginLoader, "initialize", new=AsyncMock()):
             manager = PluginManager()
             await manager.initialize()
 
-            bundle_path = Path("/test/bundle")
+            Path("/test/bundle")
             await manager._discover_bundle_plugins()
 
             # Should not error when plugins dir doesn't exist
@@ -129,7 +131,7 @@ class TestPluginManagerDiscoverBundlePlugins:
         plugin_dir.mkdir()
         (plugin_dir / "agenarc.json").write_text('{"name": "embedded_plugin"}')
 
-        with patch.object(HotPluginLoader, 'initialize', new=AsyncMock()):
+        with patch.object(HotPluginLoader, "initialize", new=AsyncMock()):
             manager = PluginManager(bundle_paths=[bundle])
             await manager.initialize()
             await manager._discover_bundle_plugins()

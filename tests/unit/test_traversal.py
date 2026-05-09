@@ -1,8 +1,7 @@
 """Unit tests for graph/traversal.py."""
 
-import pytest
-from agenarc.protocol.schema import Graph, Node, Edge, NodeType
-from agenarc.graph.traversal import GraphTraversal, CycleError
+from agenarc.graph.traversal import GraphTraversal
+from agenarc.protocol.schema import Edge, Graph, Node, NodeType
 
 
 class TestGraphTraversal:

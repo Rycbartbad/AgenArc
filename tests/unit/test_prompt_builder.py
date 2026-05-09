@@ -1,8 +1,9 @@
 """Unit tests for Prompt_Builder operator."""
 
 import pytest
+
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.builtin import Prompt_Builder_Operator
-from agenarc.engine.state import StateManager, ExecutionContext
 
 
 def create_context():
@@ -51,9 +52,7 @@ class TestPromptBuilderOperator:
 
         result = await op.execute({"user": "Hello!"}, ctx)
 
-        assert result["messages"] == [
-            {"role": "user", "content": "Hello!"}
-        ]
+        assert result["messages"] == [{"role": "user", "content": "Hello!"}]
 
     @pytest.mark.asyncio
     async def test_first_message_assistant(self):
@@ -64,9 +63,7 @@ class TestPromptBuilderOperator:
 
         result = await op.execute({"assistant": "Hi, how can I help?"}, ctx)
 
-        assert result["messages"] == [
-            {"role": "assistant", "content": "Hi, how can I help?"}
-        ]
+        assert result["messages"] == [{"role": "assistant", "content": "Hi, how can I help?"}]
 
     @pytest.mark.asyncio
     async def test_alternating_user_assistant(self):
@@ -78,7 +75,7 @@ class TestPromptBuilderOperator:
         # First: user
         await op.execute({"user": "Hello!"}, ctx)
         # Second: assistant
-        result1 = await op.execute({"assistant": "Hi!"}, ctx)
+        await op.execute({"assistant": "Hi!"}, ctx)
         # Third: user
         result2 = await op.execute({"user": "How are you?"}, ctx)
 

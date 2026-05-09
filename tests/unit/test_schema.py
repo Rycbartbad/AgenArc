@@ -1,20 +1,18 @@
 """Unit tests for protocol/schema.py."""
 
-import pytest
 from agenarc.protocol.schema import (
-    NodeType,
+    ConditionOperator,
     Edge,
-    Graph,
-    Node,
-    Port,
     ErrorHandling,
     ErrorStrategy,
+    Graph,
     GraphMetadata,
-    NodeConfig,
-    Condition,
-    ConditionOperator,
-    TriggerSource,
     MemoryMode,
+    Node,
+    NodeConfig,
+    NodeType,
+    Port,
+    TriggerSource,
 )
 
 
@@ -50,10 +48,7 @@ class TestErrorHandling:
     def test_error_handling_custom(self):
         """Test ErrorHandling with custom values."""
         eh = ErrorHandling(
-            strategy=ErrorStrategy.RETRY,
-            maxRetries=3,
-            errorPort="custom_error",
-            fallbackNode="fallback_node"
+            strategy=ErrorStrategy.RETRY, maxRetries=3, errorPort="custom_error", fallbackNode="fallback_node"
         )
         assert eh.strategy == ErrorStrategy.RETRY
         assert eh.maxRetries == 3
@@ -105,37 +100,20 @@ class TestNode:
         """Test Node with input/output ports."""
         inputs = [Port(name="input1", type="string")]
         outputs = [Port(name="output1", type="any")]
-        node = Node(
-            id="test_node",
-            type=NodeType.LLM_TASK,
-            label="Test",
-            inputs=inputs,
-            outputs=outputs
-        )
+        node = Node(id="test_node", type=NodeType.LLM_TASK, label="Test", inputs=inputs, outputs=outputs)
         assert len(node.inputs) == 1
         assert len(node.outputs) == 1
 
     def test_node_with_error_handling(self):
         """Test Node with error handling."""
         eh = ErrorHandling(strategy=ErrorStrategy.FALLBACK, fallbackNode="fb")
-        node = Node(
-            id="test_node",
-            type=NodeType.LLM_TASK,
-            label="Test",
-            errorHandling=eh
-        )
+        node = Node(id="test_node", type=NodeType.LLM_TASK, label="Test", errorHandling=eh)
         assert node.errorHandling.strategy == ErrorStrategy.FALLBACK
         assert node.errorHandling.fallbackNode == "fb"
 
     def test_node_checkpoint_settings(self):
         """Test Node checkpoint settings."""
-        node = Node(
-            id="test_node",
-            type=NodeType.MEMORY_IO,
-            label="Test",
-            checkpoint=True,
-            idempotent=False
-        )
+        node = Node(id="test_node", type=NodeType.MEMORY_IO, label="Test", checkpoint=True, idempotent=False)
         assert node.checkpoint is True
         assert node.idempotent is False
 
@@ -154,12 +132,7 @@ class TestEdge:
     def test_edge_with_ports(self):
         """Test Edge creation with port specifications."""
         edge = Edge(
-            source="node_a",
-            sourcePort="out1",
-            target="node_b",
-            targetPort="in1",
-            label="connection",
-            style="dashed"
+            source="node_a", sourcePort="out1", target="node_b", targetPort="in1", label="connection", style="dashed"
         )
         assert edge.sourcePort == "out1"
         assert edge.targetPort == "in1"
@@ -193,7 +166,7 @@ class TestGraphMetadata:
             author="Tester",
             version="2.0.0",
             created="2026-01-01T00:00:00",
-            tags=["test", "example"]
+            tags=["test", "example"],
         )
         assert meta.name == "Test Graph"
         assert len(meta.tags) == 2
@@ -204,11 +177,7 @@ class TestGraph:
 
     def test_graph_creation(self):
         """Test Graph creation."""
-        graph = Graph(
-            version="1.0.0",
-            nodes=[],
-            edges=[]
-        )
+        graph = Graph(version="1.0.0", nodes=[], edges=[])
         assert graph.version == "1.0.0"
         assert len(graph.nodes) == 0
         assert len(graph.edges) == 0

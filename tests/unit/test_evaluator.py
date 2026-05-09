@@ -1,11 +1,11 @@
 """Unit tests for engine/evaluator.py."""
 
 import pytest
+
 from agenarc.engine.evaluator import (
     ASTEvaluator,
     ASTEvaluatorError,
     GasExceededError,
-    MemoryLimitError,
     SafeContext,
     evaluate_expression,
 )
@@ -405,7 +405,7 @@ class TestASTEvaluatorSecurity:
         evaluator = ASTEvaluator()
 
         with pytest.raises(ASTEvaluatorError):
-            evaluator.evaluate("os.system('ls')", {"os": __import__('os')})
+            evaluator.evaluate("os.system('ls')", {"os": __import__("os")})
 
 
 class TestSafeContext:

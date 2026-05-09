@@ -217,6 +217,7 @@ def print_success(message: str) -> None:
 # --- Import command functions from sub-modules ---
 
 from .info import command_info
+from .init import command_init
 from .pack import command_pack
 from .run import command_run
 from .serve import command_serve

@@ -1,7 +1,7 @@
 """Unit tests for vfs/filesystem.py."""
 
 import pytest
-from pathlib import Path
+
 from agenarc.vfs.filesystem import VFS, VFSError
 
 
@@ -156,10 +156,7 @@ class TestVFS:
         template_file.write_text("Hello {{name}}, you have {{count}} messages")
 
         vfs = VFS(bundle)
-        result = vfs.render_template(
-            "agrc://prompts/template.pt",
-            {"name": "Alice", "count": 5}
-        )
+        result = vfs.render_template("agrc://prompts/template.pt", {"name": "Alice", "count": 5})
         assert result == "Hello Alice, you have 5 messages"
 
 

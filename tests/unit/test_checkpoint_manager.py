@@ -1,9 +1,9 @@
 """Unit tests for engine/state.py CheckpointManager."""
 
-import pytest
 import time
 from pathlib import Path
-from agenarc.engine.state import CheckpointManager, Checkpoint
+
+from agenarc.engine.state import Checkpoint, CheckpointManager
 
 
 class TestCheckpointManager:
@@ -30,7 +30,7 @@ class TestCheckpointManager:
             timestamp=time.time(),
             global_state={"key": "value"},
             local_states={"node1": {"output": "result"}},
-            metadata={"execution_id": "exec-1"}
+            metadata={"execution_id": "exec-1"},
         )
 
         checkpoint_id = manager.save_checkpoint(checkpoint)
@@ -46,7 +46,7 @@ class TestCheckpointManager:
             timestamp=time.time(),
             global_state={"key": "value"},
             local_states={"node1": {}},
-            metadata={"execution_id": "exec-1"}
+            metadata={"execution_id": "exec-1"},
         )
 
         manager.save_checkpoint(checkpoint)
@@ -66,7 +66,7 @@ class TestCheckpointManager:
             timestamp=time.time(),
             global_state={"key": "value"},
             local_states={"node1": {}},
-            metadata={"execution_id": "exec-1"}
+            metadata={"execution_id": "exec-1"},
         )
 
         manager.save_checkpoint(checkpoint)
@@ -96,7 +96,7 @@ class TestCheckpointManager:
                 timestamp=time.time(),
                 global_state={},
                 local_states={},
-                metadata={"execution_id": "exec-1"}
+                metadata={"execution_id": "exec-1"},
             )
             manager.save_checkpoint(checkpoint)
 
@@ -113,7 +113,7 @@ class TestCheckpointManager:
             timestamp=time.time(),
             global_state={},
             local_states={},
-            metadata={"execution_id": "exec-1"}
+            metadata={"execution_id": "exec-1"},
         )
 
         manager.save_checkpoint(checkpoint)
@@ -133,7 +133,7 @@ class TestCheckpointManager:
                 timestamp=time.time(),
                 global_state={},
                 local_states={},
-                metadata={"execution_id": "exec-1"}
+                metadata={"execution_id": "exec-1"},
             )
             manager.save_checkpoint(checkpoint)
 
@@ -153,7 +153,7 @@ class TestCheckpointManager:
                 timestamp=time.time(),
                 global_state={},
                 local_states={},
-                metadata={"execution_id": "exec-1"}
+                metadata={"execution_id": "exec-1"},
             )
             manager.save_checkpoint(checkpoint)
 
@@ -171,7 +171,7 @@ class TestCheckpointManager:
             timestamp=time.time(),
             global_state={},
             local_states={},
-            metadata={"execution_id": "exec-1"}
+            metadata={"execution_id": "exec-1"},
         )
         manager.save_checkpoint(cp1)
 
@@ -182,7 +182,7 @@ class TestCheckpointManager:
             timestamp=time.time(),
             global_state={},
             local_states={},
-            metadata={"execution_id": "exec-2"}
+            metadata={"execution_id": "exec-2"},
         )
         manager.save_checkpoint(cp2)
 
@@ -206,7 +206,7 @@ class TestCheckpointDataIntegrity:
             timestamp=time.time(),
             global_state={"var1": "value1", "nested": {"key": "val"}},
             local_states={},
-            metadata={}
+            metadata={},
         )
 
         manager.save_checkpoint(checkpoint)
@@ -227,11 +227,8 @@ class TestCheckpointDataIntegrity:
             label="test",
             timestamp=time.time(),
             global_state={},
-            local_states={
-                "node1": {"output": "result1"},
-                "node2": {"output": "result2"}
-            },
-            metadata={}
+            local_states={"node1": {"output": "result1"}, "node2": {"output": "result2"}},
+            metadata={},
         )
 
         manager.save_checkpoint(checkpoint)

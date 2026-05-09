@@ -1,11 +1,13 @@
 """Unit tests for plugins/loaders/cpp.py."""
 
-import pytest
-import sys
 import ctypes
+import sys
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
-from agenarc.plugins.loaders.cpp import CppPluginLoader, CppOperatorWrapper
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from agenarc.plugins.loaders.cpp import CppOperatorWrapper, CppPluginLoader
 
 
 class TestCppPluginLoaderInit:
@@ -20,21 +22,21 @@ class TestCppPluginLoaderInit:
     def test_library_extension_windows(self):
         """Test Windows library extension."""
         loader = CppPluginLoader()
-        with patch.object(sys, 'platform', 'win32'):
+        with patch.object(sys, "platform", "win32"):
             ext = loader._get_library_extension()
             assert ext == ".dll"
 
     def test_library_extension_macos(self):
         """Test macOS library extension."""
         loader = CppPluginLoader()
-        with patch.object(sys, 'platform', 'darwin'):
+        with patch.object(sys, "platform", "darwin"):
             ext = loader._get_library_extension()
             assert ext == ".dylib"
 
     def test_library_extension_linux(self):
         """Test Linux library extension."""
         loader = CppPluginLoader()
-        with patch.object(sys, 'platform', 'linux'):
+        with patch.object(sys, "platform", "linux"):
             ext = loader._get_library_extension()
             assert ext == ".so"
 
@@ -95,12 +97,9 @@ class TestCppPluginLoaderDiscover:
         """Test discover with valid plugin."""
         plugin_dir = tmp_path / "test_plugin"
         plugin_dir.mkdir()
-        manifest = {
-            "name": "test_plugin",
-            "version": "1.0.0",
-            "library": "libtest.dll"
-        }
-        (plugin_dir / "agenarc.json").write_text('{"name": "test_plugin", "version": "1.0.0", "library": "libtest.dll"}')
+        (plugin_dir / "agenarc.json").write_text(
+            '{"name": "test_plugin", "version": "1.0.0", "library": "libtest.dll"}'
+        )
 
         # Create a dummy library file (empty, just for exists check)
         lib_file = plugin_dir / "libtest.dll"
@@ -126,13 +125,9 @@ class TestCppPluginLoaderLoad:
         """Test load creates operator wrappers."""
         plugin_dir = tmp_path / "test_plugin"
         plugin_dir.mkdir()
-        manifest = {
-            "name": "test_plugin",
-            "version": "1.0.0",
-            "library": "libtest.dll",
-            "symbols": ["operator1"]
-        }
-        (plugin_dir / "agenarc.json").write_text('{"name": "test_plugin", "version": "1.0.0", "library": "libtest.dll", "symbols": ["operator1"]}')
+        (plugin_dir / "agenarc.json").write_text(
+            '{"name": "test_plugin", "version": "1.0.0", "library": "libtest.dll", "symbols": ["operator1"]}'
+        )
 
         # Create a dummy library file
         lib_file = plugin_dir / "libtest.dll"
@@ -187,9 +182,11 @@ class TestCppPluginLoaderUnload:
     def test_unload_existing_library(self):
         """Test unloading existing library."""
         loader = CppPluginLoader()
+
         # Create a mock library-like object
         class MockLib:
             _handle = 12345
+
         loader._libraries["test"] = MockLib()
 
         # Mock FreeLibrary to avoid actual system call
@@ -214,11 +211,12 @@ class TestCppPluginLoaderUnload:
 
         class MockLib:
             _handle = 12345
+
         mock_lib = MockLib()
         loader._libraries["test"] = mock_lib
 
         with patch("ctypes.windll.kernel32.FreeLibrary", side_effect=Exception("Failed")):
-            result = loader.unload("test")
+            loader.unload("test")
 
         # Even if FreeLibrary fails, the library is removed from dict
         assert "test" not in loader._libraries
@@ -229,12 +227,12 @@ class TestCppPluginLoaderUnload:
 
         class MockLib:
             _handle = 12345
+
         mock_lib = MockLib()
         loader._libraries["test"] = mock_lib
 
-        with patch("sys.platform", "linux"):
-            with patch("ctypes.cdll.LoadLibrary", side_effect=Exception("Failed")):
-                result = loader.unload("test")
+        with patch("sys.platform", "linux"), patch("ctypes.cdll.LoadLibrary", side_effect=Exception("Failed")):
+            loader.unload("test")
 
         assert "test" not in loader._libraries
 
@@ -246,10 +244,7 @@ class TestCppOperatorWrapper:
         """Test wrapper creation."""
         mock_lib = MagicMock()
         wrapper = CppOperatorWrapper(
-            library=mock_lib,
-            destructor_name="destroy_test",
-            operator_ptr=12345,
-            symbol_name="test"
+            library=mock_lib, destructor_name="destroy_test", operator_ptr=12345, symbol_name="test"
         )
         assert wrapper._operator_ptr == 12345
         assert wrapper._symbol_name == "test"
@@ -262,10 +257,7 @@ class TestCppOperatorWrapper:
         mock_lib.test_op = mock_method
 
         wrapper = CppOperatorWrapper(
-            library=mock_lib,
-            destructor_name="destroy_test",
-            operator_ptr=12345,
-            symbol_name="test"
+            library=mock_lib, destructor_name="destroy_test", operator_ptr=12345, symbol_name="test"
         )
 
         result = wrapper.call_method("op")
@@ -277,10 +269,7 @@ class TestCppOperatorWrapper:
         """Test calling method on destroyed wrapper raises."""
         mock_lib = MagicMock()
         wrapper = CppOperatorWrapper(
-            library=mock_lib,
-            destructor_name="destroy_test",
-            operator_ptr=12345,
-            symbol_name="test"
+            library=mock_lib, destructor_name="destroy_test", operator_ptr=12345, symbol_name="test"
         )
         wrapper._destroyed = True
 
@@ -291,10 +280,7 @@ class TestCppOperatorWrapper:
         """Test calling nonexistent method raises."""
         mock_lib = MagicMock(spec=[])  # Empty spec means no attributes
         wrapper = CppOperatorWrapper(
-            library=mock_lib,
-            destructor_name="destroy_test",
-            operator_ptr=12345,
-            symbol_name="test"
+            library=mock_lib, destructor_name="destroy_test", operator_ptr=12345, symbol_name="test"
         )
 
         with pytest.raises(AttributeError, match="Method not found"):
@@ -307,10 +293,7 @@ class TestCppOperatorWrapper:
         mock_lib.destroy_test = mock_destructor
 
         wrapper = CppOperatorWrapper(
-            library=mock_lib,
-            destructor_name="destroy_test",
-            operator_ptr=12345,
-            symbol_name="test"
+            library=mock_lib, destructor_name="destroy_test", operator_ptr=12345, symbol_name="test"
         )
 
         # Call __del__ implicitly
@@ -323,10 +306,7 @@ class TestCppOperatorWrapper:
         """Test destructor doesn't double destroy."""
         mock_lib = MagicMock()
         wrapper = CppOperatorWrapper(
-            library=mock_lib,
-            destructor_name="destroy_test",
-            operator_ptr=12345,
-            symbol_name="test"
+            library=mock_lib, destructor_name="destroy_test", operator_ptr=12345, symbol_name="test"
         )
         wrapper._destroyed = True
 
@@ -334,4 +314,4 @@ class TestCppOperatorWrapper:
         wrapper.__del__()
 
         # Destructor should not have been called
-        assert not hasattr(mock_lib, 'destroy_test') or mock_lib.destroy_test.called is False
+        assert not hasattr(mock_lib, "destroy_test") or mock_lib.destroy_test.called is False

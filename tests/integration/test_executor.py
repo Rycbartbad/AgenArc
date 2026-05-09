@@ -1,11 +1,10 @@
 """Integration tests for engine/executor.py."""
 
 import pytest
+
 from agenarc.engine.executor import ExecutionEngine, ExecutionMode, NodeStatus
-from agenarc.engine.state import StateManager
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
-from agenarc.protocol.schema import NodeType, Edge, Graph, Node
 
 
 def create_test_engine():
@@ -37,17 +36,7 @@ class TestExecutionEngine:
 
     def test_load_simple_protocol(self):
         """Test loading a simple protocol."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                }
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}], "edges": []}
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
@@ -59,13 +48,7 @@ class TestExecutionEngine:
 
     def test_load_invalid_protocol(self):
         """Test loading invalid protocol."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {"id": "a", "type": "Trigger", "label": "A"}
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "a", "type": "Trigger", "label": "A"}], "edges": []}
         engine = create_test_engine()
 
         # entryPoint no longer exists - the graph should load fine with auto-detected source nodes
@@ -77,13 +60,7 @@ class TestExecutionEngine:
     @pytest.mark.asyncio
     async def test_execute_empty_graph(self):
         """Test executing empty graph."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}], "edges": []}
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
@@ -102,10 +79,10 @@ class TestExecutionEngine:
                     "id": "trigger_1",
                     "type": "Trigger",
                     "label": "Start",
-                    "outputs": [{"name": "payload", "type": "any"}]
+                    "outputs": [{"name": "payload", "type": "any"}],
                 }
             ],
-            "edges": []
+            "edges": [],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -126,30 +103,17 @@ class TestExecutionEngine:
                     "id": "trigger_1",
                     "type": "Trigger",
                     "label": "Start",
-                    "outputs": [{"name": "payload", "type": "any"}]
+                    "outputs": [{"name": "payload", "type": "any"}],
                 },
                 {
                     "id": "log_1",
                     "type": "Log",
                     "label": "Log",
-                    "inputs": [
-                        {"name": "message", "type": "string"},
-                        {"name": "data", "type": "any"}
-                    ],
-                    "outputs": [
-                        {"name": "message", "type": "string"},
-                        {"name": "data", "type": "any"}
-                    ]
-                }
+                    "inputs": [{"name": "message", "type": "string"}, {"name": "data", "type": "any"}],
+                    "outputs": [{"name": "message", "type": "string"}, {"name": "data", "type": "any"}],
+                },
             ],
-            "edges": [
-                {
-                    "source": "trigger_1",
-                    "sourcePort": "payload",
-                    "target": "log_1",
-                    "targetPort": "message"
-                }
-            ]
+            "edges": [{"source": "trigger_1", "sourcePort": "payload", "target": "log_1", "targetPort": "message"}],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -166,26 +130,14 @@ class TestExecutionEngine:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
-                {
-                    "id": "context_set",
-                    "type": "Context_Set",
-                    "label": "Set Context"
-                },
-                {
-                    "id": "context_get",
-                    "type": "Context_Get",
-                    "label": "Get Context"
-                }
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+                {"id": "context_set", "type": "Context_Set", "label": "Set Context"},
+                {"id": "context_get", "type": "Context_Get", "label": "Get Context"},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "context_set"},
-                {"source": "context_set", "target": "context_get"}
-            ]
+                {"source": "context_set", "target": "context_get"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -197,13 +149,7 @@ class TestExecutionEngine:
     @pytest.mark.asyncio
     async def test_execute_sync_mode(self):
         """Test executing in sync mode."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}], "edges": []}
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
@@ -226,13 +172,7 @@ class TestExecutionEngine:
 
     def test_get_operator_for_node(self):
         """Test getting operator for node type."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}], "edges": []}
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
@@ -249,13 +189,7 @@ class TestGraphResult:
     @pytest.mark.asyncio
     async def test_graph_result_structure(self):
         """Test GraphResult has correct structure."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}], "edges": []}
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
@@ -274,13 +208,7 @@ class TestNodeExecutionTracking:
     @pytest.mark.asyncio
     async def test_node_status_tracking(self):
         """Test node status is tracked correctly."""
-        data = {
-            "version": "1.0.0",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }
+        data = {"version": "1.0.0", "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}], "edges": []}
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
 
@@ -298,10 +226,10 @@ class TestNodeExecutionTracking:
                     "id": "trigger_1",
                     "type": "Trigger",
                     "label": "Start",
-                    "outputs": [{"name": "payload", "type": "any"}]
+                    "outputs": [{"name": "payload", "type": "any"}],
                 }
             ],
-            "edges": []
+            "edges": [],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)

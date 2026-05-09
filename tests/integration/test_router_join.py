@@ -1,11 +1,10 @@
 """Integration tests for Router and Join operators."""
 
 import pytest
-from agenarc.engine.executor import ExecutionEngine, ExecutionMode, NodeStatus
-from agenarc.engine.state import StateManager
+
+from agenarc.engine.executor import ExecutionEngine, NodeStatus
 from agenarc.operators.builtin import BUILTIN_OPERATORS
 from agenarc.plugins.manager import PluginManager
-from agenarc.protocol.schema import NodeType, Edge, Graph, Node, NodeConfig, Port, Condition, ConditionOperator
 
 
 def create_test_engine():
@@ -29,49 +28,27 @@ class TestRouterOperator:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
                 {
                     "id": "router_1",
                     "type": "Router",
                     "label": "Route",
                     "config": {
                         "conditions": [
-                            {
-                                "ref": "input",
-                                "operator": "EQ",
-                                "value": "go",
-                                "output": "path_a"
-                            },
-                            {
-                                "ref": "input",
-                                "operator": "NE",
-                                "value": "go",
-                                "output": "path_b"
-                            }
+                            {"ref": "input", "operator": "EQ", "value": "go", "output": "path_a"},
+                            {"ref": "input", "operator": "NE", "value": "go", "output": "path_b"},
                         ],
-                        "default": "path_b"
-                    }
+                        "default": "path_b",
+                    },
                 },
-                {
-                    "id": "log_a",
-                    "type": "Log",
-                    "label": "Path A"
-                },
-                {
-                    "id": "log_b",
-                    "type": "Log",
-                    "label": "Path B"
-                }
+                {"id": "log_a", "type": "Log", "label": "Path A"},
+                {"id": "log_b", "type": "Log", "label": "Path B"},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "router_1"},
                 {"source": "router_1", "sourcePort": "path_a", "target": "log_a"},
-                {"source": "router_1", "sourcePort": "path_b", "target": "log_b"}
-            ]
+                {"source": "router_1", "sourcePort": "path_b", "target": "log_b"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -89,37 +66,24 @@ class TestRouterOperator:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
                 {
                     "id": "router_1",
                     "type": "Router",
                     "label": "Route",
                     "config": {
                         "conditions": [
-                            {
-                                "ref": "input",
-                                "operator": "EQ",
-                                "value": "specific",
-                                "output": "specific_path"
-                            }
+                            {"ref": "input", "operator": "EQ", "value": "specific", "output": "specific_path"}
                         ],
-                        "default": "other"
-                    }
+                        "default": "other",
+                    },
                 },
-                {
-                    "id": "log_other",
-                    "type": "Log",
-                    "label": "Other"
-                }
+                {"id": "log_other", "type": "Log", "label": "Other"},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "router_1"},
-                {"source": "router_1", "sourcePort": "other", "target": "log_other"}
-            ]
+                {"source": "router_1", "sourcePort": "other", "target": "log_other"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -135,48 +99,26 @@ class TestRouterOperator:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
                 {
                     "id": "router_1",
                     "type": "Router",
                     "label": "Route",
                     "config": {
                         "conditions": [
-                            {
-                                "ref": "input",
-                                "operator": "CONTAINS",
-                                "value": "a",
-                                "output": "has_a"
-                            },
-                            {
-                                "ref": "input",
-                                "operator": "CONTAINS",
-                                "value": "b",
-                                "output": "has_b"
-                            }
+                            {"ref": "input", "operator": "CONTAINS", "value": "a", "output": "has_a"},
+                            {"ref": "input", "operator": "CONTAINS", "value": "b", "output": "has_b"},
                         ]
-                    }
+                    },
                 },
-                {
-                    "id": "log_a",
-                    "type": "Log",
-                    "label": "Has A"
-                },
-                {
-                    "id": "log_b",
-                    "type": "Log",
-                    "label": "Has B"
-                }
+                {"id": "log_a", "type": "Log", "label": "Has A"},
+                {"id": "log_b", "type": "Log", "label": "Has B"},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "router_1"},
                 {"source": "router_1", "sourcePort": "has_a", "target": "log_a"},
-                {"source": "router_1", "sourcePort": "has_b", "target": "log_b"}
-            ]
+                {"source": "router_1", "sourcePort": "has_b", "target": "log_b"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -192,16 +134,12 @@ class TestRouterOperator:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
                 {
                     "id": "set_flag",
                     "type": "Context_Set",
                     "label": "Set Flag",
-                    "config": {"key": "mode", "value": "fast"}
+                    "config": {"key": "mode", "value": "fast"},
                 },
                 {
                     "id": "router_1",
@@ -209,27 +147,18 @@ class TestRouterOperator:
                     "label": "Route",
                     "config": {
                         "conditions": [
-                            {
-                                "ref": "context.mode",
-                                "operator": "EQ",
-                                "value": "fast",
-                                "output": "fast_path"
-                            }
+                            {"ref": "context.mode", "operator": "EQ", "value": "fast", "output": "fast_path"}
                         ],
-                        "default": "slow_path"
-                    }
+                        "default": "slow_path",
+                    },
                 },
-                {
-                    "id": "log_fast",
-                    "type": "Log",
-                    "label": "Fast"
-                }
+                {"id": "log_fast", "type": "Log", "label": "Fast"},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "set_flag"},
                 {"source": "set_flag", "target": "router_1"},
-                {"source": "router_1", "sourcePort": "fast_path", "target": "log_fast"}
-            ]
+                {"source": "router_1", "sourcePort": "fast_path", "target": "log_fast"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -249,16 +178,9 @@ class TestJoinOperator:
             "version": "1.0.0",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"},
-                {
-                    "id": "join_1",
-                    "type": "Join",
-                    "label": "Join",
-                    "config": {"strategy": "merge"}
-                }
+                {"id": "join_1", "type": "Join", "label": "Join", "config": {"strategy": "merge"}},
             ],
-            "edges": [
-                {"source": "trigger_1", "target": "join_1"}
-            ]
+            "edges": [{"source": "trigger_1", "target": "join_1"}],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -274,36 +196,17 @@ class TestJoinOperator:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
-                {
-                    "id": "set_1",
-                    "type": "Context_Set",
-                    "label": "Set 1",
-                    "config": {"key": "item", "value": "item1"}
-                },
-                {
-                    "id": "set_2",
-                    "type": "Context_Set",
-                    "label": "Set 2",
-                    "config": {"key": "item", "value": "item2"}
-                },
-                {
-                    "id": "join_1",
-                    "type": "Join",
-                    "label": "Join",
-                    "config": {"strategy": "concat"}
-                }
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+                {"id": "set_1", "type": "Context_Set", "label": "Set 1", "config": {"key": "item", "value": "item1"}},
+                {"id": "set_2", "type": "Context_Set", "label": "Set 2", "config": {"key": "item", "value": "item2"}},
+                {"id": "join_1", "type": "Join", "label": "Join", "config": {"strategy": "concat"}},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "set_1"},
                 {"source": "trigger_1", "target": "set_2"},
                 {"source": "set_1", "target": "join_1"},
-                {"source": "set_2", "target": "join_1"}
-            ]
+                {"source": "set_2", "target": "join_1"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -319,36 +222,22 @@ class TestJoinOperator:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
-                {
-                    "id": "set_1",
-                    "type": "Context_Set",
-                    "label": "First",
-                    "config": {"key": "order", "value": "first"}
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
+                {"id": "set_1", "type": "Context_Set", "label": "First", "config": {"key": "order", "value": "first"}},
                 {
                     "id": "set_2",
                     "type": "Context_Set",
                     "label": "Second",
-                    "config": {"key": "order", "value": "second"}
+                    "config": {"key": "order", "value": "second"},
                 },
-                {
-                    "id": "join_1",
-                    "type": "Join",
-                    "label": "Join",
-                    "config": {"strategy": "first"}
-                }
+                {"id": "join_1", "type": "Join", "label": "Join", "config": {"strategy": "first"}},
             ],
             "edges": [
                 {"source": "trigger_1", "target": "set_1"},
                 {"source": "trigger_1", "target": "set_2"},
                 {"source": "set_1", "target": "join_1"},
-                {"source": "set_2", "target": "join_1"}
-            ]
+                {"source": "set_2", "target": "join_1"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -368,11 +257,7 @@ class TestRouterJoinFlow:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
                 {
                     "id": "router_1",
                     "type": "Router",
@@ -380,33 +265,21 @@ class TestRouterJoinFlow:
                     "config": {
                         "conditions": [
                             {"ref": "input", "operator": "GTE", "value": 5, "output": "high"},
-                            {"ref": "input", "operator": "LT", "value": 5, "output": "low"}
+                            {"ref": "input", "operator": "LT", "value": 5, "output": "low"},
                         ]
-                    }
+                    },
                 },
-                {
-                    "id": "log_high",
-                    "type": "Log",
-                    "label": "High"
-                },
-                {
-                    "id": "log_low",
-                    "type": "Log",
-                    "label": "Low"
-                },
-                {
-                    "id": "join_1",
-                    "type": "Join",
-                    "label": "Merge"
-                }
+                {"id": "log_high", "type": "Log", "label": "High"},
+                {"id": "log_low", "type": "Log", "label": "Low"},
+                {"id": "join_1", "type": "Join", "label": "Merge"},
             ],
             "edges": [
                 {"source": "trigger_1", "sourcePort": "payload", "target": "router_1", "targetPort": "input"},
                 {"source": "router_1", "sourcePort": "high", "target": "log_high"},
                 {"source": "router_1", "sourcePort": "low", "target": "log_low"},
                 {"source": "log_high", "target": "join_1"},
-                {"source": "log_low", "target": "join_1"}
-            ]
+                {"source": "log_low", "target": "join_1"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -423,32 +296,22 @@ class TestRouterJoinFlow:
         data = {
             "version": "1.0.0",
             "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                },
+                {"id": "trigger_1", "type": "Trigger", "label": "Start"},
                 {
                     "id": "router_1",
                     "type": "Router",
                     "label": "Route",
                     "config": {
-                        "conditions": [
-                            {"ref": "input", "operator": "EQ", "value": "test", "output": "matched"}
-                        ],
-                        "default": "unmatched"
-                    }
+                        "conditions": [{"ref": "input", "operator": "EQ", "value": "test", "output": "matched"}],
+                        "default": "unmatched",
+                    },
                 },
-                {
-                    "id": "log_1",
-                    "type": "Log",
-                    "label": "Log"
-                }
+                {"id": "log_1", "type": "Log", "label": "Log"},
             ],
             "edges": [
                 {"source": "trigger_1", "sourcePort": "payload", "target": "router_1", "targetPort": "input"},
-                {"source": "router_1", "sourcePort": "matched", "target": "log_1"}
-            ]
+                {"source": "router_1", "sourcePort": "matched", "target": "log_1"},
+            ],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)
@@ -468,16 +331,9 @@ class TestRouterJoinFlow:
             "version": "1.0.0",
             "nodes": [
                 {"id": "trigger_1", "type": "Trigger", "label": "Start"},
-                {
-                    "id": "join_1",
-                    "type": "Join",
-                    "label": "Join",
-                    "config": {"strategy": "first"}
-                }
+                {"id": "join_1", "type": "Join", "label": "Join", "config": {"strategy": "first"}},
             ],
-            "edges": [
-                {"source": "trigger_1", "target": "join_1"}
-            ]
+            "edges": [{"source": "trigger_1", "target": "join_1"}],
         }
         engine = create_test_engine()
         engine.load_protocol(data, validate=False)

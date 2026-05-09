@@ -1,9 +1,10 @@
 """Unit tests for operators/operator.py."""
 
 import pytest
+
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
-from agenarc.engine.state import StateManager, ExecutionContext
 
 
 class ConcreteOperator(IOperator):
@@ -77,6 +78,7 @@ class TestIOperatorInterface:
     def test_execute_method_required(self):
         """Test execute is an async method."""
         import asyncio
+
         operator = ConcreteOperator()
         sm = StateManager()
         sm.initialize("test_exec", "test_graph")
@@ -118,6 +120,7 @@ class TestOperatorPrepare:
     def test_prepare_default_is_noop(self):
         """Test prepare default implementation is a no-op."""
         import asyncio
+
         operator = ConcreteOperator()
         # Should not raise
         asyncio.run(operator.prepare())
@@ -125,6 +128,7 @@ class TestOperatorPrepare:
     def test_cleanup_default_is_noop(self):
         """Test cleanup default implementation is a no-op."""
         import asyncio
+
         operator = ConcreteOperator()
         # Should not raise
         asyncio.run(operator.cleanup())

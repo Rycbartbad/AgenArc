@@ -1,11 +1,11 @@
 """Unit tests for plugins/loaders/external.py."""
 
-import pytest
-import asyncio
-import json
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
-from agenarc.plugins.loaders.external import ExternalPluginLoader, ExternalPluginConfig, ExternalOperatorWrapper
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from agenarc.plugins.loaders.external import ExternalOperatorWrapper, ExternalPluginConfig, ExternalPluginLoader
 
 
 class TestExternalPluginConfig:
@@ -23,11 +23,7 @@ class TestExternalPluginConfig:
 
     def test_custom_config(self):
         """Test custom configuration."""
-        config = ExternalPluginConfig(
-            protocol="http",
-            url="http://localhost:8080",
-            startup_timeout=5.0
-        )
+        config = ExternalPluginConfig(protocol="http", url="http://localhost:8080", startup_timeout=5.0)
 
         assert config.protocol == "http"
         assert config.url == "http://localhost:8080"
@@ -100,13 +96,13 @@ class TestExternalPluginLoaderDiscover:
         plugin_dir = tmp_path / "test_plugin"
         plugin_dir.mkdir()
         manifest = plugin_dir / "agenarc.json"
-        manifest.write_text('''
+        manifest.write_text("""
         {
             "name": "test_plugin",
             "version": "1.0.0",
             "loader": "python"
         }
-        ''')
+        """)
 
         loader = ExternalPluginLoader()
         callback = MagicMock()
@@ -135,7 +131,7 @@ class TestExternalPluginLoaderDiscover:
         plugin_dir = tmp_path / "stdio_plugin"
         plugin_dir.mkdir()
         manifest = plugin_dir / "agenarc.json"
-        manifest.write_text('''
+        manifest.write_text("""
         {
             "name": "stdio_plugin",
             "version": "1.0.0",
@@ -145,7 +141,7 @@ class TestExternalPluginLoaderDiscover:
                 "command": ["./plugin"]
             }
         }
-        ''')
+        """)
 
         loader = ExternalPluginLoader()
         callback = AsyncMock()
@@ -190,7 +186,7 @@ class TestExternalPluginLoaderSendStdioRequest:
         loader = ExternalPluginLoader()
         mock_process = MagicMock()
         mock_process.poll.return_value = None
-        mock_process.stdout.readline = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_process.stdout.readline = AsyncMock(side_effect=TimeoutError())
         loader._processes["test"] = mock_process
 
         result = await loader._send_stdio_request("test", {"method": "test"})
@@ -226,12 +222,9 @@ class TestExternalPluginLoaderCallOperator:
     async def test_call_operator_stdio_protocol(self):
         """Test calling operator via stdio protocol."""
         loader = ExternalPluginLoader()
-        loader._configs["test"] = ExternalPluginConfig(
-            protocol="stdio",
-            command=["./test"]
-        )
+        loader._configs["test"] = ExternalPluginConfig(protocol="stdio", command=["./test"])
 
-        with patch.object(loader, '_call_stdio_operator', new=AsyncMock(return_value={"result": "ok"})) as mock_call:
+        with patch.object(loader, "_call_stdio_operator", new=AsyncMock(return_value={"result": "ok"})) as mock_call:
             mock_call.return_value = {"result": "ok"}
             result = await loader.call_operator("test", "op", "execute", {"input": "data"})
 
@@ -241,12 +234,9 @@ class TestExternalPluginLoaderCallOperator:
     async def test_call_operator_http_protocol(self):
         """Test calling operator via http protocol."""
         loader = ExternalPluginLoader()
-        loader._configs["test"] = ExternalPluginConfig(
-            protocol="http",
-            url="http://localhost:8080"
-        )
+        loader._configs["test"] = ExternalPluginConfig(protocol="http", url="http://localhost:8080")
 
-        with patch.object(loader, '_call_http_operator', new=AsyncMock(return_value={"result": "ok"})) as mock_call:
+        with patch.object(loader, "_call_http_operator", new=AsyncMock(return_value={"result": "ok"})) as mock_call:
             mock_call.return_value = {"result": "ok"}
             result = await loader.call_operator("test", "op", "execute", {"input": "data"})
 
@@ -262,7 +252,7 @@ class TestExternalPluginLoaderCallStdioOperator:
         loader = ExternalPluginLoader()
         loader._processes["test"] = MagicMock()
 
-        with patch.object(loader, '_send_stdio_request', new=AsyncMock(return_value={"result": "success"})):
+        with patch.object(loader, "_send_stdio_request", new=AsyncMock(return_value={"result": "success"})):
             result = await loader._call_stdio_operator("test", "op", "execute", {"key": "value"})
 
             assert result == "success"
@@ -273,7 +263,7 @@ class TestExternalPluginLoaderCallStdioOperator:
         loader = ExternalPluginLoader()
         loader._processes["test"] = MagicMock()
 
-        with patch.object(loader, '_send_stdio_request', new=AsyncMock(return_value={"error": "test error"})):
+        with patch.object(loader, "_send_stdio_request", new=AsyncMock(return_value={"error": "test error"})):
             with pytest.raises(RuntimeError, match="Plugin error"):
                 await loader._call_stdio_operator("test", "op", "execute", {})
 
@@ -283,7 +273,7 @@ class TestExternalPluginLoaderCallStdioOperator:
         loader = ExternalPluginLoader()
         loader._processes["test"] = MagicMock()
 
-        with patch.object(loader, '_send_stdio_request', new=AsyncMock(return_value=None)):
+        with patch.object(loader, "_send_stdio_request", new=AsyncMock(return_value=None)):
             with pytest.raises(RuntimeError, match="Plugin call failed"):
                 await loader._call_stdio_operator("test", "op", "execute", {})
 
@@ -305,10 +295,7 @@ class TestExternalPluginLoaderLoadHttp:
     async def test_load_http_success(self):
         """Test successful HTTP plugin load."""
         loader = ExternalPluginLoader()
-        config = ExternalPluginConfig(
-            protocol="http",
-            url="http://localhost:8080"
-        )
+        config = ExternalPluginConfig(protocol="http", url="http://localhost:8080")
         loader._configs["test"] = config
 
         # Mock aiohttp module (instead of string-patching which requires it installed)
@@ -319,10 +306,11 @@ class TestExternalPluginLoaderLoadHttp:
 
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
-        mock_session.get = MagicMock(return_value=MagicMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=None)
-        ))
+        mock_session.get = MagicMock(
+            return_value=MagicMock(
+                __aenter__=AsyncMock(return_value=mock_response), __aexit__=AsyncMock(return_value=None)
+            )
+        )
 
         mock_aiohttp = MagicMock()
         mock_aiohttp.ClientSession.return_value = mock_session
@@ -338,19 +326,17 @@ class TestExternalPluginLoaderLoadHttp:
     async def test_load_http_health_check_fails(self):
         """Test HTTP plugin load when health check fails."""
         loader = ExternalPluginLoader()
-        config = ExternalPluginConfig(
-            protocol="http",
-            url="http://localhost:8080"
-        )
+        config = ExternalPluginConfig(protocol="http", url="http://localhost:8080")
 
         mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status = 503  # Health check failed
 
-        mock_session.get = MagicMock(return_value=MagicMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=None)
-        ))
+        mock_session.get = MagicMock(
+            return_value=MagicMock(
+                __aenter__=AsyncMock(return_value=mock_response), __aexit__=AsyncMock(return_value=None)
+            )
+        )
 
         mock_aiohttp = MagicMock()
         mock_aiohttp.ClientSession.return_value = mock_session
@@ -365,10 +351,7 @@ class TestExternalPluginLoaderLoadHttp:
     async def test_load_http_aiohttp_import_error(self):
         """Test HTTP plugin load when aiohttp not available."""
         loader = ExternalPluginLoader()
-        config = ExternalPluginConfig(
-            protocol="http",
-            url="http://localhost:8080"
-        )
+        config = ExternalPluginConfig(protocol="http", url="http://localhost:8080")
 
         with patch.dict("sys.modules", {"aiohttp": None}):
             result = await loader._load_http_plugin("test", config)
@@ -406,10 +389,7 @@ class TestExternalPluginLoaderLoadStdio:
     async def test_load_stdio_subprocess_error(self):
         """Test load stdio plugin with subprocess error."""
         loader = ExternalPluginLoader()
-        config = ExternalPluginConfig(
-            protocol="stdio",
-            command=["./nonexistent"]
-        )
+        config = ExternalPluginConfig(protocol="stdio", command=["./nonexistent"])
 
         with patch("subprocess.Popen", side_effect=FileNotFoundError()):
             result = await loader._load_stdio_plugin("test", config)
@@ -459,49 +439,33 @@ class TestExternalOperatorWrapper:
     async def test_execute_delegates_to_loader(self):
         """Test execute calls loader.call_operator."""
         loader = ExternalPluginLoader()
-        wrapper = ExternalOperatorWrapper(
-            plugin_name="test",
-            operator_name="op",
-            loader=loader
-        )
+        wrapper = ExternalOperatorWrapper(plugin_name="test", operator_name="op", loader=loader)
 
-        with patch.object(loader, 'call_operator', new=AsyncMock(return_value={"result": "ok"})) as mock_call:
+        with patch.object(loader, "call_operator", new=AsyncMock(return_value={"result": "ok"})) as mock_call:
             result = await wrapper.execute({"input": "data"}, None)
 
-            mock_call.assert_called_once_with(
-                "test", "op", "execute", {"inputs": {"input": "data"}, "context": {}}
-            )
+            mock_call.assert_called_once_with("test", "op", "execute", {"inputs": {"input": "data"}, "context": {}})
             assert result == {"result": "ok"}
 
     @pytest.mark.asyncio
     async def test_validate_delegates_to_loader(self):
         """Test validate calls loader.call_operator."""
         loader = ExternalPluginLoader()
-        wrapper = ExternalOperatorWrapper(
-            plugin_name="test",
-            operator_name="op",
-            loader=loader
-        )
+        wrapper = ExternalOperatorWrapper(plugin_name="test", operator_name="op", loader=loader)
 
-        with patch.object(loader, 'call_operator', new=AsyncMock(return_value=True)) as mock_call:
+        with patch.object(loader, "call_operator", new=AsyncMock(return_value=True)) as mock_call:
             result = await wrapper.validate({"input": "data"})
 
-            mock_call.assert_called_once_with(
-                "test", "op", "validate", {"inputs": {"input": "data"}}
-            )
+            mock_call.assert_called_once_with("test", "op", "validate", {"inputs": {"input": "data"}})
             assert result is True
 
     @pytest.mark.asyncio
     async def test_validate_returns_false_on_error(self):
         """Test validate returns False on error."""
         loader = ExternalPluginLoader()
-        wrapper = ExternalOperatorWrapper(
-            plugin_name="test",
-            operator_name="op",
-            loader=loader
-        )
+        wrapper = ExternalOperatorWrapper(plugin_name="test", operator_name="op", loader=loader)
 
-        with patch.object(loader, 'call_operator', new=AsyncMock(side_effect=Exception("error"))):
+        with patch.object(loader, "call_operator", new=AsyncMock(side_effect=Exception("error"))):
             result = await wrapper.validate({"input": "data"})
 
             assert result is False
@@ -509,10 +473,6 @@ class TestExternalOperatorWrapper:
     def test_name_property(self):
         """Test name property returns operator name."""
         loader = ExternalPluginLoader()
-        wrapper = ExternalOperatorWrapper(
-            plugin_name="test",
-            operator_name="my_operator",
-            loader=loader
-        )
+        wrapper = ExternalOperatorWrapper(plugin_name="test", operator_name="my_operator", loader=loader)
 
         assert wrapper.name == "test.my_operator"

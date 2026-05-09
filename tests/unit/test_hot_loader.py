@@ -1,16 +1,17 @@
 """Unit tests for plugins/hot_loader.py."""
 
-import pytest
 import asyncio
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from agenarc.plugins.hot_loader import (
+    FileWatcher,
     HotPluginLoader,
     HotReloadConfig,
     PluginInfo,
     ReloadStrategy,
-    FileWatcher,
 )
 
 
@@ -150,7 +151,7 @@ class TestFileWatcherStart:
         watcher = FileWatcher([tmp_path], callback)
 
         # Patch watchdog import to fail
-        with patch.dict('sys.modules', {'watchdog': None}):
+        with patch.dict("sys.modules", {"watchdog": None}):
             watcher.start()
 
         assert watcher._running is True
@@ -289,7 +290,7 @@ class TestHotPluginLoaderReloadPlugin:
         loader._plugins = {"test": PluginInfo("test", "1.0", Path("/test"), "python")}
         loader._load_plugin = AsyncMock(return_value=True)
 
-        with patch.object(loader, '_schedule_reload', new=AsyncMock()):
+        with patch.object(loader, "_schedule_reload", new=AsyncMock()):
             result = await loader.reload_plugin("test")
 
         # Reload logic depends on implementation
@@ -327,12 +328,7 @@ class TestPluginInfo:
 
     def test_creation(self):
         """Test PluginInfo creation."""
-        info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            path=Path("/test"),
-            loader_type="python"
-        )
+        info = PluginInfo(name="test_plugin", version="1.0.0", path=Path("/test"), loader_type="python")
 
         assert info.name == "test_plugin"
         assert info.version == "1.0.0"
@@ -341,12 +337,7 @@ class TestPluginInfo:
 
     def test_default_values(self):
         """Test PluginInfo default values."""
-        info = PluginInfo(
-            name="test",
-            version="1.0",
-            path=Path("/test"),
-            loader_type="python"
-        )
+        info = PluginInfo(name="test", version="1.0", path=Path("/test"), loader_type="python")
 
         assert info.loaded_at == 0
         assert info.file_hash == ""
@@ -393,9 +384,7 @@ class TestHotPluginLoaderGetWatchPaths:
 
     def test_nonexistent_path(self):
         """Test nonexistent path returns empty."""
-        loader = HotPluginLoader(HotReloadConfig(
-            watch_paths=[Path("/nonexistent/path/12345")]
-        ))
+        loader = HotPluginLoader(HotReloadConfig(watch_paths=[Path("/nonexistent/path/12345")]))
         paths = loader._get_watch_paths()
 
         assert paths == []
@@ -425,7 +414,7 @@ class TestHotPluginLoaderDiscover:
         loader = HotPluginLoader()
         plugin_info = PluginInfo("test", "1.0", Path("/test"), "python")
 
-        with patch.object(loader, '_load_plugin', new=AsyncMock(return_value=True)):
+        with patch.object(loader, "_load_plugin", new=AsyncMock(return_value=True)):
             await loader._on_plugin_discovered(plugin_info)
 
         assert "test" in loader._plugins

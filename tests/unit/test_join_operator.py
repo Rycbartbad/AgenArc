@@ -1,8 +1,9 @@
 """Unit tests for operators/join.py."""
 
 import pytest
+
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.join import JoinOperator
-from agenarc.engine.state import StateManager, ExecutionContext
 
 
 def create_context():
@@ -46,10 +47,13 @@ class TestJoinOperator:
         ctx = create_context()
 
         # Simulate incoming edges from branch_A and branch_B
-        ctx.set("_incoming_edges", [
-            {"source": "branch_A", "sourcePort": "output"},
-            {"source": "branch_B", "sourcePort": "output"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "branch_A", "sourcePort": "output"},
+                {"source": "branch_B", "sourcePort": "output"},
+            ],
+        )
         ctx.set("_join_strategy", "merge")
         ctx.set("_node_id", "join_1")
 
@@ -59,10 +63,7 @@ class TestJoinOperator:
 
         result = await op.execute({}, ctx)
 
-        assert result["output"] == {
-            "branch_A.output": "value_a",
-            "branch_B.output": "value_b"
-        }
+        assert result["output"] == {"branch_A.output": "value_a", "branch_B.output": "value_b"}
 
     @pytest.mark.asyncio
     async def test_first_strategy(self):
@@ -70,10 +71,13 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "data"},
-            {"source": "B", "sourcePort": "data"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "data"},
+                {"source": "B", "sourcePort": "data"},
+            ],
+        )
         ctx.set("_join_strategy", "first")
         ctx.set("_node_id", "join_1")
 
@@ -90,10 +94,13 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "data"},
-            {"source": "B", "sourcePort": "data"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "data"},
+                {"source": "B", "sourcePort": "data"},
+            ],
+        )
         ctx.set("_join_strategy", "last")
         ctx.set("_node_id", "join_1")
 
@@ -110,10 +117,13 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "items"},
-            {"source": "B", "sourcePort": "items"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "items"},
+                {"source": "B", "sourcePort": "items"},
+            ],
+        )
         ctx.set("_join_strategy", "concat")
         ctx.set("_node_id", "join_1")
 
@@ -130,10 +140,13 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "data"},
-            {"source": "B", "sourcePort": "data"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "data"},
+                {"source": "B", "sourcePort": "data"},
+            ],
+        )
         ctx.set("_join_strategy", "concat")
         ctx.set("_node_id", "join_1")
 
@@ -150,9 +163,12 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "out"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "out"},
+            ],
+        )
         # Don't set _join_strategy - should default to merge
         ctx.set("_node_id", "join_1")
 
@@ -183,10 +199,13 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "data"},
-            {"source": "B", "sourcePort": "data"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "data"},
+                {"source": "B", "sourcePort": "data"},
+            ],
+        )
         ctx.set("_join_strategy", "merge")
         ctx.set("_node_id", "join_1")
 
@@ -204,9 +223,12 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "src", "sourcePort": "result"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "src", "sourcePort": "result"},
+            ],
+        )
         ctx.set("_join_strategy", "merge")
         ctx.set("_node_id", "my_join_node")
 
@@ -222,10 +244,13 @@ class TestJoinOperator:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "A", "sourcePort": "data"},
-            {"source": "B"},  # No sourcePort
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "A", "sourcePort": "data"},
+                {"source": "B"},  # No sourcePort
+            ],
+        )
         ctx.set("_join_strategy", "merge")
         ctx.set("_node_id", "join_1")
 
@@ -246,11 +271,14 @@ class TestJoinOperatorContextBased:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "branch_1", "sourcePort": "output"},
-            {"source": "branch_2", "sourcePort": "output"},
-            {"source": "branch_3", "sourcePort": "output"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "branch_1", "sourcePort": "output"},
+                {"source": "branch_2", "sourcePort": "output"},
+                {"source": "branch_3", "sourcePort": "output"},
+            ],
+        )
         ctx.set("_join_strategy", "merge")
         ctx.set("_node_id", "join_1")
 
@@ -271,11 +299,14 @@ class TestJoinOperatorContextBased:
         op = JoinOperator()
         ctx = create_context()
 
-        ctx.set("_incoming_edges", [
-            {"source": "branch_1", "sourcePort": "items"},
-            {"source": "branch_2", "sourcePort": "items"},
-            {"source": "branch_3", "sourcePort": "items"},
-        ])
+        ctx.set(
+            "_incoming_edges",
+            [
+                {"source": "branch_1", "sourcePort": "items"},
+                {"source": "branch_2", "sourcePort": "items"},
+                {"source": "branch_3", "sourcePort": "items"},
+            ],
+        )
         ctx.set("_join_strategy", "concat")
         ctx.set("_node_id", "join_1")
 

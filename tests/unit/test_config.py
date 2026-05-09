@@ -1,9 +1,8 @@
 """Unit tests for config.py."""
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import patch
 
 
 class TestConfig:
@@ -11,7 +10,7 @@ class TestConfig:
 
     def test_config_singleton(self):
         """Test Config singleton pattern."""
-        from agenarc.config import Config, get_config
+        from agenarc.config import Config
 
         # Reset singleton for test
         Config._instance = None
@@ -52,13 +51,7 @@ class TestConfig:
         Config._instance = None
 
         config = Config()
-        config._config = {
-            "level1": {
-                "level2": {
-                    "value": 42
-                }
-            }
-        }
+        config._config = {"level1": {"level2": {"value": 42}}}
 
         assert config.get("level1.level2.value") == 42
 

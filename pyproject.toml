@@ -96,6 +96,10 @@ ignore = ["N801", "N805", "N806", "N815", "N817"]
 "agenarc/plugins/loaders/external.py" = ["E402"]
 "agenarc/operators/operator.py" = ["B027"]
 "agenarc/plugins/event_plugin.py" = ["B027"]
+"tests/unit/test_hot_loader.py" = ["F811"]
+"tests/unit/test_cli.py" = ["B017"]
+"tests/unit/test_executor.py" = ["E501", "SIM117"]
+"tests/unit/test_external_plugin_loader.py" = ["SIM117"]
 
 [tool.mypy]
 python_version = "3.11"

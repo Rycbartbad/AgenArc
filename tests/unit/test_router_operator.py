@@ -1,9 +1,10 @@
 """Unit tests for operators/router.py."""
 
 import pytest
+
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.router import RouterOperator
 from agenarc.protocol.schema import Condition, ConditionOperator
-from agenarc.engine.state import StateManager, ExecutionContext
 
 
 def create_context():
@@ -46,14 +47,7 @@ class TestRouterOperator:
         """Test routing to output_A when condition matches."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.EQ,
-                value="yes",
-                output="A"
-            )
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.EQ, value="yes", output="A")])
         ctx.set("_router_default", "B")
 
         result = await op.execute({"input": "yes"}, ctx)
@@ -66,14 +60,7 @@ class TestRouterOperator:
         """Test routing to output_B when condition matches."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.EQ,
-                value="no",
-                output="B"
-            )
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.EQ, value="no", output="B")])
         ctx.set("_router_default", "A")
 
         result = await op.execute({"input": "no"}, ctx)
@@ -85,14 +72,7 @@ class TestRouterOperator:
         """Test default routing when no condition matches."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.EQ,
-                value="yes",
-                output="A"
-            )
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.EQ, value="yes", output="A")])
         ctx.set("_router_default", "B")
 
         result = await op.execute({"input": "maybe"}, ctx)
@@ -104,14 +84,7 @@ class TestRouterOperator:
         """Test greater than comparison."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.GT,
-                value=10,
-                output="yes"
-            )
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.GT, value=10, output="yes")])
 
         result = await op.execute({"input": 15}, ctx)
 
@@ -122,14 +95,7 @@ class TestRouterOperator:
         """Test less than comparison."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.LT,
-                value=10,
-                output="yes"
-            )
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.LT, value=10, output="yes")])
 
         result = await op.execute({"input": 5}, ctx)
 
@@ -140,14 +106,10 @@ class TestRouterOperator:
         """Test contains comparison for strings."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.CONTAINS,
-                value="test",
-                output="match"
-            )
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.CONTAINS, value="test", output="match")],
+        )
 
         result = await op.execute({"input": "this is a test string"}, ctx)
 
@@ -158,14 +120,10 @@ class TestRouterOperator:
         """Test in comparison."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.IN,
-                value=["a", "b", "c"],
-                output="found"
-            )
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.IN, value=["a", "b", "c"], output="found")],
+        )
 
         result = await op.execute({"input": "b"}, ctx)
 
@@ -176,14 +134,10 @@ class TestRouterOperator:
         """Test exists comparison."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.EXISTS,
-                value=None,
-                output="exists"
-            )
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.EXISTS, value=None, output="exists")],
+        )
 
         result = await op.execute({"input": "something"}, ctx)
 
@@ -194,14 +148,10 @@ class TestRouterOperator:
         """Test not exists comparison."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.NOT_EXISTS,
-                value=None,
-                output="not_exists"
-            )
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.NOT_EXISTS, value=None, output="not_exists")],
+        )
 
         result = await op.execute({"input": None}, ctx)
 
@@ -216,9 +166,7 @@ class TestRouterConditionComparison:
         """Test equality operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.EQ, value=42, output="yes")
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.EQ, value=42, output="yes")])
 
         result = await op.execute({"input": 42}, ctx)
         assert result["_selected"] == ["yes"]
@@ -228,9 +176,7 @@ class TestRouterConditionComparison:
         """Test not equal operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.NE, value=42, output="yes")
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.NE, value=42, output="yes")])
 
         result = await op.execute({"input": 100}, ctx)
         assert result["_selected"] == ["yes"]
@@ -240,9 +186,7 @@ class TestRouterConditionComparison:
         """Test greater than or equal operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.GTE, value=10, output="yes")
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.GTE, value=10, output="yes")])
 
         result = await op.execute({"input": 10}, ctx)
         assert result["_selected"] == ["yes"]
@@ -252,9 +196,7 @@ class TestRouterConditionComparison:
         """Test less than or equal operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.LTE, value=10, output="yes")
-        ])
+        ctx.set("_router_conditions", [Condition(ref="input", operator=ConditionOperator.LTE, value=10, output="yes")])
 
         result = await op.execute({"input": 10}, ctx)
         assert result["_selected"] == ["yes"]
@@ -264,9 +206,10 @@ class TestRouterConditionComparison:
         """Test startsWith operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.STARTS_WITH, value="hello", output="yes")
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.STARTS_WITH, value="hello", output="yes")],
+        )
 
         result = await op.execute({"input": "hello world"}, ctx)
         assert result["_selected"] == ["yes"]
@@ -276,9 +219,10 @@ class TestRouterConditionComparison:
         """Test endsWith operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.ENDS_WITH, value="world", output="yes")
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.ENDS_WITH, value="world", output="yes")],
+        )
 
         result = await op.execute({"input": "hello world"}, ctx)
         assert result["_selected"] == ["yes"]
@@ -288,9 +232,10 @@ class TestRouterConditionComparison:
         """Test notIn operator."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(ref="input", operator=ConditionOperator.NOT_IN, value=["a", "b"], output="yes")
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="input", operator=ConditionOperator.NOT_IN, value=["a", "b"], output="yes")],
+        )
 
         result = await op.execute({"input": "c"}, ctx)
         assert result["_selected"] == ["yes"]
@@ -304,14 +249,17 @@ class TestRouterDynamicOutput:
         """Test using node ID as output for loops."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.GT,
-                value=0,
-                output="counter_inc"  # Node ID as output label
-            )
-        ])
+        ctx.set(
+            "_router_conditions",
+            [
+                Condition(
+                    ref="input",
+                    operator=ConditionOperator.GT,
+                    value=0,
+                    output="counter_inc",  # Node ID as output label
+                )
+            ],
+        )
         ctx.set("_router_default", "exit")
 
         result = await op.execute({"input": 5}, ctx)
@@ -324,14 +272,9 @@ class TestRouterDynamicOutput:
         """Test default routing with node ID output."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="input",
-                operator=ConditionOperator.EQ,
-                value="yes",
-                output="loop"
-            )
-        ])
+        ctx.set(
+            "_router_conditions", [Condition(ref="input", operator=ConditionOperator.EQ, value="yes", output="loop")]
+        )
         ctx.set("_router_default", "exit_node")
 
         result = await op.execute({"input": "no"}, ctx)
@@ -344,14 +287,10 @@ class TestRouterDynamicOutput:
         """Test that output can be any string identifier."""
         op = RouterOperator()
         ctx = create_context()
-        ctx.set("_router_conditions", [
-            Condition(
-                ref="context.loop_count",
-                operator=ConditionOperator.LT,
-                value=10,
-                output="iterate"
-            )
-        ])
+        ctx.set(
+            "_router_conditions",
+            [Condition(ref="context.loop_count", operator=ConditionOperator.LT, value=10, output="iterate")],
+        )
         ctx.set("_router_default", "done")
         ctx.set("loop_count", 5)
 

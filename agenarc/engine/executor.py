@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 from agenarc.engine.evaluator import resolve_vfs_and_template
 from agenarc.engine.state import ExecutionContext, StateManager
+from agenarc.engine.trace import TraceCollector
 from agenarc.graph.traversal import GraphTraversal
 from agenarc.protocol.loader import ProtocolLoader
 from agenarc.protocol.schema import (
@@ -135,6 +136,11 @@ class ExecutionEngine:
 
         # Running flag
         self._running: bool = False
+
+        # Execution tracing
+        self._trace: TraceCollector = TraceCollector()
+        self._exec_count: int = 0
+        self._current_exec_id: str = ""
 
         # Router iteration tracking for cycle detection
         self._router_iterations: dict[str, int] = {}
@@ -363,6 +369,11 @@ class ExecutionEngine:
         # Get entry point(s) - auto-detect if not specified
         entry_nodes = self._get_entry_nodes()
 
+        # Initialize execution tracing
+        self._current_exec_id = f"exec_{self._exec_count}"
+        await self._trace.start_execution(self._current_exec_id)
+        self._exec_count += 1
+
         # Track execution
         self._running = True
         start_time = asyncio.get_event_loop().time()
@@ -488,6 +499,15 @@ class ExecutionEngine:
                     selected = outputs.get("_selected", [])
                     if isinstance(selected, str):
                         selected = [selected]
+
+                    # Record routing branches in trace
+                    router_children = []
+                    for port in selected:
+                        target = self._find_routing_target(node_id, port)
+                        if target:
+                            router_children.append({"port": port, "target": target})
+                    if router_children:
+                        await self._trace.add_children(self._current_exec_id, node_id, router_children)
 
                     # Track iteration count per loop head to prevent infinite loops
                     router_key = f"router_{node_id}"
@@ -659,6 +679,8 @@ class ExecutionEngine:
         if not operator:
             # No operator found, mark as completed with no outputs
             self._node_statuses[node.id] = NodeStatus.COMPLETED
+            await self._trace.start_node(self._current_exec_id, node.id, node.type.value, node.label)
+            await self._trace.end_node(self._current_exec_id, node.id, outputs={})
             return None
 
         # Create context getter for template resolution
@@ -715,6 +737,9 @@ class ExecutionEngine:
             checkpoint_id = self._state.checkpoint(f"pre_{node.id}")
             context.set(f"checkpoint_{node.id}", checkpoint_id)
 
+        # Trace node execution start
+        await self._trace.start_node(self._current_exec_id, node.id, node.type.value, node.label, inputs)
+
         try:
             # Execute operator
             outputs = await self._safe_execute(operator, inputs, context)
@@ -728,9 +753,21 @@ class ExecutionEngine:
             # Update status
             self._node_statuses[node.id] = NodeStatus.COMPLETED
 
+            # Trace node execution end (success)
+            tokens = None
+            if outputs and isinstance(outputs, dict) and "usage" in outputs:
+                usage = outputs["usage"]
+                if isinstance(usage, dict):
+                    tokens = {
+                        "prompt": usage.get("prompt_tokens", 0),
+                        "completion": usage.get("completion_tokens", 0),
+                    }
+            await self._trace.end_node(self._current_exec_id, node.id, outputs=outputs, tokens=tokens)
+
             return outputs
 
         except Exception as e:
+            await self._trace.end_node(self._current_exec_id, node.id, error=str(e))
             await self._handle_node_error(node, e, context)
             return None
 

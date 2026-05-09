@@ -1,23 +1,22 @@
 """Unit tests for CLI."""
 
-import pytest
+import json
 import zipfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import json
-import tempfile
-import shutil
+from unittest.mock import patch
+
+import pytest
 
 from agenarc.cli.__main__ import (
-    create_parser,
-    print_error,
-    print_success,
+    _extract_agrc,
+    _install_bundle_plugins,
+    command_info,
     command_run,
     command_validate,
-    command_info,
+    create_parser,
     main,
-    _install_bundle_plugins,
-    _extract_agrc,
+    print_error,
+    print_success,
 )
 
 
@@ -92,14 +91,16 @@ class TestCommandValidate:
     def test_validate_valid_protocol(self, tmp_path, capsys):
         """Test validating a valid protocol."""
         protocol_file = tmp_path / "test.json"
-        protocol_file.write_text(json.dumps({
-            "version": "1.0.0",
-            "entryPoint": "trigger_1",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }))
+        protocol_file.write_text(
+            json.dumps(
+                {
+                    "version": "1.0.0",
+                    "entryPoint": "trigger_1",
+                    "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+                    "edges": [],
+                }
+            )
+        )
 
         result = command_validate(protocol_file)
 
@@ -119,20 +120,24 @@ class TestCommandInfo:
     def test_info_protocol(self, tmp_path, capsys):
         """Test info command."""
         protocol_file = tmp_path / "test.json"
-        protocol_file.write_text(json.dumps({
-            "version": "1.0.0",
-            "entryPoint": "trigger_1",
-            "nodes": [
+        protocol_file.write_text(
+            json.dumps(
                 {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start",
-                    "inputs": [{"name": "input", "type": "string"}],
-                    "outputs": [{"name": "output", "type": "any"}]
+                    "version": "1.0.0",
+                    "entryPoint": "trigger_1",
+                    "nodes": [
+                        {
+                            "id": "trigger_1",
+                            "type": "Trigger",
+                            "label": "Start",
+                            "inputs": [{"name": "input", "type": "string"}],
+                            "outputs": [{"name": "output", "type": "any"}],
+                        }
+                    ],
+                    "edges": [],
                 }
-            ],
-            "edges": []
-        }))
+            )
+        )
 
         result = command_info(protocol_file)
 
@@ -152,14 +157,16 @@ class TestCommandRun:
     def test_run_with_invalid_json_input(self, tmp_path, capsys):
         """Test run with invalid JSON input."""
         protocol_file = tmp_path / "test.json"
-        protocol_file.write_text(json.dumps({
-            "version": "1.0.0",
-            "entryPoint": "trigger_1",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }))
+        protocol_file.write_text(
+            json.dumps(
+                {
+                    "version": "1.0.0",
+                    "entryPoint": "trigger_1",
+                    "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+                    "edges": [],
+                }
+            )
+        )
 
         result = command_run(protocol_file, input_json="not valid json{{")
 
@@ -193,14 +200,16 @@ class TestMain:
     def test_main_validate_command(self, tmp_path, capsys):
         """Test main with validate command."""
         protocol_file = tmp_path / "test.json"
-        protocol_file.write_text(json.dumps({
-            "version": "1.0.0",
-            "entryPoint": "trigger_1",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }))
+        protocol_file.write_text(
+            json.dumps(
+                {
+                    "version": "1.0.0",
+                    "entryPoint": "trigger_1",
+                    "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+                    "edges": [],
+                }
+            )
+        )
 
         result = main(["validate", str(protocol_file)])
         assert result == 0
@@ -208,14 +217,16 @@ class TestMain:
     def test_main_info_command(self, tmp_path, capsys):
         """Test main with info command."""
         protocol_file = tmp_path / "test.json"
-        protocol_file.write_text(json.dumps({
-            "version": "1.0.0",
-            "entryPoint": "trigger_1",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
-        }))
+        protocol_file.write_text(
+            json.dumps(
+                {
+                    "version": "1.0.0",
+                    "entryPoint": "trigger_1",
+                    "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+                    "edges": [],
+                }
+            )
+        )
 
         result = main(["info", str(protocol_file)])
         assert result == 0
@@ -265,7 +276,7 @@ class TestInstallBundlePlugins:
             _install_bundle_plugins(bundle)
 
             # Plugin should be installed to global directory
-            global_plugin_dir = tmp_path / "global_plugins" / "test_plugin"
+            tmp_path / "global_plugins" / "test_plugin"
             # Note: actual installation depends on shutil.copytree behavior
 
 
@@ -293,7 +304,7 @@ class TestExtractAgrc:
         """Test extracting a valid agrc bundle."""
         # Create a valid zip file
         agrc_file = tmp_path / "test.agrc"
-        with zipfile.ZipFile(agrc_file, 'w') as zf:
+        with zipfile.ZipFile(agrc_file, "w") as zf:
             zf.writestr("manifest.json", '{"name": "test"}')
             zf.writestr("flow.json", '{"version": "1.0.0"}')
 
@@ -307,7 +318,7 @@ class TestExtractAgrc:
     def test_extract_agrc_cached(self, tmp_path):
         """Test that extraction is cached."""
         agrc_file = tmp_path / "test.agrc"
-        with zipfile.ZipFile(agrc_file, 'w') as zf:
+        with zipfile.ZipFile(agrc_file, "w") as zf:
             zf.writestr("manifest.json", '{"name": "test"}')
 
         result1 = _extract_agrc(agrc_file)

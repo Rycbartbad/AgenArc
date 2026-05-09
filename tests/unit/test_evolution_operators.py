@@ -1,15 +1,14 @@
 """Unit tests for operators/evolution.py."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+
+from agenarc.engine.state import ExecutionContext, StateManager
 from agenarc.operators.evolution import (
     Asset_Reader_Operator,
     Asset_Writer_Operator,
     Runtime_Reload_Operator,
     get_evolution_operators,
 )
-from agenarc.engine.state import StateManager, ExecutionContext
 
 
 def create_context(bundle_path=None):
@@ -131,10 +130,7 @@ class TestAssetWriterOperator:
         op = Asset_Writer_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({
-            "path": "agrc://scripts/new_file.py",
-            "content": "print('hello')"
-        }, ctx)
+        result = await op.execute({"path": "agrc://scripts/new_file.py", "content": "print('hello')"}, ctx)
 
         assert result["success"] is True
         assert result["path"] == "agrc://scripts/new_file.py"
@@ -159,11 +155,9 @@ class TestAssetWriterOperator:
         op = Asset_Writer_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({
-            "path": "agrc://scripts/existing.py",
-            "content": "updated",
-            "operation": "update"
-        }, ctx)
+        result = await op.execute(
+            {"path": "agrc://scripts/existing.py", "content": "updated", "operation": "update"}, ctx
+        )
 
         assert result["success"] is True
         assert existing.read_text() == "updated"
@@ -179,10 +173,7 @@ class TestAssetWriterOperator:
         op = Asset_Writer_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({
-            "path": "agrc://scripts/file.py",
-            "operation": "delete"
-        }, ctx)
+        result = await op.execute({"path": "agrc://scripts/file.py", "operation": "delete"}, ctx)
 
         assert result["success"] is False
         assert "not implemented" in result["error"].lower()
@@ -201,10 +192,7 @@ class TestAssetWriterOperator:
         op = Asset_Writer_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({
-            "path": "agrc://scripts/existing.py",
-            "content": "new content"
-        }, ctx)
+        result = await op.execute({"path": "agrc://scripts/existing.py", "content": "new content"}, ctx)
 
         assert result["success"] is False
         assert "already exists" in result["error"]
@@ -221,10 +209,7 @@ class TestAssetWriterOperator:
         ctx = create_context(bundle)
         ctx.set("_immutable_nodes", ["agrc://scripts/immutable.py"])
 
-        result = await op.execute({
-            "path": "agrc://scripts/immutable.py",
-            "content": "cannot write"
-        }, ctx)
+        result = await op.execute({"path": "agrc://scripts/immutable.py", "content": "cannot write"}, ctx)
 
         assert result["success"] is False
         assert "immutable" in result["error"].lower()
@@ -243,10 +228,7 @@ class TestAssetWriterOperator:
         op = Asset_Reader_Operator()
         ctx = create_context(bundle)
 
-        result = await op.execute({
-            "path": "agrc://prompts/test.txt",
-            "encoding": "utf-8"
-        }, ctx)
+        result = await op.execute({"path": "agrc://prompts/test.txt", "encoding": "utf-8"}, ctx)
 
         assert result["success"] is True
         assert result["content"] == "Hello"

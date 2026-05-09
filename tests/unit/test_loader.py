@@ -1,10 +1,11 @@
 """Unit tests for protocol/loader.py."""
 
 import json
+
 import pytest
-from pathlib import Path
-from agenarc.protocol.loader import ProtocolLoader, LoaderError, SchemaValidationError
-from agenarc.protocol.schema import NodeType, Edge, Graph, Node, Port
+
+from agenarc.protocol.loader import LoaderError, ProtocolLoader
+from agenarc.protocol.schema import Edge, Node, NodeType
 
 
 class TestProtocolLoader:
@@ -25,14 +26,8 @@ class TestProtocolLoader:
         data = {
             "version": "1.0.0",
             "entryPoint": "trigger_1",
-            "nodes": [
-                {
-                    "id": "trigger_1",
-                    "type": "Trigger",
-                    "label": "Start"
-                }
-            ],
-            "edges": []
+            "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+            "edges": [],
         }
         loader = ProtocolLoader(validate=False)
         graph = loader.load_dict(data)
@@ -50,15 +45,11 @@ class TestProtocolLoader:
                     "id": "llm_task",
                     "type": "LLM_Task",
                     "label": "LLM",
-                    "inputs": [
-                        {"name": "prompt", "type": "string"}
-                    ],
-                    "outputs": [
-                        {"name": "response", "type": "string"}
-                    ]
+                    "inputs": [{"name": "prompt", "type": "string"}],
+                    "outputs": [{"name": "response", "type": "string"}],
                 }
             ],
-            "edges": []
+            "edges": [],
         }
         loader = ProtocolLoader(validate=False)
         graph = loader.load_dict(data)
@@ -83,11 +74,11 @@ class TestProtocolLoader:
                         "strategy": "fallback",
                         "maxRetries": 3,
                         "errorPort": "error",
-                        "fallbackNode": "fallback"
-                    }
+                        "fallbackNode": "fallback",
+                    },
                 }
             ],
-            "edges": []
+            "edges": [],
         }
         loader = ProtocolLoader(validate=False)
         graph = loader.load_dict(data)
@@ -108,13 +99,10 @@ class TestProtocolLoader:
                     "id": "config_node",
                     "type": "LLM_Task",
                     "label": "Config",
-                    "config": {
-                        "model": "gpt-4",
-                        "temperature": 0.5
-                    }
+                    "config": {"model": "gpt-4", "temperature": 0.5},
                 }
             ],
-            "edges": []
+            "edges": [],
         }
         loader = ProtocolLoader(validate=False)
         graph = loader.load_dict(data)
@@ -139,9 +127,9 @@ class TestProtocolLoader:
                     "target": "b",
                     "targetPort": "in",
                     "label": "flow",
-                    "style": "dashed"
+                    "style": "dashed",
                 }
-            ]
+            ],
         }
         loader = ProtocolLoader(validate=False)
         graph = loader.load_dict(data)
@@ -160,14 +148,8 @@ class TestProtocolLoader:
         data = {
             "version": "1.0.0",
             "entryPoint": "trigger_1",
-            "nodes": [
-                {
-                    "id": "unknown",
-                    "type": "UnknownType",
-                    "label": "Unknown"
-                }
-            ],
-            "edges": []
+            "nodes": [{"id": "unknown", "type": "UnknownType", "label": "Unknown"}],
+            "edges": [],
         }
         loader = ProtocolLoader(validate=False)
         with pytest.raises(LoaderError, match="Unknown node type"):
@@ -188,6 +170,7 @@ class TestProtocolLoader:
     def test_load_unsupported_file_type(self):
         """Test loading unsupported file type raises error."""
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"test")
             f.flush()
@@ -206,10 +189,8 @@ class TestLoadFunction:
         data = {
             "version": "1.0.0",
             "entryPoint": "trigger_1",
-            "nodes": [
-                {"id": "trigger_1", "type": "Trigger", "label": "Start"}
-            ],
-            "edges": []
+            "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
+            "edges": [],
         }
 
         # Load from dict works
@@ -239,7 +220,7 @@ class TestParseEdge:
             "target": "b",
             "targetPort": "in",
             "label": "connection",
-            "style": "dashed"
+            "style": "dashed",
         }
         loader = ProtocolLoader()
         edge = loader._parse_edge(edge_data)
@@ -267,12 +248,7 @@ class TestParsePort:
 
     def test_parse_port_full(self):
         """Test parsing port with all fields."""
-        port_data = {
-            "name": "test",
-            "type": "number",
-            "description": "Test port",
-            "default": 42
-        }
+        port_data = {"name": "test", "type": "number", "description": "Test port", "default": 42}
         loader = ProtocolLoader()
         port = loader._parse_port(port_data)
 
@@ -291,7 +267,7 @@ class TestLoadFile:
             "version": "1.0.0",
             "entryPoint": "trigger_1",
             "nodes": [{"id": "trigger_1", "type": "Trigger", "label": "Start"}],
-            "edges": []
+            "edges": [],
         }
         (tmp_path / "flow.json").write_text(json.dumps(flow_data))
 
@@ -330,13 +306,7 @@ class TestExpandOutputToContext:
 
         loader = ProtocolLoader()
         # Set up the node with output_to_context in metadata
-        nodes[0].metadata = {
-            "config": {
-                "output_to_context": {
-                    "result": {"ref": "outputs.response"}
-                }
-            }
-        }
+        nodes[0].metadata = {"config": {"output_to_context": {"result": {"ref": "outputs.response"}}}}
 
         expanded_nodes, expanded_edges = loader._expand_output_to_context(nodes, edges)
 
@@ -371,13 +341,7 @@ class TestExpandOutputToContext:
 
         loader = ProtocolLoader()
         # Set up with invalid ref
-        nodes[0].metadata = {
-            "config": {
-                "output_to_context": {
-                    "result": {"ref": "invalid.ref.format"}
-                }
-            }
-        }
+        nodes[0].metadata = {"config": {"output_to_context": {"result": {"ref": "invalid.ref.format"}}}}
 
         expanded_nodes, expanded_edges = loader._expand_output_to_context(nodes, edges)
 
@@ -390,11 +354,7 @@ class TestParseCondition:
 
     def test_parse_condition_simple(self):
         """Test parsing simple condition."""
-        data = {
-            "ref": "inputs.x",
-            "operator": "eq",
-            "value": 10
-        }
+        data = {"ref": "inputs.x", "operator": "eq", "value": 10}
         loader = ProtocolLoader()
         condition = loader._parse_condition(data)
 
@@ -408,9 +368,7 @@ class TestParseCondition:
             "ref": "inputs.x",
             "operator": "gt",
             "value": 0,
-            "and": [
-                {"ref": "inputs.y", "operator": "lt", "value": 100}
-            ]
+            "and": [{"ref": "inputs.y", "operator": "lt", "value": 100}],
         }
         loader = ProtocolLoader()
         condition = loader._parse_condition(data)
@@ -424,9 +382,7 @@ class TestParseCondition:
             "ref": "inputs.x",
             "operator": "eq",
             "value": 0,
-            "or": [
-                {"ref": "inputs.y", "operator": "eq", "value": 0}
-            ]
+            "or": [{"ref": "inputs.y", "operator": "eq", "value": 0}],
         }
         loader = ProtocolLoader()
         condition = loader._parse_condition(data)
@@ -440,11 +396,7 @@ class TestParseCondition:
             "ref": "inputs.x",
             "operator": "eq",
             "value": 0,
-            "not": {
-                "ref": "inputs.y",
-                "operator": "eq",
-                "value": 0
-            }
+            "not": {"ref": "inputs.y", "operator": "eq", "value": 0},
         }
         loader = ProtocolLoader()
         condition = loader._parse_condition(data)
