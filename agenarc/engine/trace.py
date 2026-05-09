@@ -160,6 +160,10 @@ class TraceCollector:
         }
         return json.dumps(data, ensure_ascii=False, indent=2, default=str)
 
+    def list_executions(self) -> list[str]:
+        """Return list of all available execution IDs."""
+        return list(self._traces.keys())
+
     def clear(self, exec_id: str | None = None) -> None:
         """Clear traces. If exec_id is None, clear all."""
         if exec_id:

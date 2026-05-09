@@ -167,10 +167,14 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
       <div class="flex items-center gap-1" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">
         <span id="tabInspector" class="text-[11px] font-bold px-4 py-1.5 cursor-pointer select-none transition-colors" style="flex:1;text-align:center;color:var(--text-focus);background:rgba(75,137,227,0.08);" onclick="switchTab('inspector')"><i class="fas fa-sliders-h mr-1.5"></i>Inspector</span>
         <span id="tabContext" class="text-[11px] font-bold px-4 py-1.5 cursor-pointer select-none transition-colors" style="flex:1;text-align:center;color:var(--text-dim);" onclick="switchTab('context')"><i class="fas fa-code-branch mr-1.5"></i>Context</span>
+        <span id="tabTimeline" class="text-[11px] font-bold px-4 py-1.5 cursor-pointer select-none transition-colors" style="flex:1;text-align:center;color:var(--text-dim);" onclick="switchTab('timeline')"><i class="fas fa-chart-bar mr-1.5"></i>Timeline</span>
       </div>
     </div>
     <div class="flex-grow overflow-y-auto p-5 space-y-6" id="ic">
       <div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="2"/></svg><span>Click a node to inspect</span></div>
+    </div>
+    <div class="flex-grow overflow-y-auto p-5" id="timelinePanel" style="display:none;">
+      <div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 3"/></svg><span>No trace data yet<br><span style="font-size:9px;color:var(--text-dim);">Run the graph to see execution timeline</span></span></div>
     </div>
   </aside>
 </div>
@@ -329,21 +333,32 @@ function updateApiStatus(){
   }
 }
 
-// ─── Context panel ───
+// ─── Context panel & Timeline ───
 let _ctxTimer=null;
+let _timelineTimer=null;
 function switchTab(tab){
   _activeTab=tab;
   if(_ctxTimer){clearInterval(_ctxTimer);_ctxTimer=null;}
-  const ti=document.getElementById('tabInspector'),tc=document.getElementById('tabContext');
+  if(_timelineTimer){clearInterval(_timelineTimer);_timelineTimer=null;}
+  const ti=document.getElementById('tabInspector'),tc=document.getElementById('tabContext'),tt=document.getElementById('tabTimeline');
+  const ic=document.getElementById('ic'),tp=document.getElementById('timelinePanel');
+  [ti,tc,tt].forEach(el=>{if(el){el.style.color='var(--text-dim)';el.style.background='transparent';}});
+  if(tp)tp.style.display='none';
+  ic.style.display='none';
   if(tab==='inspector'){
     ti.style.color='var(--text-focus)';ti.style.background='rgba(75,137,227,0.08)';
-    tc.style.color='var(--text-dim)';tc.style.background='transparent';
+    ic.style.display='';
     updIns();
-  }else{
+  }else if(tab==='context'){
     tc.style.color='var(--text-focus)';tc.style.background='rgba(75,137,227,0.08)';
-    ti.style.color='var(--text-dim)';ti.style.background='transparent';
+    ic.style.display='';
     showContext();
     _ctxTimer=setInterval(()=>showContext(true),3000);
+  }else if(tab==='timeline'){
+    tt.style.color='var(--text-focus)';tt.style.background='rgba(75,137,227,0.08)';
+    if(tp)tp.style.display='';
+    renderTimeline();
+    _timelineTimer=setInterval(()=>renderTimeline(true),3000);
   }
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -438,6 +453,80 @@ async function showContext(silent){
   }catch(e){
     ic.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" stroke="var(--red)"/><path d="M8 8l8 8M16 8l-8 8" stroke="var(--red)"/></svg><span style="color:var(--red)">Failed to load context</span></div>`;
   }
+}
+
+// ─── Timeline panel ───
+async function renderTimeline(silent){
+  const tp=document.getElementById('timelinePanel');
+  if(!tp)return;
+  if(!silent)tp.innerHTML=`<div class="flex justify-center py-8" style="color:var(--text-dim);"><i class="fas fa-spinner fa-spin mr-2"></i>Loading timeline...</div>`;
+  try{
+    const data=await api('GET','/api/trace/latest');
+    if(!data||!data.nodes||!data.nodes.length){
+      tp.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 3"/></svg><span>No trace data yet<br><span style="font-size:9px;color:var(--text-dim);">Run the graph to see execution timeline</span></span></div>`;
+      return;
+    }
+    const nodes=data.nodes;
+    const totalDur=data.total_duration_ms||1;
+    let minStart=Infinity;
+    nodes.forEach(n=>{if(n.start_time&&n.start_time<minStart)minStart=n.start_time;});
+    if(!isFinite(minStart))minStart=0;
+    const maxEnd=Math.max(...nodes.map(n=>n.end_time||minStart));
+    const timespanMs=Math.max((maxEnd-minStart)*1000,1);
+    const barW=240;
+    const rowH=30;
+    const statusClr={success:'var(--green)',failed:'var(--red)',running:'var(--orange)',pending:'var(--text-dim)'};
+    let html=`<div><label class="text-[10px] font-bold uppercase tracking-widest mb-2 block" style="color:var(--blue);"><i class="fas fa-chart-bar mr-1"></i> Execution Timeline</label>`;
+    html+=`<div class="text-[9px] mb-2" style="color:var(--text-dim);">ID: ${esc(data.exec_id||'—')} · Total: ${Math.round(totalDur)}ms</div>`;
+    // Time axis
+    html+=`<div style="position:relative;height:14px;margin:0 0 4px 70px;border-bottom:1px solid var(--border);">`;
+    for(let i=0;i<=4;i++){
+      const pct=(i/4)*100;
+      html+=`<span style="position:absolute;left:${pct}%;font-size:8px;color:var(--text-dim);transform:translateX(-50%);">${Math.round(timespanMs*i/4)}ms</span>`;
+    }
+    html+=`</div>`;
+    // Bar rows
+    nodes.forEach((n,i)=>{
+      const relStart=n.start_time?(n.start_time-minStart)*1000:0;
+      const dur=n.duration_ms||0;
+      const leftPct=Math.min((relStart/timespanMs)*100,99);
+      const widthPct=Math.max((dur/timespanMs)*100,0.5);
+      const color=statusClr[n.status]||'var(--text-dim)';
+      const label=n.node_id.length>10?n.node_id.substring(0,8)+'…':n.node_id;
+      const tip=esc(`${n.node_id} (${n.node_type})\nStatus: ${n.status}\nDuration: ${Math.round(dur)}ms`+(n.inputs?`\nInputs: ${JSON.stringify(n.inputs).substring(0,120)}`:'')+(n.outputs?`\nOutputs: ${JSON.stringify(n.outputs).substring(0,120)}`:''));
+      html+=`<div style="display:flex;align-items:center;height:${rowH}px;cursor:pointer;border-radius:3px;transition:background .1s;"
+        onclick="sel('${n.node_id}');switchTab('inspector')"
+        onmouseenter="this.style.background='rgba(255,255,255,0.04)'"
+        onmouseleave="this.style.background=''"
+        title="${tip}">
+        <span class="font-mono truncate" style="width:68px;font-size:9px;color:var(--text-dim);flex-shrink:0;text-align:right;padding-right:4px;">${label}</span>
+        <div style="flex:1;height:${rowH}px;position:relative;">
+          <div style="position:absolute;left:${leftPct}%;width:${widthPct}%;height:4px;top:${(rowH-4)/2}px;background:${color};border-radius:2px;min-width:2px;transition:opacity .15s;"></div>
+        </div>
+      </div>`;
+    });
+    html+=`<div class="flex gap-3 mt-2 pt-2 border-t" style="border-color:var(--border);">`;
+    html+=`<button class="btn btn-sm" onclick="exportTrace()"><i class="fas fa-download mr-1"></i> Export</button>`;
+    html+=`<button class="btn btn-sm" onclick="renderTimeline()"><i class="fas fa-sync mr-1"></i> Refresh</button>`;
+    html+=`</div></div>`;
+    tp.innerHTML=html;
+  }catch(e){
+    tp.innerHTML=`<div class="no-sel"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" stroke="var(--red)"/><path d="M8 8l8 8M16 8l-8 8" stroke="var(--red)"/></svg><span style="color:var(--red)">Failed to load trace</span></div>`;
+  }
+}
+async function exportTrace(){
+  try{
+    const data=await api('GET','/api/trace/latest');
+    if(!data||!data.exec_id){toast('No trace to export','warn');return;}
+    const r=await fetch(API_BASE+'/api/trace/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({exec_id:data.exec_id})});
+    if(!r.ok)throw new Error(r.statusText);
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`trace_${data.exec_id}.json`;a.click();
+    URL.revokeObjectURL(url);
+    toast('Trace exported','success');
+  }catch(e){toast('Export failed','warn');}
 }
 
 // ─── Auto-save ───

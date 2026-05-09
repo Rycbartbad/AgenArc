@@ -316,6 +316,29 @@ class VisualizationServer:
                     self._serve_status["error"] = str(e)
                     return self._json_response(self._serve_status, status=500)
 
+        # GET /api/trace/latest
+        elif method == "GET" and path == "/api/trace/latest":
+            return self._json_response(self._get_latest_trace_data())
+
+        # GET /api/trace/list
+        elif method == "GET" and path == "/api/trace/list":
+            exec_ids = self.engine._trace.list_executions()
+            return self._json_response({"executions": exec_ids})
+
+        # POST /api/trace/export
+        elif method == "POST" and path == "/api/trace/export":
+            data = json.loads(body) if body else {}
+            exec_id = data.get("exec_id", "")
+            if not exec_id:
+                return self._json_response({"error": "Missing exec_id"}, status=400)
+            return self._export_trace_file(exec_id)
+
+        # GET /api/trace/{exec_id}
+        elif method == "GET" and path.startswith("/api/trace/"):
+            exec_id = path.split("/", 3)[-1]
+            if exec_id:
+                return self._json_response(self._build_trace_data(exec_id))
+
         # Serve static frontend
         elif method == "GET" and (path == "/" or path == "/index.html"):
             return await self._serve_static("index.html", "text/html")
@@ -842,6 +865,39 @@ class VisualizationServer:
                             result["nodeOutputs"] = node_outputs
 
         return result
+
+    # ─── Trace API helpers ───
+
+    def _build_trace_data(self, exec_id: str) -> dict[str, Any]:
+        """Build trace response dict for a given execution ID."""
+        traces = self.engine._trace.get_trace(exec_id)
+        total_duration = sum((t.get("duration_ms") or 0) for t in traces)
+        return {
+            "exec_id": exec_id,
+            "nodes": traces,
+            "total_duration_ms": total_duration,
+        }
+
+    def _get_latest_trace_data(self) -> dict[str, Any]:
+        """Build trace response dict for the latest execution."""
+        if not self.engine._trace._traces:
+            return {"exec_id": None, "nodes": [], "total_duration_ms": 0}
+        latest_id = list(self.engine._trace._traces.keys())[-1]
+        return self._build_trace_data(latest_id)
+
+    def _export_trace_file(self, exec_id: str) -> bytes:
+        """Generate downloadable JSON response for an execution trace."""
+        json_str = self.engine._trace.export(exec_id)
+        body = json_str.encode("utf-8")
+        status_line = "HTTP/1.1 200 OK\r\n"
+        headers = (
+            f"Content-Type: application/json; charset=utf-8\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            f'Content-Disposition: attachment; filename="trace_{exec_id}.json"\r\n'
+            f"Access-Control-Allow-Origin: *\r\n"
+            f"\r\n"
+        )
+        return (status_line + headers).encode() + body
 
     async def _ws_upgrade(self, reader, writer, headers):
         """Perform WebSocket upgrade handshake."""
