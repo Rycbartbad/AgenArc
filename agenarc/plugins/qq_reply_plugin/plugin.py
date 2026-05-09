@@ -7,7 +7,10 @@ Uses a shared connection manager to avoid short-connection issues.
 
 import asyncio
 import json
+import logging
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from agenarc.operators.operator import IOperator
 from agenarc.protocol.schema import Port
@@ -115,8 +118,9 @@ class QQConnectionManager:
                         'data': resp_data.get('data')
                     }
         except asyncio.TimeoutError:
-            pass
+            logger.warning("Timeout waiting for QQ reply response")
         except Exception as e:
+            logger.warning("QQ reply response error: %s", e)
             print(f"[QQ_Reply] Response error: {e}")
             # Connection is broken, clear it so next call creates a new one
             cls._ws_connection = None
@@ -131,8 +135,8 @@ class QQConnectionManager:
         if cls._ws_connection is not None:
             try:
                 await cls._ws_connection.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to close QQ WebSocket connection: %s", e)
             cls._ws_connection = None
 
 

@@ -182,8 +182,12 @@ class PluginManager:
 
         Note: This is called automatically during initialize().
         """
-        # Discovery is handled by HotPluginLoader
-        pass
+        import warnings
+        warnings.warn(
+            "discover_plugins() is deprecated. Plugin discovery is automatic during initialize().",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     async def reload_plugin(self, plugin_name: str) -> bool:
         """

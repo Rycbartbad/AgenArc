@@ -114,15 +114,17 @@ class PythonPluginLoader:
             logger.error(f"Plugin entry file not found: {plugin_file}")
             return {}
 
-        # Load module dynamically
+        # Load module dynamically with unique flat name to prevent conflicts
         try:
-            spec = importlib.util.spec_from_file_location(module_name, plugin_file)
+            path_hash = str(abs(hash(str(plugin_file))) % 1000000)
+            safe_name = f"plug_{plugin_info.name}_{path_hash}"
+            spec = importlib.util.spec_from_file_location(safe_name, plugin_file)
             if spec is None or spec.loader is None:
                 logger.error(f"Failed to create module spec for {plugin_file}")
                 return {}
 
             module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
+            sys.modules[safe_name] = module
             spec.loader.exec_module(module)
 
             self._plugins[plugin_info.name] = module

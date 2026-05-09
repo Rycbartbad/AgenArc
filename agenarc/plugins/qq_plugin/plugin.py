@@ -147,8 +147,8 @@ class QQ_Event_Plugin:
         if self._ws_connection:
             try:
                 await self._ws_connection.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to close QQ WebSocket: %s", e)
 
         # Signal listener to exit
         if self._stop_event:
@@ -160,7 +160,7 @@ class QQ_Event_Plugin:
                 async with asyncio.timeout(3.0):
                     await self._listener_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Listener task cancelled during stop")
             except asyncio.TimeoutError:
                 self._listener_task.cancel()
 

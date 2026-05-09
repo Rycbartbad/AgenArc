@@ -242,6 +242,6 @@ class CppOperatorWrapper:
             try:
                 destructor = getattr(self._library, self._destructor_name)
                 destructor(self._operator_ptr)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to destroy C++ operator: %s", e)
         self._destroyed = True

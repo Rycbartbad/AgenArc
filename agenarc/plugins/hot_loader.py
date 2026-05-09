@@ -101,7 +101,7 @@ class FileWatcher:
             logger.info("File watcher started (using watchdog)")
             return
         except ImportError:
-            pass
+            logger.warning("Watchdog not available, falling back to polling for file watching")
 
         # Fallback to polling
         self._file_mtimes: Dict[Path, float] = {}
@@ -134,15 +134,15 @@ class FileWatcher:
             if base_path.is_file():
                 try:
                     files[base_path] = os.path.getmtime(base_path)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning("Failed to get mtime for %s: %s", base_path, e)
             else:
                 for ext in {".py", ".so", ".dylib", ".dll", ".json"}:
                     for path in base_path.rglob(f"*{ext}"):
                         try:
                             files[path] = os.path.getmtime(path)
-                        except OSError:
-                            pass
+                        except OSError as e:
+                            logger.warning("Failed to get mtime for %s: %s", path, e)
         return files
 
     def get_modified_files(self) -> Set[Path]:
@@ -317,10 +317,10 @@ class HotPluginLoader:
                         f.resolve().relative_to(plugin_dir.resolve())
                         affected.add(plugin_name)
                         break
-                    except ValueError:
-                        pass
-            except Exception:
-                pass
+                    except ValueError as e:
+                        logger.warning("File %s not relative to plugin %s: %s", f, plugin_name, e)
+            except Exception as e:
+                logger.warning("Error checking file %s against plugin %s: %s", f, plugin_name, e)
 
         if affected:
             logger.info(f"Scheduling reload for: {affected}")
