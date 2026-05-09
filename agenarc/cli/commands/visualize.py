@@ -4,6 +4,7 @@ Command: visualize — Start visualization studio for agent editing and debuggin
 
 import asyncio
 import logging
+import webbrowser
 from pathlib import Path
 
 from agenarc.engine.executor import ExecutionEngine
@@ -94,12 +95,12 @@ def command_visualize(
 
     if verbose:
         print(f"Starting visualization server at http://{host}:{port}")
-        print(f"Open http://{host}:{port} in your browser")
 
     # Run server — single event loop for both start and stop
     async def _run_visualize():
         try:
             await server.start()
+            webbrowser.open(f"http://{host}:{port}")
         except asyncio.CancelledError:
             logger.debug("Visualization server task cancelled")
         finally:

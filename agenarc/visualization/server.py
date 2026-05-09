@@ -105,8 +105,7 @@ class VisualizationServer:
             host_str = "127.0.0.1"
         elif host_str == "::":
             host_str = self.host
-        logger.info(f"\n  [VISUALIZATION] Server started at http://{host_str}:{addr[1]}")
-        logger.info(f"  [VISUALIZATION] Open http://{host_str}:{addr[1]} in your browser\n")
+        logger.info(f"\n  [VISUALIZATION] Server started at http://{host_str}:{addr[1]}\n")
 
         # Keep running until stopped
         await self._server.serve_forever()
