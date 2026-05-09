@@ -462,6 +462,7 @@ def _offer_example_project() -> None:
     # Find example source
     # Support PyInstaller bundled paths
     import sys
+
     if getattr(sys, "frozen", False):
         base = Path(sys._MEIPASS)
         example_candidates = [
