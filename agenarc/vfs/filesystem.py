@@ -123,8 +123,8 @@ class VFS:
             Permission string (e.g., "r--", "rw-", "rwx")
         """
         if not self._permissions:
-            # No permissions configured (None or empty dict), allow all
-            return "rwx"
+            # No permissions configured (None or empty dict), deny all
+            return "---"
 
         # Check cache first
         if vfs_path in self._permission_cache:
@@ -133,7 +133,7 @@ class VFS:
         # Normalize: strip trailing slashes
         path = vfs_path.strip("/")
         if not path:
-            result = "rwx"
+            result = "r--"
             self._permission_cache[vfs_path] = result
             return result
 
