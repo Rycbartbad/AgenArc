@@ -2,14 +2,14 @@
 AST Safe Expression Evaluator
 
 Trust-based autonomous expression evaluator for Script_Node.
-基于"信任 AI"原则：允许标准操作，仅拦截足以崩溃解释器的内核属性。
+Based on "trust AI" principle: Allow standard operations, only intercept kernel properties that could crash the interpreter.
 
 Features:
-- 黑名单混合模式：仅拦截 __globals__, __builtins__, func_code 等危险属性
-- 允许所有标准方法调用 (split, append, json, regex 等)
-- 支持推导式 (ListComp, DictComp, SetComp)
-- SafeContext 包装器：防止内存溢出
-- Gas 计费机制：防止无限循环
+- Blacklist hybrid mode: Only intercept dangerous attributes like __globals__, __builtins__, func_code
+- Allow all standard method calls (split, append, json, regex, etc.)
+- Support comprehensions (ListComp, DictComp, SetComp)
+- SafeContext wrapper: Prevents memory overflow
+- Gas metering mechanism: Prevents infinite loops
 """
 
 import ast
@@ -233,13 +233,11 @@ class ASTEvaluator:
         "round": round,
         "pow": pow,
         "divmod": divmod,
-        # Type checking
+        # Type checking (type/getattr removed: can reconstruct builtins)
         "isinstance": isinstance,
         "issubclass": issubclass,
-        "type": type,
         "callable": callable,
-        # Object inspection
-        "getattr": getattr,
+        # Object inspection (getattr removed: can access dangerous attributes)
         "setattr": setattr,
         "hasattr": hasattr,
         "delattr": delattr,

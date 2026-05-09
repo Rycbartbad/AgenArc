@@ -229,7 +229,7 @@ class GraphTraversal:
         path = []
 
         def dfs(node_id: str) -> None:
-            if node_id not in self.graph.nodes:
+            if node_id not in self._adjacency:
                 return
             if node_id in rec_stack:
                 # Found a cycle - extract it
@@ -380,5 +380,11 @@ class GraphTraversal:
                 errors.append(f"Trigger node '{node.id}' is disconnected from the graph")
             else:
                 errors.append(f"Node '{node.id}' is not reachable from any source node")
+
+        # Check global errorNode exists if specified
+        if self.graph.errorNode and self.graph.errorNode not in node_map:
+            errors.append(
+                f"Global errorNode '{self.graph.errorNode}' not found in nodes list"
+            )
 
         return errors

@@ -13,10 +13,13 @@ Architecture:
 """
 
 import asyncio
+import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from agenarc.protocol.loader import ProtocolLoader
 from agenarc.protocol.schema import (
@@ -124,6 +127,9 @@ class ExecutionEngine:
         # Built-in operators registry
         self._builtin_operators: Dict[str, type] = {}
 
+        # Operator timeout
+        self._operator_timeout: int = 300
+
         # Running flag
         self._running: bool = False
 
@@ -167,8 +173,8 @@ class ExecutionEngine:
                 gas_budget=permissions_data.get("gas_budget", 1000),
                 max_memory_mb=permissions_data.get("max_memory_mb", 128),
             )
-        except Exception:
-            pass  # Use defaults on error
+        except Exception as e:
+            logger.warning("Failed to load manifest, using defaults: %s", e)
 
     def register_builtin_operator(
         self,
@@ -492,6 +498,18 @@ class ExecutionEngine:
                     if isinstance(selected, str):
                         selected = [selected]
 
+                    # Track iteration count per loop head to prevent infinite loops
+                    if not hasattr(self, '_router_iterations'):
+                        self._router_iterations = {}
+                    router_key = f"router_{node_id}"
+                    self._router_iterations[router_key] = self._router_iterations.get(router_key, 0) + 1
+                    if self._router_iterations[router_key] > 100:
+                        raise RuntimeError(
+                            f"Router '{node_id}' exceeded 100 iterations. "
+                            "Possible infinite loop in graph. "
+                            "Increase max_iterations in node config if this is intentional."
+                        )
+
                     for port in selected:
                         # Find edge with matching sourcePort
                         routing_target = self._find_routing_target(node_id, port)
@@ -678,8 +696,28 @@ class ExecutionEngine:
         node_config = resolve_vfs_and_template(
             node_config, context_getter, bundle_path_getter, permissions_getter(), allow_missing=True
         )
+        # Strip sensitive keys (api_key, token, secret, password) from context
+        # LLM_Task etc. read credentials from config.py directly, not from context
+        _sensitive_keys = {"api_key", "key", "token", "secret", "password", "api_key"}
+        node_config = {k: v for k, v in node_config.items()
+                       if not any(s in k.lower() for s in _sensitive_keys)}
         context.set("_node_type", node.type.value)
         context.set("_node_config", node_config)
+
+        # Set node ID in context for operators to access
+        context.set("_node_id", node.id)
+
+        # Initialize Router/Join context dependencies
+        if node.type.value == "Router":
+            context.set("_router_conditions", node_config.get("conditions", []))
+            context.set("_router_default", node_config.get("default", ""))
+        elif node.type.value == "Join":
+            context.set("_join_strategy", node_config.get("strategy", "merge"))
+            incoming = [
+                {"source": e.source, "sourcePort": e.sourcePort}
+                for e in self._graph.get_incoming_edges(node.id)
+            ] if self._graph else []
+            context.set("_incoming_edges", incoming)
 
         # Create checkpoint before execution
         if self.enable_checkpoint and node.checkpoint:
@@ -722,7 +760,7 @@ class ExecutionEngine:
         Returns:
             Operator outputs
         """
-        timeout = 300  # 5 minutes default
+        timeout = self._operator_timeout if hasattr(self, '_operator_timeout') else 300
 
         try:
             result = await asyncio.wait_for(

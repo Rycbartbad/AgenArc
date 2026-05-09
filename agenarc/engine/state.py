@@ -279,10 +279,12 @@ class StateManager:
         max_checkpoints: int = 100,
         auto_checkpoint: bool = False,
         large_object_keys: List[str] = None,
-        strict_mode: bool = False
+        strict_mode: bool = False,
+        checkpoint_manager: Optional[CheckpointManager] = None,
     ):
         self._max_checkpoints = max_checkpoints
         self._auto_checkpoint = auto_checkpoint
+        self._checkpoint_manager = checkpoint_manager
 
         # Copy-on-write configuration
         self._large_object_keys: Set[str] = set(large_object_keys or [])
@@ -522,7 +524,7 @@ class StateManager:
         Each output port value is stored directly in context with key:
         nodes.{node_id}.{port_name} = value
 
-        This allows downstream nodes to read outputs via edge sourcePort.
+        Cleans up stale entries from previous executions before storing.
 
         Args:
             node_id: Node ID
@@ -530,6 +532,11 @@ class StateManager:
         """
         if node_id not in self._local:
             self._local[node_id] = {}
+
+        # Clean up stale entries from previous executions
+        old_keys = [k for k in self._global if k.startswith(f"nodes.{node_id}.")]
+        for k in old_keys:
+            del self._global[k]
 
         # Store full outputs dict for backward compatibility
         self._local[node_id]["_outputs"] = outputs
@@ -592,6 +599,11 @@ class StateManager:
 
         self._checkpoints[checkpoint_id] = checkpoint
 
+        # Persist to disk via CheckpointManager if available
+        if self._checkpoint_manager:
+            checkpoint.metadata["execution_id"] = self._execution_id
+            self._checkpoint_manager.save_checkpoint(checkpoint)
+
         # Enforce max checkpoints (FIFO eviction)
         while len(self._checkpoints) > self._max_checkpoints:
             self._checkpoints.popitem(last=False)
@@ -614,6 +626,10 @@ class StateManager:
             True if successful, False if checkpoint not found
         """
         checkpoint = self._checkpoints.get(checkpoint_id)
+        if not checkpoint and self._checkpoint_manager:
+            checkpoint = self._checkpoint_manager.load_checkpoint(checkpoint_id, self._execution_id)
+            if checkpoint:
+                self._checkpoints[checkpoint_id] = checkpoint
 
         if not checkpoint:
             return False
