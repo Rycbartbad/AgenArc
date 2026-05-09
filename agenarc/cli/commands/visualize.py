@@ -60,9 +60,7 @@ def command_visualize(
             engine.register_builtin_operator(node_type, operator_class)
 
     # Load protocol
-    if verbose:
-        print(f"Loading agent from {protocol_path}...")
-
+    print(f"Loading {protocol_path.name}...")
     try:
         engine.load_protocol(protocol_path)
     except LoaderError as e:
@@ -93,14 +91,18 @@ def command_visualize(
         protocol_path=str(protocol_path),
     )
 
-    if verbose:
-        print(f"Starting visualization server at http://{host}:{port}")
+    url = f"http://{host}:{port}"
+    print(f"AgenArc Studio → {url}")
 
     # Run server — single event loop for both start and stop
     async def _run_visualize():
         try:
             await server.start()
-            webbrowser.open(f"http://{host}:{port}")
+            print("Server running. Press Ctrl+C to stop.")
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
         except asyncio.CancelledError:
             logger.debug("Visualization server task cancelled")
         finally:
