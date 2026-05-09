@@ -6,13 +6,21 @@ Provides REST API for graph operations and WebSocket for real-time updates.
 """
 
 import asyncio
+import base64
+import datetime
+import hashlib
 import json
+import logging
 import mimetypes
 import os
 import uuid
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 from typing import Any, Dict, Optional, Set
 from urllib.parse import parse_qs, urlparse
+
+WS_MAGIC = "258EAFA5-E914-47DA-95CA-5AB9DC11B85B"
 
 from agenarc.engine.executor import ExecutionEngine
 from agenarc.protocol.loader import ProtocolLoader
@@ -113,9 +121,8 @@ class VisualizationServer:
             try:
                 self._server.close()
                 await asyncio.wait_for(self._server.wait_closed(), timeout=5)
-            except (AttributeError, asyncio.TimeoutError, Exception):
-                # Windows proactor may have None sock on cleanup; ignore
-                pass
+            except (AttributeError, asyncio.TimeoutError, Exception) as e:
+                logger.warning("Failed to close server socket on stop: %s", e)
         print("[VISUALIZATION] Server stopped")
 
     def _attach_to_engine(self) -> None:
@@ -136,13 +143,30 @@ class VisualizationServer:
                     self._state_tracker.update_node_status(node_id, NodeStatus.COMPLETED)
                     self._state_tracker.record_node_output(node_id, result)
                     self._event_emitter.emit_node_complete(node_id, exec_id, result)
+                    # Capture context snapshot for visualization
+                    if self.engine._state and hasattr(self.engine._state, '_global'):
+                        self._state_tracker.capture_context_snapshot(
+                            dict(self.engine._state._global),
+                            {nid: dict(st) for nid, st in self.engine._state._local.items()}
+                        )
                     return result
                 except Exception as e:
                     self._state_tracker.update_node_status(node_id, NodeStatus.FAILED)
+                    self._state_tracker.record_node_output(node_id, {"error": str(e)})
                     self._event_emitter.emit_node_error(node_id, exec_id, str(e))
                     raise
 
             self.engine._execute_node_with_tracking = hooked_execute_node
+
+        # Wire event emitter to broadcast via WebSocket
+        self._event_emitter.add_listener(
+            lambda event_type, data: asyncio.create_task(self.broadcast({
+                "type": event_type.value if hasattr(event_type, 'value') else str(event_type),
+                "nodeId": data.get("nodeId", ""),
+                "data": data,
+                "timestamp": datetime.datetime.now().isoformat(),
+            }))
+        )
 
     def _detach_from_engine(self) -> None:
         """Detach event hooks from ExecutionEngine."""
@@ -178,6 +202,11 @@ class VisualizationServer:
             content_length = int(headers.get('content-length', 0))
             body = await reader.read(content_length) if content_length > 0 else b''
 
+            # WebSocket upgrade — handle before normal routing
+            if method == "GET" and path == "/ws":
+                await self._ws_upgrade(reader, writer, headers)
+                return
+
             # Route handling
             response = await self._route_request(method, path, headers, body)
 
@@ -188,13 +217,13 @@ class VisualizationServer:
                 error_response = self._json_response({"error": str(e)}, status=500)
                 writer.write(error_response)
                 await writer.drain()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to send error response: %s", e)
         finally:
             try:
                 writer.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to close connection: %s", e)
 
     async def _route_request(
         self,
@@ -258,9 +287,9 @@ class VisualizationServer:
         elif method == "GET" and path == "/api/execution/last":
             return self._json_response(self._last_event_result or {"status": "none"})
 
-        # WebSocket upgrade
+        # WebSocket upgrade — handled in _handle_http before routing
         elif method == "GET" and path == "/ws":
-            return self._websocket_response(headers)
+            return self._json_response({"error": "WebSocket upgrade handled internally"}, status=400)
 
         # Health check
         elif method == "GET" and path == "/health":
@@ -383,8 +412,8 @@ class VisualizationServer:
                         "errors": errors,
                         "log": captured,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to capture execution result for frontend: %s", e)
 
         started = []
         for p in detected:
@@ -415,8 +444,8 @@ class VisualizationServer:
                                     op_name = first_op if isinstance(first_op, str) else first_op.get("name")
                                     if op_name:
                                         plugin_instance = getattr(module, op_name)()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("Failed to load plugin %s from manager manifest: %s", plugin_name, e)
 
             if plugin_instance is None:
                 continue
@@ -428,8 +457,8 @@ class VisualizationServer:
                     cfg = get_config()
                     plugin_cfg = cfg.get(f"plugins.{plugin_name}", {})
                     plugin_instance.configure(plugin_cfg)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to configure plugin %s: %s", plugin_name, e)
 
             # Register and start
             pm.register_event_plugin(plugin_name, plugin_instance)
@@ -476,8 +505,8 @@ class VisualizationServer:
                                     return base
                             elif isinstance(op, str) and (not function_name or op == function_name):
                                 return base
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to get Plugin node ports for %s: %s", n.id, e)
             return base
 
         # For Join nodes, output ports are dynamic based on incoming edges (passthrough)
@@ -505,8 +534,8 @@ class VisualizationServer:
                     if dynamic_out:
                         base["outputs"] = dynamic_out
                         return base
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to compute dynamic Join ports for %s: %s", n.id, e)
             # Fall through to operator-based ports if no dynamic ports detected
 
         # For all other node types, get ports from operator
@@ -519,8 +548,8 @@ class VisualizationServer:
                     base["inputs"] = [{"name": p.name, "type": p.type} for p in inp_ports]
                 if out_ports:
                     base["outputs"] = [{"name": p.name, "type": p.type} for p in out_ports]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to get operator ports for %s: %s", n.id, e)
 
         return base
 
@@ -669,8 +698,8 @@ class VisualizationServer:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(flow_data, f, ensure_ascii=False, indent=2)
             tmp_path.replace(file_path)
-        except Exception:
-            pass  # Silently fail — engine state is still updated
+        except Exception as e:
+            logger.warning("Failed to persist graph to disk: %s", e)
 
     async def _execute_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute graph synchronously and return full results."""
@@ -740,6 +769,14 @@ class VisualizationServer:
             self._state_tracker.end_execution("failed")
             self._event_emitter.emit_execution_end(execution_id, "failed")
             return {"status": "failed", "error": str(e)}
+        finally:
+            # Capture context snapshot for the Context panel
+            # (engine._state still holds the full state at this point)
+            if self.engine._state and hasattr(self.engine._state, '_global'):
+                self._state_tracker.capture_context_snapshot(
+                    dict(self.engine._state._global),
+                    {nid: dict(st) for nid, st in self.engine._state._local.items()}
+                )
 
     def _stop_execution(self) -> None:
         """Stop current execution."""
@@ -769,19 +806,102 @@ class VisualizationServer:
         }
 
     def _get_context_state(self) -> Dict[str, Any]:
-        """Get current context state."""
-        return self._state_tracker.get_context_snapshot()
+        """Get current context state from engine and tracker.
 
-    def _websocket_response(self, headers: Dict[str, str]) -> bytes:
-        """Generate WebSocket upgrade response."""
-        # Simplified - actual implementation needs proper WS handshake
+        Returns live engine state directly (not stale tracker snapshots).
+        engine._state is the authoritative source after execution completes.
+        """
+        result: Dict[str, Any] = {}
+
+        # Primary: pull directly from engine's live StateManager
+        if self.engine._state is not None:
+            state = self.engine._state
+
+            # Global context: all keys in _global except internal (_) keys
+            if hasattr(state, '_global') and state._global:
+                result["global"] = {
+                    k: v for k, v in state._global.items()
+                    if not k.startswith('_')
+                }
+
+            # Node outputs: from _local[nid]["_outputs"]
+            if hasattr(state, '_local') and state._local:
+                node_outputs = {}
+                for node_id, local_data in state._local.items():
+                    if isinstance(local_data, dict) and "_outputs" in local_data:
+                        outputs = local_data["_outputs"]
+                        if outputs:
+                            node_outputs[node_id] = outputs
+                if node_outputs:
+                    result["nodeOutputs"] = node_outputs
+
+        # Fallback: if engine state is empty, use tracker snapshot
+        # (handles case where tracker captured data but engine state was reset)
+        if not result.get("global") and not result.get("nodeOutputs"):
+            tracker_data = self._state_tracker.get_context_snapshot()
+            if tracker_data:
+                if "global" in tracker_data:
+                    result["global"] = tracker_data["global"]
+                if "local" in tracker_data:
+                    # Convert local {nid: {st}} to nodeOutputs {nid: outputs}
+                    local = tracker_data["local"]
+                    if local:
+                        node_outputs = {}
+                        for node_id, st in local.items():
+                            if isinstance(st, dict) and "_outputs" in st:
+                                if st["_outputs"]:
+                                    node_outputs[node_id] = st["_outputs"]
+                        if node_outputs:
+                            result["nodeOutputs"] = node_outputs
+
+        return result
+
+    async def _ws_upgrade(self, reader, writer, headers):
+        """Perform WebSocket upgrade handshake."""
+        key = headers.get("sec-websocket-key", "")
+        accept = self._websocket_accept(key)
         response = (
-            b"HTTP/1.1 101 Switching Protocols\r\n"
-            b"Upgrade: websocket\r\n"
-            b"Connection: Upgrade\r\n"
-            b"\r\n"
+            "HTTP/1.1 101 Switching Protocols\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Accept: {accept}\r\n"
+            "\r\n"
         )
-        return response
+        writer.write(response.encode())
+        await writer.drain()
+        await self._handle_ws_client(reader, writer)
+
+    def _websocket_accept(self, key: str) -> str:
+        """Compute WebSocket accept key."""
+        return base64.b64encode(hashlib.sha1((key + WS_MAGIC).encode()).digest()).decode()
+
+    def _ws_frame(self, text: str) -> bytes:
+        """Create a WebSocket text frame (opcode 0x1)."""
+        data = text.encode('utf-8')
+        length = len(data)
+        if length < 126:
+            return b'\x81' + bytes([length]) + data
+        elif length < 65536:
+            return b'\x81\x7e' + length.to_bytes(2, 'big') + data
+        else:
+            return b'\x81\x7f' + length.to_bytes(8, 'big') + data
+
+    async def _handle_ws_client(self, reader, writer):
+        """Handle WebSocket client connection."""
+        self._ws_connections.add(writer)
+        try:
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
+        except (ConnectionError, asyncio.IncompleteReadError) as e:
+            logger.warning("WebSocket client disconnected: %s", e)
+        finally:
+            self._ws_connections.discard(writer)
+            try:
+                writer.close()
+            except Exception as e:
+                logger.warning("Failed to close WebSocket connection: %s", e)
 
     async def _serve_static(self, filename: str, mime: str) -> bytes:
         """Serve a static file from the visualization/static directory."""
@@ -832,7 +952,15 @@ class VisualizationServer:
         ).encode() + body
         return response
 
-    async def broadcast(self, event: Dict[str, Any]) -> None:
+    async def broadcast(self, data) -> None:
         """Broadcast event to all connected WebSocket clients."""
-        # TODO: Implement WebSocket broadcasting
-        pass
+        disconnected = set()
+        for w in self._ws_connections:
+            try:
+                payload = json.dumps(data) if isinstance(data, dict) else data
+                frame = self._ws_frame(payload)
+                w.write(frame)
+                await w.drain()
+            except Exception:
+                disconnected.add(w)
+        self._ws_connections -= disconnected

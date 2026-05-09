@@ -4,8 +4,11 @@ Execution Events for Visualization
 Emits events when nodes execute, complete, or fail.
 """
 
+import logging
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionEvent(str, Enum):
@@ -57,8 +60,8 @@ class ExecutionEventEmitter:
         for listener in self._listeners:
             try:
                 listener(event_type, data)
-            except Exception:
-                pass  # Don't let listener errors break emission
+            except Exception as e:
+                logger.warning("Event listener error: %s", e)
 
     def emit_node_start(
         self,
