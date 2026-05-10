@@ -1182,7 +1182,7 @@ function updIns(){
     h+=`<section id="subgraphSection" style="border:1px solid var(--purple);border-radius:var(--radius);padding:12px;background:rgba(154,106,222,0.04);">
       <label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--purple);"><i class="fas fa-link mr-1"></i> SubGraph</label>
       <div class="space-y-3">
-        <div><span class="text-[11px] block mb-1" style="color:var(--text);">Bundle Path</span>
+        <div><span class="text-[11px] block mb-1" style="color:var(--text);">Bundle</span>
           <input class="input-box" value="${esc(bundlePath)}" placeholder="child.agrc" onchange="var n=$('${n.id}');if(n){if(!n.config)n.config={};n.config.bundle=this.value;saveGraph();}">
         </div>
         <button class="btn btn-block" style="border-color:var(--purple);color:var(--purple);" onclick="openSubGraph('${escAttr(bundlePath)}')" ${bundlePath?'':'disabled style="opacity:0.4;cursor:not-allowed;"'}>
