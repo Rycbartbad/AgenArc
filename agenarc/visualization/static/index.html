@@ -105,7 +105,15 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 .editor-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center}
 .editor-modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;width:min(960px,95vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
 .editor-modal .editor-header{padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
-.editor-modal .editor-textarea{flex:1;width:100%;min-height:400px;max-height:calc(90vh - 80px);background:var(--bg-canvas);border:none;color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:14px 16px;resize:none;outline:none;tab-size:2;line-height:1.5}
+.editor-modal .editor-textarea{flex:1;width:100%;min-height:400px;max-height:calc(90vh - 80px);background:transparent;border:none;color:transparent;caret-color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:14px 16px;resize:none;outline:none;tab-size:2;line-height:1.5;position:relative;z-index:2;overflow-y:auto;white-space:pre;word-wrap:normal}
+.editor-highlight{position:absolute;top:0;left:0;right:0;bottom:0;padding:14px 16px;font-family:var(--font-mono);font-size:12px;line-height:1.5;tab-size:2;white-space:pre;word-wrap:normal;overflow-y:auto;pointer-events:none;z-index:1;margin:0;border:none;background:var(--bg-canvas)}
+.editor-highlight .hl-str{color:#ce9178}
+.editor-highlight .hl-kw{color:#569cd6}
+.editor-highlight .hl-num{color:#b5cea8}
+.editor-highlight .hl-com{color:#6a9955;font-style:italic}
+.editor-highlight .hl-key{color:#9cdcfe}
+.editor-highlight .hl-op{color:#d4d4d4}
+.editor-modal .editor-wrap{flex:1;width:100%;min-height:400px;max-height:calc(90vh - 80px);position:relative;overflow:hidden}
 
 /* ─── Breadcrumb ─── */
 .breadcrumb-item{color:var(--text-dim);cursor:pointer;transition:color .1s;white-space:nowrap;font-family:var(--font-mono);padding:2px 4px;border-radius:3px}
@@ -188,7 +196,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--orange)" stroke-width="2.5"/></svg> Control</span>
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--blue)" stroke-width="2" stroke-dasharray="5 3"/></svg> Data</span>
     </div>
-    <div id="breadcrumbInfo" style="display:none;font-size:10px;padding:2px 12px;background:transparent;border-bottom:1px solid var(--border);flex-shrink:0;"></div>
+    <div id="breadcrumbInfo" style="display:none;font-size:11px;padding:3px 12px;flex-shrink:0;"></div>
     <div class="terminal" id="term" style="display:flex;flex-direction:column;height:180px;">
       <div class="flex justify-between items-center pb-1 border-b flex-shrink-0" style="border-color:var(--border);color:var(--text-dim);">
         <span><i class="fas fa-terminal mr-2"></i>AgenArc Shell</span>
@@ -1516,42 +1524,100 @@ function toggleTreeItem(el, path, type) {
 let _currentFilePath = null
 let _editorSaveTimer = null
 
+function _highlight(text) {
+  const lang = _currentFilePath ? _currentFilePath.split('.').pop().toLowerCase() : '';
+  const isJson = lang === 'json';
+  const isPy = lang === 'py' || lang === 'python';
+  const isJs = lang === 'js' || lang === 'mjs';
+  
+  // Escape HTML first
+  let html = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  
+  // Line-based highlighting
+  const lines = html.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Comment lines
+    if (isPy && /^\s*#/.test(line)) { lines[i] = `<span class="hl-com">${line}</span>`; continue; }
+    if ((isJs || isPy) && /^\s*\/\//.test(line)) { lines[i] = `<span class="hl-com">${line}</span>`; continue; }
+    
+    let highlighted = '';
+    let pos = 0;
+    while (pos < line.length) {
+      // String literals
+      const sq = line.indexOf("'", pos); const dq = line.indexOf('"', pos);
+      const strStart = sq >= 0 && (dq < 0 || sq < dq) ? sq : dq >= 0 ? dq : -1;
+      if (strStart < 0) { highlighted += line.slice(pos); break; }
+      highlighted += line.slice(pos, strStart);
+      const q = line[strStart];
+      const strEnd = line.indexOf(q, strStart + 1);
+      if (strEnd < 0) { highlighted += `<span class="hl-str">${line.slice(strStart)}</span>`; break; }
+      highlighted += `<span class="hl-str">${line.slice(strStart, strEnd + 1)}</span>`;
+      pos = strEnd + 1;
+    }
+    if (pos < line.length) highlighted += line.slice(pos);
+    lines[i] = highlighted;
+  }
+  html = lines.join('\n');
+  
+  // Keywords (whole word)
+  const keywords = ['if','for','while','def','class','return','import','from','as','try','except','finally','with','async','await','elif','else','in','not','and','or','is','None','True','False','pass','break','continue','raise','yield','lambda','print','def','self'];
+  const kwPat = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
+  html = html.replace(kwPat, '<span class="hl-kw">$1</span>');
+  
+  // JSON keys (followed by colon)
+  if (isJson) html = html.replace(/"([^"]+)"(?=\s*:)/g, '<span class="hl-key">"$1"</span>').replace(/:\s*/g, ': ');
+  
+  return html;
+}
+
+function syncEditorScroll() {
+  const ta = document.getElementById('editorTextarea');
+  const hl = document.getElementById('editorHighlight');
+  if (ta && hl) hl.scrollTop = ta.scrollTop;
+}
+
 async function openFileEditor(path) {
   _currentFilePath = path
   const overlay = document.getElementById('editorOverlay')
   if (!overlay) return
   overlay.style.display = 'flex'
   overlay.querySelector('.editor-path').innerHTML = `<i class="fas fa-file-code mr-1" style="color:var(--cyan);"></i>${esc(path)}`
-  overlay.querySelector('.editor-textarea').value = ''
-  overlay.querySelector('.editor-textarea').disabled = true
+  const ta = document.getElementById('editorTextarea')
+  ta.value = ''
+  ta.disabled = true
   overlay.querySelector('.editor-size').textContent = ''
+  document.getElementById('editorHighlight').innerHTML = ''
   clearTimeout(_editorSaveTimer)
 
   try {
     const data = await api('GET', '/api/bundle/file?path=' + encodeURIComponent(path))
     showFileEditor(data.content, data.size)
   } catch (e) {
-    overlay.querySelector('.editor-textarea').value = 'Failed to load: ' + e.message
+    ta.value = 'Failed to load: ' + e.message
   }
 }
 
 function showFileEditor(content, size) {
   const overlay = document.getElementById('editorOverlay')
   overlay.querySelector('.editor-size').textContent = size >= 1024 ? (size / 1024).toFixed(1) + 'KB' : size + 'B'
-  const ta = overlay.querySelector('.editor-textarea')
+  const ta = document.getElementById('editorTextarea')
   ta.value = content
   ta.disabled = false
+  document.getElementById('editorHighlight').innerHTML = _highlight(content)
   setTimeout(() => ta.focus(), 50)
 }
 
 function onEditorChange() {
+  const ta = document.getElementById('editorTextarea')
+  document.getElementById('editorHighlight').innerHTML = _highlight(ta.value)
   clearTimeout(_editorSaveTimer)
   _editorSaveTimer = setTimeout(() => autoSave(), 1500)
 }
 
 async function autoSave() {
   if (!_currentFilePath) return
-  const ta = document.querySelector('#editorOverlay .editor-textarea')
+  const ta = document.getElementById('editorTextarea')
   if (!ta || ta.disabled) return
   try {
     await api('POST', '/api/bundle/file', { path: _currentFilePath, content: ta.value })
@@ -1739,7 +1805,7 @@ function renderBreadcrumb() {
     html += `<span class="breadcrumb-sep">›</span>`;
   });
   html += `<span class="breadcrumb-item current">${esc(_bundleRootName)}</span>`;
-  info.innerHTML = '📎 ' + html;
+  info.innerHTML = html;
 }
 
 function navigateBreadcrumb(index) {
@@ -1807,9 +1873,15 @@ setInterval(()=>checkApi(),5000);
   <div class="editor-modal">
     <div class="editor-header" style="position:relative;">
       <span class="editor-path" style="font-size:12px;font-family:var(--font-mono);color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
-      <span class="editor-size" style="font-size:10px;color:var(--text-dim);margin-right:8px;"></span>
+      <span class="editor-size" style="font-size:10px;color:var(--text-dim);"></span>
       <span onclick="closeFileEditor()" style="position:absolute;top:4px;right:8px;cursor:pointer;color:var(--text-dim);font-size:18px;line-height:1;padding:2px 6px;border-radius:4px;" onmouseenter="this.style.background='rgba(255,255,255,0.08)'" onmouseleave="this.style.background=''" title="Close (Esc)">&times;</span>
     </div>
+    <div class="editor-wrap">
+      <pre class="editor-highlight" id="editorHighlight"><code></code></pre>
+      <textarea class="editor-textarea" id="editorTextarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()" onscroll="syncEditorScroll()"></textarea>
+    </div>
+  </div>
+</div>
     <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()"></textarea>
   </div>
 </div>
