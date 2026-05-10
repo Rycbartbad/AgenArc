@@ -1165,7 +1165,7 @@ function updIns(){
       h+=`<div class="space-y-3">`;
       for(const[k,v]of Object.entries(n.config)){
         const dv=typeof v==='string'?v:JSON.stringify(v);
-        const isMultiline=typeof v==='string'&&(v.includes('\n')||v.length>120);
+        const isMultiline=typeof v==='string'&&(v.includes('\n')||v.length>120||k==='script'||k==='system_prompt');
         if(isMultiline){
           h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><textarea class="input-box" rows="4" style="font-family:var(--font-mono);font-size:10px;width:100%;background:var(--bg-canvas);color:var(--text-focus);border:1px solid var(--border);border-radius:4px;padding:6px 8px;resize:vertical;outline:none;" onchange="updCfg('${n.id}','${k}',this.value)">${esc(dv)}</textarea></div>`;
         }else{
@@ -1173,6 +1173,7 @@ function updIns(){
         }
       }
       h+=`</div>`;
+      h+=`<button class="btn btn-block btn-sm mt-2" onclick="const k=prompt('Config key:');if(k){pushHist();const n=$('${n.id}');if(n){n.config[k]=prompt('Value:','');saveGraph();updIns();}}"><i class="fas fa-plus mr-1"></i> Add Config</button>`;
     }
     h+=`</section>`;
   }
@@ -1364,7 +1365,7 @@ window.addNode=function(type){
   const d=TYPES[type];if(!d)return;
   pushHist();
   const id=gId(type),r=CA.getBoundingClientRect(),cx=(r.width/2-panX)/zoom,cy=(r.height/2-panY)/zoom;
-  const conf=type==='LLM_Task'?{provider:'deepseek',model:'deepseek-chat',temperature:'0.7',system_prompt:'You are helpful.'}:type==='Prompt_Builder'?{history:'chat_history'}:type==='Script_Node'?{script_trust_level:'developer'}:type==='Asset_Writer'?{target_path:'agrc://manifest.json'}:type==='Memory_IO'?{mode:'read'}:type==='Plugin'?{plugin:'my_plugin',function:'process'}:type==='Router'?{conditions:[{ref:'input',operator:'contains',value:'keyword',output:'out_0'}],default:'fallback'}:type==='SubGraph'?{bundle:'child.agrc'}:{};
+  const conf=type==='LLM_Task'?{provider:'deepseek',model:'deepseek-chat',temperature:'0.7',system_prompt:'You are helpful.'}:type==='Prompt_Builder'?{history:'chat_history'}:type==='Script_Node'?{script:'',script_trust_level:'developer'}:type==='Asset_Writer'?{target_path:'agrc://manifest.json'}:type==='Memory_IO'?{mode:'read'}:type==='Plugin'?{plugin:'my_plugin',function:'process'}:type==='Router'?{conditions:[{ref:'input',operator:'contains',value:'keyword',output:'out_0'}],default:'fallback'}:type==='SubGraph'?{bundle:'child.agrc'}:{};
   nodes.push({id,type,label:type,x:cx+(Math.random()-.5)*160-125,y:cy+(Math.random()-.5)*100-30,config:conf});
   sel(id);log(`Added: ${type}`,'var(--blue)');render();saveGraph();toast(`Added ${type}`,'success');
 };
