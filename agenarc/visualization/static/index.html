@@ -798,12 +798,12 @@ async function startServe(){
           if(st&&st.nodeStatuses){
             NC.querySelectorAll('.node.executing').forEach(el=>{
               el.classList.remove('executing');
-              el.style.borderColor='';
+              el.style.borderColor='';el.style.boxShadow='';
             });
             Object.entries(st.nodeStatuses).forEach(([nid,status])=>{
               if(status==='running'){
                 const el=NC.querySelector(`[data-nid="${nid}"]`)?.closest('.node');
-                if(el){el.classList.add('executing');el.style.borderColor='var(--orange)';}
+            if(el){el.classList.add('executing');const xn=nodes.find(x=>x.id===nid);if(xn){const xd=T(xn.type);el.style.boxShadow=`0 0 0 2px ${xd.cl},0 0 16px ${xd.cl}`;}}
               }
             });
           }
@@ -867,13 +867,13 @@ window.termSend=async function(text){
         // Remove all highlights (class + inline style)
         NC.querySelectorAll('.node.executing').forEach(el=>{
           el.classList.remove('executing');
-          el.style.borderColor='';
+          el.style.borderColor='';el.style.boxShadow='';
         });
         // Highlight the currently running node
         Object.entries(st.nodeStatuses).forEach(([nid,status])=>{
           if(status==='running'){
             const el=NC.querySelector(`[data-nid="${nid}"]`)?.closest('.node');
-            if(el){el.classList.add('executing');el.style.borderColor='var(--orange)';}
+            if(el){el.classList.add('executing');const xn=nodes.find(x=>x.id===nid);if(xn){const xd=T(xn.type);el.style.boxShadow=`0 0 0 2px ${xd.cl},0 0 16px ${xd.cl}`;}}
           }
         });
       }
@@ -918,7 +918,7 @@ window.termSend=async function(text){
     }
 
     EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
-    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';});
+    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';el.style.boxShadow='';});
     clearInterval(statusTimer);
 
     // Restore status
@@ -932,7 +932,7 @@ window.termSend=async function(text){
     }
   }catch(e){
     EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
-    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';});
+    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';el.style.boxShadow='';});
     termDot.style.background='var(--green)';
     termTxt.textContent='connected';
     log('✗ Request failed: '+e.message,'var(--red)');
