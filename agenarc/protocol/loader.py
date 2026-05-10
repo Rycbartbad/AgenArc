@@ -432,7 +432,11 @@ class ProtocolLoader:
         try:
             child_loader = ProtocolLoader(validate=self.validate)
             child_loader._resolving_stack = self._resolving_stack
-            child_graph = child_loader.load(child_path)
+            try:
+                child_graph = child_loader.load(child_path)
+            except LoaderError:
+                # Child bundle failed to load — skip port resolution
+                return None
         finally:
             self._resolving_stack.pop()
 
