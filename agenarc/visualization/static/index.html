@@ -334,8 +334,6 @@ async function checkApi(){
       // Update VFS path from backend
       if(info.vfs) document.getElementById('vfsPath').textContent=info.vfs;
       else if(info.bundlePath) document.getElementById('vfsPath').textContent='agrc://  '+info.bundlePath;
-      // Save root bundle path on first connect
-      if(!_rootBundlePath && info.bundlePath) _rootBundlePath = info.bundlePath;
       return true;
     }
   }catch(e){}
@@ -583,16 +581,20 @@ function saveGraph(){
   if(_saveTimer)clearTimeout(_saveTimer);
   _saveTimer=setTimeout(async()=>{
     try{
-      await api('POST','/api/graph',{
-        nodes:nodes.map(n=>({
-          id:n.id,type:n.type,label:n.label,
-          config:n.config||{},
-          x:n.x,y:n.y,
-        })),
-        edges:edges.map(e=>({
-          s:e.s,sp:e.sp||'',t:e.t,tp:e.tp||'',flowType:e.flowType||'data'
-        })),
-      });
+      if (_savePath) {
+        // Save to sub-graph's flow.json
+        const flow = {
+          version: '1.0.0',
+          nodes: nodes.map(n=>({id:n.id,type:n.type,label:n.label,config:n.config||{}})),
+          edges: edges.map(e=>({source:e.s,sourcePort:e.sp||'',target:e.t,targetPort:e.tp||''}))
+        };
+        await api('POST','/api/bundle/file',{path:_savePath+'/flow.json',content:JSON.stringify(flow,null,2)});
+      } else {
+        await api('POST','/api/graph',{
+          nodes:nodes.map(n=>({id:n.id,type:n.type,label:n.label,config:n.config||{},x:n.x,y:n.y})),
+          edges:edges.map(e=>({s:e.s,sp:e.sp||'',t:e.t,tp:e.tp||'',flowType:e.flowType||'data'}))
+        });
+      }
     }catch(e){/* save silently */}
     _saveTimer=null;
   },300);
@@ -1592,7 +1594,7 @@ document.addEventListener('keydown', e => {
 
 // ─── SubGraph Navigation ───
 let _breadcrumbStack = [];
-let _rootBundlePath = null;  // track root bundle for backend navigation
+let _savePath = null;  // sub-graph save path, null = save to root
 
 async function loadSubGraph(path) {
   // Load flow.json from the given directory (or root if path is empty)
@@ -1731,11 +1733,13 @@ async function loadSubGraph(path) {
     // Update breadcrumb
     const dirName = path ? path.split('/').pop() : _bundleRootName;
     _bundleRootName = dirName;
+    _savePath = path;  // save edits to sub-graph's flow.json
     renderBreadcrumb();
 
     render();
     renderBreadcrumb();
     pushHist();
+    saveGraph();
     toast('Loaded sub-graph: ' + esc(dirName), 'success');
     log('[SUBGRAPH] Loaded: ' + flowPath, 'var(--cyan)');
   } catch (e) {
@@ -1779,10 +1783,11 @@ function navigateBreadcrumb(index) {
   
   // Truncate stack
   _breadcrumbStack.splice(index);
-
+  if (index === 0) { _savePath = null; }  // back to root — save normally
   selId = null;
   render();
   pushHist();
+  if (index === 0) saveGraph();  // back to root — save parent state
   renderBreadcrumb();
   toast('Navigated back to: ' + target.name, 'info');
 }
