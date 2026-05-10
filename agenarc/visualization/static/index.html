@@ -78,6 +78,36 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 @keyframes si{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
 .no-sel{display:flex;flex-direction:column;align-items:center;justify-content:center;height:160px;color:var(--text-dim);text-align:center;font-size:12px;gap:10px}
 .no-sel svg{opacity:.3}
+
+/* ─── File Tree ─── */
+.file-tree{font-size:11px;font-family:var(--font-mono);padding:4px 0;user-select:none}
+.file-tree-item{display:flex;align-items:center;padding:2px 8px;cursor:pointer;white-space:nowrap;gap:3px;transition:background .1s;min-height:20px}
+.file-tree-item:hover{background:rgba(255,255,255,0.04)}
+.file-tree-item.active{background:rgba(75,137,227,0.15)}
+.file-tree-toggle{width:12px;text-align:center;flex-shrink:0;font-size:7px;color:var(--text-dim);transition:transform .15s;display:inline-flex;align-items:center;justify-content:center}
+.file-tree-toggle.expanded{transform:rotate(90deg)}
+.file-tree-icon{width:14px;text-align:center;flex-shrink:0;font-size:10px;display:inline-flex;align-items:center;justify-content:center}
+.file-tree-name{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.file-tree-name.file{color:var(--text-focus)}
+.file-tree-name.dir{color:var(--cyan)}
+.file-tree-children{display:none}
+.file-tree-children.open{display:block}
+
+/* ─── File Editor ─── */
+.file-editor{display:flex;flex-direction:column;height:100%;padding:0}
+.file-editor .editor-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.file-editor .editor-path{font-size:11px;font-family:var(--font-mono);color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.file-editor .editor-textarea{flex:1;width:100%;min-height:150px;background:var(--bg-canvas);border:none;border-top:1px solid var(--border);color:var(--text-focus);font-family:var(--font-mono);font-size:11px;padding:10px 12px;resize:none;outline:none;tab-size:2;line-height:1.5}
+.file-editor .editor-textarea:focus{border-top-color:var(--blue)}
+.file-editor .editor-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);justify-content:flex-end;flex-shrink:0}
+.file-editor .editor-size{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:4px}
+
+/* ─── Breadcrumb ─── */
+.breadcrumb-bar{position:absolute;top:0;left:0;right:0;z-index:20;background:var(--bg-panel);border-bottom:1px solid var(--border);padding:4px 14px;font-size:11px;display:none;align-items:center;gap:3px;height:26px}
+.breadcrumb-item{color:var(--text-dim);cursor:pointer;transition:color .1s;white-space:nowrap;font-family:var(--font-mono)}
+.breadcrumb-item:hover{color:var(--text-focus)}
+.breadcrumb-item.current{color:var(--text-focus);font-weight:500}
+.breadcrumb-sep{color:var(--text-dim);font-size:9px;margin:0 2px}
 </style>
 </head>
 <body id="app">
@@ -87,48 +117,54 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 <div style="display:flex;flex:1;min-height:0">
   <!-- Left -->
   <aside class="sidebar sidebar-left">
-    <div class="p-5 border-b" style="border-color:var(--border);">
-      <h1 class="text-xl font-black tracking-tight" style="color:var(--blue);">AgenArc <span class="text-xs font-normal opacity-50 ml-1">STUDIO</span></h1>
-      <p class="text-[10px] mt-1" style="color:var(--text-dim);">v0.5 Directed-graph Engine</p>
+    <div class="p-3 border-b flex items-center gap-1" style="border-color:var(--border);flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <h1 class="text-sm font-black tracking-tight" style="color:var(--blue);">AgenArc <span class="text-[9px] font-normal opacity-50">STUDIO</span></h1>
+      </div>
+      <span id="tabNodesBtn" title="Node palette" class="w-6 h-6 flex items-center justify-center rounded cursor-pointer select-none transition-colors text-[11px]" style="color:var(--text-focus);background:rgba(75,137,227,0.1);" onclick="switchLeftTab('nodes')"><i class="fas fa-cube"></i></span>
+      <span id="tabFilesBtn" title="Bundle files" class="w-6 h-6 flex items-center justify-center rounded cursor-pointer select-none transition-colors text-[11px]" style="color:var(--text-dim);" onclick="switchLeftTab('files')"><i class="fas fa-folder-tree"></i></span>
     </div>
-    <div class="flex-grow overflow-y-auto p-5 space-y-6">
+    <div id="nodesPanel" class="flex-grow overflow-y-auto p-4 space-y-4">
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-circle-arrow-right text-[9px] mr-1"></i> Input / Sources</h3>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Trigger')"><i class="fas fa-bolt w-5" style="color:var(--orange);"></i> Trigger</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-circle-arrow-right text-[8px] mr-1"></i> Input / Sources</h3>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Trigger')"><i class="fas fa-bolt w-4" style="color:var(--orange);font-size:10px;"></i> Trigger</div>
       </div>
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-microchip text-[9px] mr-1"></i> Compute / AI</h3>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('LLM_Task')"><i class="fas fa-brain w-5" style="color:var(--purple);"></i> LLM_Task</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Script_Node')"><i class="fas fa-code w-5" style="color:var(--blue);"></i> Script_Node</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Prompt_Builder')"><i class="fas fa-message w-5" style="color:var(--cyan);"></i> Prompt_Builder</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-microchip text-[8px] mr-1"></i> Compute / AI</h3>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('LLM_Task')"><i class="fas fa-brain w-4" style="color:var(--purple);font-size:10px;"></i> LLM_Task</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Script_Node')"><i class="fas fa-code w-4" style="color:var(--blue);font-size:10px;"></i> Script_Node</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Prompt_Builder')"><i class="fas fa-message w-4" style="color:var(--cyan);font-size:10px;"></i> Prompt_Builder</div>
       </div>
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-code-branch text-[9px] mr-1"></i> Control Flow</h3>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Router')"><i class="fas fa-random w-5" style="color:var(--cyan);"></i> Router</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Join')"><i class="fas fa-circle-nodes w-5" style="color:var(--green);"></i> Join</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-code-branch text-[8px] mr-1"></i> Control Flow</h3>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Router')"><i class="fas fa-random w-4" style="color:var(--cyan);font-size:10px;"></i> Router</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Join')"><i class="fas fa-circle-nodes w-4" style="color:var(--green);font-size:10px;"></i> Join</div>
       </div>
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-database text-[9px] mr-1"></i> Data</h3>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Memory_IO')"><i class="fas fa-hard-drive w-5" style="color:var(--green);"></i> Memory_I/O</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Set')"><i class="fas fa-arrow-right-to-bracket w-5" style="color:var(--blue);"></i> Context_Set</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Get')"><i class="fas fa-arrow-right-from-bracket w-5" style="color:var(--blue);"></i> Context_Get</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-database text-[8px] mr-1"></i> Data</h3>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Memory_IO')"><i class="fas fa-hard-drive w-4" style="color:var(--green);font-size:10px;"></i> Memory_I/O</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Set')"><i class="fas fa-arrow-right-to-bracket w-4" style="color:var(--blue);font-size:10px;"></i> Context_Set</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Get')"><i class="fas fa-arrow-right-from-bracket w-4" style="color:var(--blue);font-size:10px;"></i> Context_Get</div>
       </div>
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest mb-3" style="color:var(--text-dim);"><i class="fa-solid fa-plug text-[9px] mr-1"></i> Output / Evolution</h3>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Log')"><i class="fas fa-terminal w-5" style="color:var(--text-dim);"></i> Log</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-floppy-disk w-5" style="color:var(--green);"></i> Asset_Writer</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Plugin')"><i class="fas fa-puzzle-piece w-5" style="color:var(--orange);"></i> Plugin</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Reader')"><i class="fas fa-file-import w-5" style="color:var(--blue);"></i> Asset_Reader</div>
-        <div class="p-3 border rounded mb-2 flex items-center text-xs cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Runtime_Reload')"><i class="fas fa-rotate w-5" style="color:var(--green);"></i> Runtime_Reload</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-plug text-[8px] mr-1"></i> Output / Evolution</h3>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Log')"><i class="fas fa-terminal w-4" style="color:var(--text-dim);font-size:10px;"></i> Log</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-floppy-disk w-4" style="color:var(--green);font-size:10px;"></i> Asset_Writer</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Plugin')"><i class="fas fa-puzzle-piece w-4" style="color:var(--orange);font-size:10px;"></i> Plugin</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Reader')"><i class="fas fa-file-import w-4" style="color:var(--blue);font-size:10px;"></i> Asset_Reader</div>
+        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Runtime_Reload')"><i class="fas fa-rotate w-4" style="color:var(--green);font-size:10px;"></i> Runtime_Reload</div>
       </div>
     </div>
-    <div class="p-5 border-t" style="border-color:var(--border);background:rgba(255,255,255,0.015);">
-      <div class="flex justify-between items-center mb-2">
-        <span class="text-[10px] font-bold tracking-wider" style="color:var(--text-dim);">VFS MOUNT</span>
-        <span id="vfsBadge" class="text-[9px] px-1.5 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
+    <div id="filesPanel" class="flex-grow overflow-y-auto" style="display:none;">
+      <div class="file-tree" id="fileTreeRoot"></div>
+    </div>
+    <div class="p-3 border-t" style="border-color:var(--border);background:rgba(255,255,255,0.015);flex-shrink:0;">
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-[9px] font-bold tracking-wider" style="color:var(--text-dim);">VFS MOUNT</span>
+        <span id="vfsBadge" class="text-[8px] px-1 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
       </div>
-      <div class="text-[11px] font-mono truncate" style="color:var(--text);"><span id="vfsPath">—</span></div>
-      <div class="text-[10px] mt-2 flex gap-3" style="color:var(--text-dim);"><span>Nodes: <b id="statN" style="color:var(--text-focus);">0</b></span><span>Edges: <b id="statE" style="color:var(--text-focus);">0</b></span></div>
+      <div class="text-[10px] font-mono truncate" style="color:var(--text);"><span id="vfsPath">—</span></div>
+      <div class="text-[9px] mt-1 flex gap-3" style="color:var(--text-dim);"><span>Nodes: <b id="statN" style="color:var(--text-focus);">0</b></span><span>Edges: <b id="statE" style="color:var(--text-focus);">0</b></span></div>
     </div>
   </aside>
 
@@ -143,6 +179,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
       <g id="eg" style="transform-origin:0 0"></g>
     </svg>
     <div id="nc"></div>
+    <div class="breadcrumb-bar" id="breadcrumbBar"></div>
     <div style="position:absolute;top:12px;right:20px;z-index:15;display:flex;gap:14px;font-size:9px;color:var(--text-dim);background:var(--bg-panel);padding:4px 10px;border-radius:6px;border:1px solid var(--border);">
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--orange)" stroke-width="2.5"/></svg> Control</span>
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--blue)" stroke-width="2" stroke-dasharray="5 3"/></svg> Data</span>

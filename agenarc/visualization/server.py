@@ -338,6 +338,33 @@ class VisualizationServer:
             if exec_id:
                 return self._json_response(self._build_trace_data(exec_id))
 
+        # GET /api/bundle/tree
+        elif method == "GET" and path == "/api/bundle/tree":
+            return self._json_response(self._build_bundle_tree())
+
+        # GET /api/bundle/file?path=...
+        elif method == "GET" and path.startswith("/api/bundle/file"):
+            parsed = urlparse(path)
+            qs = parse_qs(parsed.query)
+            file_path = qs.get("path", [None])[0]
+            if not file_path:
+                return self._json_response({"error": "Missing path parameter"}, status=400)
+            result = self._read_bundle_file(file_path)
+            if result is None:
+                return self._json_response({"error": "File not found"}, status=404)
+            return self._json_response(result)
+
+        # POST /api/bundle/file
+        elif method == "POST" and path == "/api/bundle/file":
+            data = json.loads(body) if body else {}
+            file_path = data.get("path", "")
+            content = data.get("content", "")
+            if not file_path:
+                return self._json_response({"error": "Missing path"}, status=400)
+            if self._save_bundle_file(file_path, content):
+                return self._json_response({"success": True})
+            return self._json_response({"error": "Failed to save file"}, status=500)
+
         # Serve static frontend
         elif method == "GET" and (path == "/" or path == "/index.html"):
             return await self._serve_static("index.html", "text/html")
@@ -864,6 +891,88 @@ class VisualizationServer:
                             result["nodeOutputs"] = node_outputs
 
         return result
+
+    # ─── Bundle file tree API ───
+
+    def _build_bundle_tree(self) -> dict[str, Any]:
+        """Build recursive file tree of bundle directory."""
+        if not self.bundle_path:
+            return {"root": None, "tree": []}
+        root = Path(self.bundle_path)
+        if not root.is_dir():
+            return {"root": str(self.bundle_path) if self.bundle_path else None, "tree": []}
+
+        SKIP_DIRS: set[str] = {
+            ".venv",
+            "__pycache__",
+            ".git",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            "node_modules",
+            ".idea",
+        }
+
+        def _walk(dir_path: Path, rel_prefix: str = "") -> list[dict[str, Any]]:
+            entries: list[dict[str, Any]] = []
+            try:
+                items = sorted(dir_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+                for item in items:
+                    if item.name.startswith(".") or item.name in SKIP_DIRS:
+                        continue
+                    rel_path = f"{rel_prefix}/{item.name}" if rel_prefix else item.name
+                    if item.is_dir():
+                        children = _walk(item, rel_path)
+                        entries.append({"name": item.name, "type": "dir", "path": rel_path, "children": children})
+                    elif item.is_file():
+                        entries.append({"name": item.name, "type": "file", "path": rel_path})
+            except (PermissionError, OSError):
+                pass
+            return entries
+
+        return {"root": root.name, "tree": _walk(root)}
+
+    def _validate_bundle_path(self, rel_path: str) -> Path | None:
+        """Validate and resolve a relative path within the bundle directory."""
+        if not self.bundle_path or not rel_path:
+            return None
+        bundle = Path(self.bundle_path).resolve()
+        target = (bundle / rel_path).resolve()
+        try:
+            target.relative_to(bundle)
+        except ValueError:
+            logger.warning("Path traversal attempt: %s", rel_path)
+            return None
+        return target
+
+    def _read_bundle_file(self, file_path: str) -> dict[str, Any] | None:
+        """Read a file from the bundle directory."""
+        target = self._validate_bundle_path(file_path)
+        if not target or not target.is_file():
+            return None
+        try:
+            content_bytes = target.read_bytes()
+            try:
+                content = content_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                content = base64.b64encode(content_bytes).decode("utf-8")
+            return {"path": file_path, "content": content, "size": len(content_bytes)}
+        except (PermissionError, OSError) as e:
+            logger.warning("Failed to read bundle file %s: %s", file_path, e)
+            return None
+
+    def _save_bundle_file(self, file_path: str, content: str) -> bool:
+        """Save content to a file in the bundle directory."""
+        target = self._validate_bundle_path(file_path)
+        if not target:
+            return False
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            return True
+        except (PermissionError, OSError) as e:
+            logger.warning("Failed to save bundle file %s: %s", file_path, e)
+            return False
 
     # ─── Trace API helpers ───
 
