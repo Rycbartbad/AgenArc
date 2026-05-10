@@ -1817,13 +1817,6 @@ window.openSubGraph=async function(bundlePath){
     toast('Failed to open SubGraph: '+e.message,'warn');
   }
 };
-      await loadSubGraph(bundlePath);
-    }
-  } catch(e) {
-    _breadcrumbStack.pop();
-    toast('Failed to open SubGraph: '+e.message,'warn');
-  }
-};
 window.addEventListener('resize',()=>xf());
 render();
 log('AgenArc Studio v0.5 loading...','var(--text-dim)');
