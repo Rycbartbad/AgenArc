@@ -334,6 +334,7 @@ async function checkApi(){
       // Update VFS path from backend
       if(info.vfs) document.getElementById('vfsPath').textContent=info.vfs;
       else if(info.bundlePath) document.getElementById('vfsPath').textContent='agrc://  '+info.bundlePath;
+      if (!_bundleRootName && info.bundlePath) _bundleRootName = info.bundlePath.replace(/\\/g,'/').split('/').pop();
       return true;
     }
   }catch(e){}
