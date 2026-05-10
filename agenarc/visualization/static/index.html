@@ -1801,7 +1801,7 @@ window.openSubGraph=async function(bundlePath){
   // Resolve the correct path silently
   let actualPath = bundlePath;
   try {
-    const r = await fetch(API_BASE + 'api/bundle/file?path=' + encodeURIComponent(bundlePath + '/flow.json'));
+    const r = await fetch(API_BASE + '/api/bundle/file?path=' + encodeURIComponent(bundlePath + '/flow.json'));
     if (!r.ok) throw new Error();
   } catch(e) {
     if (!bundlePath.startsWith('sub/')) {
