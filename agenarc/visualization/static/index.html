@@ -1734,8 +1734,8 @@ async function loadSubGraph(path) {
     renderBreadcrumb();
 
     render();
+    renderBreadcrumb();
     pushHist();
-    saveGraph();
     toast('Loaded sub-graph: ' + esc(dirName), 'success');
     log('[SUBGRAPH] Loaded: ' + flowPath, 'var(--cyan)');
   } catch (e) {
@@ -1783,7 +1783,6 @@ function navigateBreadcrumb(index) {
   selId = null;
   render();
   pushHist();
-  saveGraph();
   renderBreadcrumb();
   toast('Navigated back to: ' + target.name, 'info');
 }
