@@ -1833,10 +1833,10 @@ setInterval(()=>checkApi(),5000);
 <!-- Editor Modal -->
 <div id="editorOverlay" class="editor-modal-overlay" style="display:none;" onclick="if(event.target===this)closeFileEditor()">
   <div class="editor-modal">
-    <div class="editor-header">
+    <div class="editor-header" style="position:relative;">
       <span class="editor-path" style="font-size:12px;font-family:var(--font-mono);color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
-      <span class="editor-size" style="font-size:10px;color:var(--text-dim);"></span>
-      <span onclick="closeFileEditor()" style="cursor:pointer;color:var(--text-dim);font-size:16px;padding:2px 6px;border-radius:4px;line-height:1;" onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background=''">&times;</span>
+      <span class="editor-size" style="font-size:10px;color:var(--text-dim);margin-right:8px;"></span>
+      <span onclick="closeFileEditor()" style="position:absolute;top:4px;right:8px;cursor:pointer;color:var(--text-dim);font-size:18px;line-height:1;padding:2px 6px;border-radius:4px;" onmouseenter="this.style.background='rgba(255,255,255,0.08)'" onmouseleave="this.style.background=''" title="Close (Esc)">&times;</span>
     </div>
     <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()"></textarea>
   </div>
