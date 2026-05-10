@@ -4,7 +4,8 @@
     {
       "id": "trigger_1",
       "type": "Trigger",
-      "label": "触发入口"
+      "label": "触发入口",
+      "config": {}
     },
     {
       "id": "hotkey_listener",
@@ -46,17 +47,28 @@
     {
       "id": "log_1",
       "type": "Log",
-      "label": "输出日志"
+      "label": "输出日志",
+      "config": {}
     }
   ],
   "edges": [
     {
       "source": "hotkey_listener",
-      "target": "trigger_1"
+      "sourcePort": "",
+      "target": "trigger_1",
+      "targetPort": ""
     },
     {
       "source": "trigger_1",
-      "target": "preprocessor"
+      "sourcePort": "",
+      "target": "preprocessor",
+      "targetPort": ""
+    },
+    {
+      "source": "preprocessor",
+      "sourcePort": "",
+      "target": "llm_task",
+      "targetPort": ""
     },
     {
       "source": "preprocessor",
@@ -66,8 +78,15 @@
     },
     {
       "source": "llm_task",
-      "sourcePort": "response",
-      "target": "saver"
+      "sourcePort": "",
+      "target": "saver",
+      "targetPort": ""
+    },
+    {
+      "source": "saver",
+      "sourcePort": "",
+      "target": "log_1",
+      "targetPort": ""
     },
     {
       "source": "saver",

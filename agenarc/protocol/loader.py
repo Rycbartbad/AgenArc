@@ -399,6 +399,36 @@ class ProtocolLoader:
             not_condition=not_condition,
         )
 
+    def _get_node_output_ports(self, node: Node) -> list[Port]:
+        """Get output ports for a node, resolving from operator if possible."""
+        # If node has ports set by loader, use them
+        if node.outputs:
+            return node.outputs
+        # Otherwise, try to get ports from built-in operator
+        try:
+            from agenarc.operators.builtin import BUILTIN_OPERATORS
+            op_class = BUILTIN_OPERATORS.get(node.type.value)
+            if op_class is not None:
+                op = op_class()
+                return op.get_output_ports()
+        except (ImportError, Exception):
+            pass
+        return node.outputs
+
+    def _get_node_input_ports(self, node: Node) -> list[Port]:
+        """Get input ports for a node, resolving from operator if possible."""
+        if node.inputs:
+            return node.inputs
+        try:
+            from agenarc.operators.builtin import BUILTIN_OPERATORS
+            op_class = BUILTIN_OPERATORS.get(node.type.value)
+            if op_class is not None:
+                op = op_class()
+                return op.get_input_ports()
+        except (ImportError, Exception):
+            pass
+        return node.inputs
+
     def _resolve_subgraph_ports(self, bundle_ref: str) -> dict | None:
         """
         Resolve SubGraph input/output ports from child bundle.
@@ -444,7 +474,7 @@ class ProtocolLoader:
         input_ports: list[Port] = []
         for node in child_graph.nodes:
             if node.type == NodeType.TRIGGER:
-                for port in node.outputs:
+                for port in self._get_node_output_ports(node):
                     input_ports.append(
                         Port(
                             name=port.name,
@@ -453,24 +483,23 @@ class ProtocolLoader:
                         )
                     )
 
-        # Find terminal nodes (no outgoing data edges) → SubGraph output ports
+        # Find terminal nodes (no outgoing edges at all) → SubGraph output ports
         terminal_nodes: list[Node] = []
         for node in child_graph.nodes:
             outgoing = child_graph.get_outgoing_edges(node.id)
-            data_outgoing = [e for e in outgoing if e.sourcePort]
-            if not data_outgoing:
+            if not outgoing:
                 terminal_nodes.append(node)
 
         # Count port name occurrences for collision detection
         port_name_counts: dict[str, int] = {}
         for node in terminal_nodes:
-            for port in node.outputs:
+            for port in self._get_node_output_ports(node):
                 port_name_counts[port.name] = port_name_counts.get(port.name, 0) + 1
 
         # Build output ports with collision handling
         output_ports: list[Port] = []
         for node in terminal_nodes:
-            for port in node.outputs:
+            for port in self._get_node_output_ports(node):
                 if port_name_counts.get(port.name, 0) > 1:
                     output_ports.append(
                         Port(

@@ -108,14 +108,10 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 .editor-modal .editor-textarea{flex:1;width:100%;min-height:400px;max-height:calc(90vh - 80px);background:var(--bg-canvas);border:none;color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:14px 16px;resize:none;outline:none;tab-size:2;line-height:1.5}
 
 /* ─── Breadcrumb ─── */
-.breadcrumb-bar{position:absolute;top:0;left:0;right:0;z-index:20;background:var(--bg-panel);border-bottom:1px solid var(--border);padding:4px 14px;font-size:11px;display:none;align-items:center;gap:3px;height:26px;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
 .breadcrumb-item{color:var(--text-dim);cursor:pointer;transition:color .1s;white-space:nowrap;font-family:var(--font-mono);padding:2px 4px;border-radius:3px}
 .breadcrumb-item:hover{color:var(--text-focus);background:rgba(255,255,255,0.05)}
 .breadcrumb-item.current{color:var(--text-focus);font-weight:500;cursor:default}
-.breadcrumb-item.current:hover{background:transparent}
 .breadcrumb-sep{color:var(--text-dim);font-size:9px;margin:0 2px;cursor:default}
-.breadcrumb-back{padding:2px 6px;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:10px;color:var(--orange);transition:all .15s}
-.breadcrumb-back:hover{background:rgba(199,139,30,0.1);border-color:var(--orange)}
 </style>
 </head>
 <body id="app">
@@ -173,6 +169,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
         <span id="vfsBadge" class="text-[8px] px-1 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
       </div>
       <div class="text-[10px] font-mono truncate" style="color:var(--text);"><span id="vfsPath">—</span></div>
+      <div id="breadcrumbInfo" class="text-[9px] mt-1" style="color:var(--orange);display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
       <div class="text-[9px] mt-1 flex gap-3" style="color:var(--text-dim);"><span>Nodes: <b id="statN" style="color:var(--text-focus);">0</b></span><span>Edges: <b id="statE" style="color:var(--text-focus);">0</b></span></div>
     </div>
   </aside>
@@ -188,7 +185,6 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
       <g id="eg" style="transform-origin:0 0"></g>
     </svg>
     <div id="nc"></div>
-    <div class="breadcrumb-bar" id="breadcrumbBar"></div>
     <div style="position:absolute;top:12px;right:20px;z-index:15;display:flex;gap:14px;font-size:9px;color:var(--text-dim);background:var(--bg-panel);padding:4px 10px;border-radius:6px;border:1px solid var(--border);">
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--orange)" stroke-width="2.5"/></svg> Control</span>
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--blue)" stroke-width="2" stroke-dasharray="5 3"/></svg> Data</span>
@@ -1730,22 +1726,20 @@ async function loadSubGraph(path) {
 }
 
 function renderBreadcrumb() {
-  const bar = document.getElementById('breadcrumbBar');
-  if (!bar) return;
-  if (_breadcrumbStack.length === 0 && !_bundleRootName) {
-    bar.style.display = 'none';
+  const info = document.getElementById('breadcrumbInfo');
+  if (!info) return;
+  if (_breadcrumbStack.length === 0) {
+    info.style.display = 'none';
     return;
   }
-  bar.style.display = 'flex';
+  info.style.display = '';
   let html = '';
-  // Stack items as clickable parent links
   _breadcrumbStack.forEach((item, i) => {
     html += `<span class="breadcrumb-item" onclick="navigateBreadcrumb(${i})">${esc(item.name)}</span>`;
     html += `<span class="breadcrumb-sep">›</span>`;
   });
-  // Current (not clickable)
   html += `<span class="breadcrumb-item current">${esc(_bundleRootName)}</span>`;
-  bar.innerHTML = html;
+  info.innerHTML = '📎 ' + html;
 }
 
 function navigateBreadcrumb(index) {
