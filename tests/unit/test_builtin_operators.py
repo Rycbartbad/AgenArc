@@ -343,10 +343,9 @@ class TestScript_Node_Operator:
         """Test operator input ports."""
         op = Script_Node_Operator()
         ports = op.get_input_ports()
-        assert len(ports) == 2
+        assert len(ports) == 1
         port_names = {p.name for p in ports}
-        assert "script" in port_names
-        assert "timeout" in port_names
+        assert "input" in port_names
 
     @pytest.mark.asyncio
     async def test_execute_empty_script(self):

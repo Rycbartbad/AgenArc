@@ -278,10 +278,10 @@ class Script_Node_Operator(IOperator):
         ]
 
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
-        # Script and timeout come from node config
+        # Script and timeout come from node config, with fallback to inputs
         node_config = context.get("_node_config", {})
-        script = node_config.get("script", "")
-        timeout = node_config.get("timeout", self._timeout)
+        script = node_config.get("script", "") or inputs.get("script", "")
+        timeout = node_config.get("timeout", inputs.get("timeout", self._timeout))
 
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}
