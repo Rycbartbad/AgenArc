@@ -1792,8 +1792,6 @@ window.openSubGraph=async function(bundlePath){
 
   try {
     if(apiOnline){
-      // Use backend API to load the sub-graph
-      // First, stop any running execution
       try { await api('POST', '/api/execute/stop'); } catch(e) {}
       const result = await api('POST', '/api/graph/load', {path: bundlePath});
       if(result.error){
@@ -1801,11 +1799,24 @@ window.openSubGraph=async function(bundlePath){
         toast('Failed: '+result.error,'warn');
         return;
       }
-      // Backend loaded the new graph — sync frontend state from backend
-      // Reload the page for clean state
-      location.reload();
+      // Update frontend state from backend response
+      if(result.nodes) nodes = JSON.parse(JSON.stringify(result.nodes));
+      if(result.edges) edges = JSON.parse(JSON.stringify(result.edges));
+      panX = 0; panY = 0; zoom = 1;
+      _bundleRootName = bundlePath.split('/').pop() || bundlePath;
+      selId = null;
+      render();
+      renderBreadcrumb();
+      pushHist();
+      toast('Opened: ' + _bundleRootName, 'info');
     } else {
-      // Fallback: client-side loading (standalone mode)
+      await loadSubGraph(bundlePath);
+    }
+  } catch(e) {
+    _breadcrumbStack.pop();
+    toast('Failed to open SubGraph: '+e.message,'warn');
+  }
+};
       await loadSubGraph(bundlePath);
     }
   } catch(e) {

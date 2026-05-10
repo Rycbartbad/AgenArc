@@ -787,8 +787,6 @@ class VisualizationServer:
             logger.warning("Path traversal attempt: %s", sub_path)
             return {"error": "Invalid path"}
 
-        resolved_name = str(sub_dir.relative_to(bundle))
-
         if not sub_dir.is_dir():
             return {"error": f"Sub-graph directory not found: {sub_path}"}
 
