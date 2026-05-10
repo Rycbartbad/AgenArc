@@ -1056,7 +1056,7 @@ function render(){
     const el=document.createElement('div');
     el.className='node'+(n.id===selId?' active':'');
     el.style.left=n.x+'px';el.style.top=n.y+'px';el.style.position='absolute';
-    if(n.type==='SubGraph'){el.style.borderLeftColor='var(--purple)';el.style.borderLeftWidth='3px';}
+    el.style.borderLeftWidth='3px';el.style.borderLeftColor=d.cl;
     const ops=outPorts(n);
     const ips=inpPorts(n);
     const isCtrl=T(n.type).dynamic;
