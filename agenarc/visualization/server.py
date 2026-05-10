@@ -670,8 +670,9 @@ class VisualizationServer:
 
             # Re-resolve SubGraph ports from child bundles (for dynamic port display)
             from pathlib import Path
-            from agenarc.protocol.loader import ProtocolLoader
+
             from agenarc.operators.builtin import BUILTIN_OPERATORS
+            from agenarc.protocol.loader import ProtocolLoader
 
             def _get_node_op_ports(node):
                 """Get ports from built-in operator if node.outputs is empty."""
