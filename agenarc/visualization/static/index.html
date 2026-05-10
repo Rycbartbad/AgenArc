@@ -1016,16 +1016,51 @@ function drawE(){
       const tY=t.y+20;
       const src={x:s.x+250,y:sY};
       const tgt={x:t.x,y:tY};
-      const dx=tgt.x-src.x,cp=Math.max(Math.abs(dx)*0.4,40);
-      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x+cp} ${src.y}, ${tgt.x-cp} ${tgt.y}, ${tgt.x} ${tgt.y}`);
-      let cls='edge control-flow';
-      if(idx===selEdge)cls+=' selected';
-      p.setAttribute('class',cls);
-      p.setAttribute('marker-end','url(#ao)');
-      p.setAttribute('data-idx',idx);
-      p.addEventListener('click',ev=>{ev.stopPropagation();selEdge=idx;selId=null;render();});
-      EG.appendChild(p);
+      const dx=tgt.x-src.x;
+      // Detect if any nodes are between source and target (avoid crossing)
+      let detourY = null;
+      if (dx < -30) {
+        // Backward edge — check for nodes in the way
+        const minX = Math.min(src.x, tgt.x);
+        const maxX = Math.max(src.x, tgt.x);
+        const minY = Math.min(src.y, tgt.y);
+        for (const n of nodes) {
+          if (n.id === e.s || n.id === e.t) continue;
+          const nx = n.x, ny = n.y;
+          // Node bounding box
+          if (nx + 250 > minX && nx < maxX && ny > minY - 100 && ny < sY + 100) {
+            // Node is between — route above all nodes
+            if (detourY === null || n.y < detourY) detourY = n.y;
+          }
+        }
+      }
+      if (detourY !== null) {
+        // Route via a detour above all intervening nodes
+        const wayY = detourY - 60;
+        // Use a 3-segment path: source → up → across → down → target
+        const midX = (src.x + tgt.x) / 2;
+        const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+        p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x} ${wayY}, ${tgt.x} ${wayY}, ${tgt.x} ${tgt.y}`);
+        let cls='edge control-flow';
+        if(idx===selEdge)cls+=' selected';
+        p.setAttribute('class',cls);
+        p.setAttribute('marker-end','url(#ao)');
+        p.setAttribute('data-idx',idx);
+        p.addEventListener('click',ev=>{ev.stopPropagation();selEdge=idx;selId=null;render();});
+        EG.appendChild(p);
+      } else {
+        // Normal bezier
+        const cp=Math.max(Math.abs(dx)*0.4,40);
+        const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+        p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x+cp} ${src.y}, ${tgt.x-cp} ${tgt.y}, ${tgt.x} ${tgt.y}`);
+        let cls='edge control-flow';
+        if(idx===selEdge)cls+=' selected';
+        p.setAttribute('class',cls);
+        p.setAttribute('marker-end','url(#ao)');
+        p.setAttribute('data-idx',idx);
+        p.addEventListener('click',ev=>{ev.stopPropagation();selEdge=idx;selId=null;render();});
+        EG.appendChild(p);
+      }
     }else{
       // Data flow: body port to body port (Y from DOM, X aligns with node box edge)
       const sp=e.sp||(outPorts(s)[0]||'payload');
