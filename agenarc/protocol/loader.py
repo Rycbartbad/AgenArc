@@ -523,10 +523,7 @@ class ProtocolLoader:
         if cwd_path.exists():
             return cwd_path
 
-        raise LoaderError(
-            f"SubGraph bundle not found: {bundle_ref} "
-            f"(checked: {child_path}, {cwd_path})"
-        )
+        raise LoaderError(f"SubGraph bundle not found: {bundle_ref} (checked: {child_path}, {cwd_path})")
 
 
 def load(path: str | Path) -> Graph:
