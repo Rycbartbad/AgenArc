@@ -360,10 +360,10 @@ class VisualizationServer:
             file_path = qs.get("path", [None])[0]
             if not file_path:
                 return self._json_response({"error": "Missing path parameter"}, status=400)
-            result = self._read_bundle_file(file_path)
-            if result is None:
+            file_result = self._read_bundle_file(file_path)
+            if file_result is None:
                 return self._json_response({"error": "File not found"}, status=404)
-            return self._json_response(result)
+            return self._json_response(file_result)
 
         # POST /api/bundle/file
         elif method == "POST" and path == "/api/bundle/file":
