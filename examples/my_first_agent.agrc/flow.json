@@ -8,14 +8,6 @@
       "config": {}
     },
     {
-      "id": "subgraph_6",
-      "type": "SubGraph",
-      "label": "SubGraph",
-      "config": {
-        "bundle": "euchea.agrc"
-      }
-    },
-    {
       "id": "pb_user",
       "type": "Prompt_Builder",
       "label": "用户输入",

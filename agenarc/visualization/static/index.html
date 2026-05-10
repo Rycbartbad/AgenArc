@@ -1202,7 +1202,7 @@ function updIns(){
       h+=`<div class="space-y-3">`;
       for(const[k,v]of Object.entries(n.config)){
         const dv=typeof v==='string'?v:JSON.stringify(v);
-        h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><input class="input-box" value="${dv.replace(/"/g,'&quot;')}" onchange="updCfg('${n.id}','${k}',this.value)" onkeydown="if(event.key==='Enter')updCfg('${n.id}','${k}',this.value)"></div>`;
+        h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><input class="input-box" value="${dv.replace(/"/g,'&quot;')}" onchange="updCfg('${n.id}','${k}',this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();updCfg('${n.id}','${k}',this.value);this.blur();}"></div>`;
       }
       h+=`</div>`;
     }
@@ -1237,7 +1237,7 @@ window.updId=(oldId,newId)=>{
   render();saveGraph();
 };
 window.updLbl=(id,v)=>{const n=$(id);if(n){pushHist();n.label=v;render();saveGraph();}};
-window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){pushHist();n.config[k]=v;saveGraph();}};
+window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){pushHist();n.config[k]=v;saveGraph();setTimeout(()=>{api('GET','/api/graph').then(data=>{if(data&&data.nodes){data.nodes.forEach(m=>{const el=$(m.id);if(el){el.out=m.outputs?m.outputs.map(p=>p.name):void 0;el.inp=m.inputs?m.inputs.map(p=>p.name):void 0;}});updIns();}});},600);}};
 
 // ─── Drag ───
 function onHead(e){

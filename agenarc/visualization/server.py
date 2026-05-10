@@ -668,6 +668,59 @@ class VisualizationServer:
                     metadata=n,  # preserve full node data for executor
                 ))
 
+            # Re-resolve SubGraph ports from child bundles (for dynamic port display)
+            from pathlib import Path
+            from agenarc.protocol.loader import ProtocolLoader
+            from agenarc.operators.builtin import BUILTIN_OPERATORS
+
+            def _get_node_op_ports(node):
+                """Get ports from built-in operator if node.outputs is empty."""
+                if node.outputs:
+                    return node.outputs, node.inputs
+                op_class = BUILTIN_OPERATORS.get(node.type.value)
+                if op_class is not None:
+                    op = op_class()
+                    return op.get_output_ports(), op.get_input_ports()
+                return [], []
+
+            for node in converted_nodes:
+                if node.type.value == "SubGraph":
+                    bundle_ref = node.config.data.get("bundle", "")
+                    if not bundle_ref:
+                        continue
+                    # Resolve bundle path relative to bundle_path
+                    if self.bundle_path:
+                        base = Path(self.bundle_path).resolve()
+                        child = base / bundle_ref
+                        if not child.exists():
+                            child = base / "sub" / bundle_ref
+                        if child.exists():
+                            try:
+                                child_loader = ProtocolLoader()
+                                child_graph = child_loader.load(str(child))
+                                # Find trigger outputs → SubGraph input ports
+                                inp: list = []
+                                for cn in child_graph.nodes:
+                                    if cn.type.value == "Trigger":
+                                        op_outs, _ = _get_node_op_ports(cn)
+                                        for p in op_outs:
+                                            from agenarc.protocol.schema import Port
+                                            inp.append(Port(name=p.name, type=p.type, description=f"From {cn.id}"))
+                                if inp:
+                                    node.inputs = inp
+                                # Find terminal nodes (no outgoing edges) → SubGraph output ports
+                                term = [cn for cn in child_graph.nodes if not child_graph.get_outgoing_edges(cn.id)]
+                                outp: list = []
+                                for cn in term:
+                                    op_outs, _ = _get_node_op_ports(cn)
+                                    for p in op_outs:
+                                        from agenarc.protocol.schema import Port
+                                        outp.append(Port(name=p.name, type=p.type, description=f"From {cn.id}"))
+                                if outp:
+                                    node.outputs = outp
+                            except Exception:
+                                pass
+
             # Convert frontend edges to backend Edge objects
             # Use serializeEdges logic: pair data+control edges by (source, target)
             from collections import defaultdict
