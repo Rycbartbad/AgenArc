@@ -1035,12 +1035,12 @@ function drawE(){
         }
       }
       if (detourY !== null) {
-        // Route via a detour above all intervening nodes
+        // Route via a detour above all intervening nodes, approach target horizontally
         const wayY = detourY - 60;
-        // Use a 3-segment path: source → up → across → down → target
         const midX = (src.x + tgt.x) / 2;
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-        p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x} ${wayY}, ${tgt.x} ${wayY}, ${tgt.x} ${tgt.y}`);
+        p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x} ${wayY}, ${midX} ${wayY}, ${midX} ${wayY} C ${midX} ${tgt.y}, ${tgt.x} ${tgt.y}, ${tgt.x} ${tgt.y}`);
+        let cls='edge control-flow';
         let cls='edge control-flow';
         if(idx===selEdge)cls+=' selected';
         p.setAttribute('class',cls);
