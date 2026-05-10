@@ -2,13 +2,50 @@
 
 All notable changes to AgenArc will be documented in this file.
 
-## [0.6.1] - 2026-05-10
+## [0.7.1] - 2026-05-10
 
 ### Added
-- GitHub Release with standalone Windows exe (PyInstaller)
-- `webbrowser.open()` auto-launch on `agenarc visualize`
+- Bundle file tree editor (left panel) with real-time editing and auto-save
+- Floating editor modal with syntax highlighting (JSON keys, strings, comments, keywords)
+- Syntax highlighter: single-pass character-by-character tokenizer
+- SubGraph node frontend features — purple visual indicator, Inspector Open button
+- Breadcrumb navigation: VFS card display, parent graph navigation
+- `POST /api/graph/load` endpoint for sub-graph loading
+- `GET /api/bundle/tree`, `GET /api/bundle/file`, `POST /api/bundle/file` API endpoints
+- Edge obstacle avoidance for backward loop edges (later reverted due to arrow artifacts)
 
-## [0.6.0] - 2026-05-09
+### Fixed
+- SubGraph port dynamic resolution from operator classes (not empty node.outputs)
+- Terminal node detection: only nodes with NO outgoing edges (not just no data edges)
+- Real-time port updates on config change (updCfg → syncWithBackend)
+- Save sub-graph edits to correct flow.json via `saveSubGraph()` — prevents parent corruption
+- Remove orphaned textarea causing extra invisible panel
+- Node metadata preserved in `_save_graph` — fixes 0ms execution after add/delete nodes
+- Node statuses reset after `_save_graph` — prevents stale execution state
+- Config field Enter key now triggers save
+- All nodes unified left-border accent style, each type its own color
+- CI: ruff import ordering, mypy type fixes
+
+## [0.7.0] - 2026-05-10
+
+### Added
+- **SubGraph operator** — embed one `.agrc` bundle as a node in another graph
+- Isolated execution context for sub-graph (separate StateManager)
+- Port auto-resolution from child bundle's trigger outputs (input) and terminal node outputs (output)
+- Child bundle port exposure via operator classes (`BUILTIN_OPERATORS`)
+- Recursive sub-graph reference detection (`_resolving_stack`)
+- `_resolve_subgraph_ports` in protocol loader for automatic port derivation
+- `_get_node_output_ports` / `_get_node_input_ports` — resolve ports from operators if node.outputs is empty
+- `agenarc pack` auto-embeds SubGraph bundles into `sub/` directory
+- Bundle resolution fallback: `sub/{path}` if direct path not found
+
+### Changed
+- `NodeType.SUBGRAPH` value normalized to `"SubGraph"` (uppercase G)
+- `_parse_node` now handles SubGraph port special case
+- `_node_to_dict` reads SubGraph ports from Node object (not operator defaults)
+- Path resolution order: direct → `sub/` → CWD
+
+## [0.6.0] - 2026-05-09 / 0.6.1
 
 ### Added
 - **Execution tracing**: TraceCollector engine with per-node timing, status, I/O snapshots, and token tracking
@@ -17,6 +54,10 @@ All notable changes to AgenArc will be documented in this file.
 - **agenarc init**: Interactive configuration wizard with 12 provider presets, real-time model fetching, connection testing, and config.yaml generation
 - **Provider presets**: DeepSeek, OpenAI, Anthropic, Groq, OpenRouter, Ollama, 硅基流动, ZhipuAI, Moonshot, DashScope, 豆包, Custom
 - **742 tests** (up from 638) — 48 trace + 56 init tests
+- GitHub Release with standalone Windows exe (PyInstaller)
+- `webbrowser.open()` auto-launch on `agenarc visualize`
+- ASCII art startup banner
+- `AGENTS.md` pre-push checklist (pytest + ruff + mypy)
 
 ## [0.5.0] - 2026-05-09
 

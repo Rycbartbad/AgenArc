@@ -30,7 +30,7 @@
 
 ```
  ┌──────────────────────────────────────────────────────────┐
- │                      AgenArc v0.5                        │
+ │                      AgenArc v0.7                        │
  ├──────────────────────────────────────────────────────────┤
  │                                                           │
  │  ┌──────────┐    ┌──────────┐    ┌──────────────────┐    │
@@ -60,13 +60,16 @@
 | **Packaging** | `.agrc` self-contained bundles — JSON protocol + prompts + scripts + plugins in one ZIP |
 | **VFS** | `agrc://` virtual filesystem with `rwx` permissions, path-traversal protection |
 | **Plugins** | Python / C++ / External loaders, hot-reload (file watching), event plugins |
-| **Visualization** | Web IDE — drag-and-drop graph editor, real-time execution preview, YAML context panel |
-| **CLI** | `run` / `shell` / `serve` / `validate` / `info` / `pack` / `visualize` |
+| **Visualization** | Web IDE — graph editor, file tree editor, syntax highlighting, context panel, trace waterfall |
+| **SubGraph** | Embed `.agrc` bundles as nodes — isolated context, auto port resolution, pack embedding |
+| **CLI** | `run` / `shell` / `serve` / `validate` / `info` / `pack` / `visualize` / `init` |
 
 ## Node Types
 
 | Node | Description | Input → Output |
 |------|-------------|---------------|
+| SubGraph | Embed and execute a nested `.agrc` bundle as a sub-graph with isolated context | auto-resolved from child bundle: trigger outputs → inputs, terminal node outputs → outputs |
+| `Trigger` | Entry point | `payload` → graph |
 | `Trigger` | Entry point | `payload` → graph |
 | `LLM_Task` | LLM inference (streaming + fallback) | `messages` → `response`, `usage`, `error` |
 | `Router` | Conditional branching (all matches execute in parallel) | `input` → dynamic output ports |
@@ -123,6 +126,10 @@ my_agent.agrc/
 │   └── system.pt          # {{template}} prompt files
 ├── scripts/
 │   └── tool.py            # Custom scripts (optional)
+├── sub/                    # Embedded SubGraph bundles (auto-packed)
+│   └── translator.agrc/
+│       ├── flow.json
+│       └── prompts/
 ├── plugins/                # Embedded plugins (auto-discovered)
 │   └── my_plugin/
 │       ├── agenarc.json
@@ -159,6 +166,42 @@ my_agent.agrc/
 ```
 
 </details>
+
+---
+
+## SubGraph
+
+An `.agrc` bundle can be embedded as a node in another graph:
+
+```json
+{
+  "id": "translator",
+  "type": "SubGraph",
+  "label": "翻译 Agent",
+  "config": { "bundle": "translator.agrc" }
+}
+```
+
+SubGraph 端口自动从子图 bundle 解析：
+- **输入端口** = 子图 Trigger 节点的输出端口
+- **输出端口** = 子图终端节点（无出边）的输出端口
+
+### Bundle 嵌入
+
+引用 `sub/` 目录下的子图会在 `agenarc pack` 时自动嵌入：
+
+```
+my_agent.agrc/
+├── flow.json              # 引用 sub/translator.agrc
+├── sub/
+│   └── translator.agrc/   # 运行时打包时自动嵌入
+│       ├── flow.json
+│       └── prompts/
+```
+
+### 上下文隔离
+
+子图拥有独立的 `StateManager`，不污染父图上下文。父图可以通过 config.inputs 注入值，通过边连接子图的输出端口获取结果。
 
 ---
 
