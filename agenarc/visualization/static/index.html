@@ -1521,47 +1521,130 @@ function _highlight(text) {
   const lang = _currentFilePath ? _currentFilePath.split('.').pop().toLowerCase() : '';
   const isJson = lang === 'json';
   const isPy = lang === 'py' || lang === 'python';
-  const isJs = lang === 'js' || lang === 'mjs';
+  const isJs = lang === 'js' || lang === 'mjs' || lang === 'ts';
   
-  // Escape HTML first
-  let html = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Token-based single-pass highlighter — no regex backfill, no HTML cross-contamination
+  const KEYWORDS = new Set([
+    'if','else','elif','for','while','def','class','return','import','from','as',
+    'try','except','finally','with','async','await','in','not','and','or','is',
+    'None','True','False','pass','break','continue','raise','yield','lambda',
+    'self','null','undefined','typeof','new','const','let','var','function',
+    'export','default','switch','case','break','continue','throw','catch',
+    'print','range','len','int','str','float','list','dict','set','tuple',
+    'super','global','nonlocal','del','yield','assert'
+  ]);
   
-  // Line-based highlighting
-  const lines = html.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Comment lines
-    if (isPy && /^\s*#/.test(line)) { lines[i] = `<span class="hl-com">${line}</span>`; continue; }
-    if ((isJs || isPy) && /^\s*\/\//.test(line)) { lines[i] = `<span class="hl-com">${line}</span>`; continue; }
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  
+  let out = '';
+  let i = 0;
+  
+  while (i < text.length) {
+    const ch = text[i];
     
-    let highlighted = '';
-    let pos = 0;
-    while (pos < line.length) {
-      // String literals
-      const sq = line.indexOf("'", pos); const dq = line.indexOf('"', pos);
-      const strStart = sq >= 0 && (dq < 0 || sq < dq) ? sq : dq >= 0 ? dq : -1;
-      if (strStart < 0) { highlighted += line.slice(pos); break; }
-      highlighted += line.slice(pos, strStart);
-      const q = line[strStart];
-      const strEnd = line.indexOf(q, strStart + 1);
-      if (strEnd < 0) { highlighted += `<span class="hl-str">${line.slice(strStart)}</span>`; break; }
-      highlighted += `<span class="hl-str">${line.slice(strStart, strEnd + 1)}</span>`;
-      pos = strEnd + 1;
+    // Newline
+    if (ch === '\n') { out += '\n'; i++; continue; }
+    
+    // Comment (shebang or #)
+    if (ch === '#' && (i === 0 || text[i-1] === '\n')) {
+      let end = i + 1;
+      while (end < text.length && text[end] !== '\n') end++;
+      out += '<span class="hl-com">' + esc(text.slice(i, end)) + '</span>';
+      i = end;
+      continue;
     }
-    if (pos < line.length) highlighted += line.slice(pos);
-    lines[i] = highlighted;
+    
+    // Line comment (//)
+    if (ch === '/' && i + 1 < text.length && text[i+1] === '/') {
+      let end = i + 2;
+      while (end < text.length && text[end] !== '\n') end++;
+      out += '<span class="hl-com">' + esc(text.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    
+    // Multi-line comment (/* */)
+    if (ch === '/' && i + 1 < text.length && text[i+1] === '*') {
+      let end = i + 2;
+      while (end < text.length && !(text[end] === '*' && end + 1 < text.length && text[end+1] === '/')) end++;
+      end = end + 2;
+      out += '<span class="hl-com">' + esc(text.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    
+    // String: double-quoted
+    if (ch === '"') {
+      let end = i + 1;
+      while (end < text.length) {
+        if (text[end] === '\\') { end += 2; continue; }
+        if (text[end] === '"') break;
+        end++;
+      }
+      end = end < text.length ? end + 1 : text.length;
+      const strContent = text.slice(i, end);
+      // JSON key detection (look ahead for colon)
+      const isKey = isJson && (() => {
+        let p = end;
+        while (p < text.length && (text[p] === ' ' || text[p] === '\t')) p++;
+        return p < text.length && text[p] === ':';
+      })();
+      out += isKey
+        ? '<span class="hl-key">' + esc(strContent) + '</span>'
+        : '<span class="hl-str">' + esc(strContent) + '</span>';
+      i = end;
+      continue;
+    }
+    
+    // String: single-quoted
+    if (ch === "'") {
+      let end = i + 1;
+      while (end < text.length) {
+        if (text[end] === '\\') { end += 2; continue; }
+        if (text[end] === "'") break;
+        end++;
+      }
+      end = end < text.length ? end + 1 : text.length;
+      out += '<span class="hl-str">' + esc(text.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    
+    // Number
+    if (/[0-9]/.test(ch) || (ch === '-' && i + 1 < text.length && /[0-9]/.test(text[i+1]))) {
+      let end = i;
+      if (ch === '-') end++;
+      while (end < text.length && /[0-9.]/.test(text[end])) end++;
+      if (end < text.length && /[eE]/.test(text[end])) {
+        end++;
+        if (end < text.length && /[+-]/.test(text[end])) end++;
+        while (end < text.length && /[0-9]/.test(text[end])) end++;
+      }
+      out += '<span class="hl-num">' + esc(text.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    
+    // Word (identifier)
+    if (/[a-zA-Z_]/.test(ch)) {
+      let end = i;
+      while (end < text.length && /[a-zA-Z0-9_]/.test(text[end])) end++;
+      const word = text.slice(i, end);
+      if (KEYWORDS.has(word)) {
+        out += '<span class="hl-kw">' + word + '</span>';
+      } else {
+        out += esc(word);
+      }
+      i = end;
+      continue;
+    }
+    
+    // Everything else: HTML-escape and output
+    out += esc(ch);
+    i++;
   }
-  html = lines.join('\n');
   
-  // Keywords (whole word)
-  const keywords = ['if','for','while','def','class','return','import','from','as','try','except','finally','with','async','await','elif','else','in','not','and','or','is','None','True','False','pass','break','continue','raise','yield','lambda','print','def','self'];
-  const kwPat = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
-  html = html.replace(kwPat, '<span class="hl-kw">$1</span>');
-  
-  // JSON keys (followed by colon)
-  if (isJson) html = html.replace(/"([^"]+)"(?=\s*:)/g, '<span class="hl-key">"$1"</span>').replace(/:\s*/g, ': ');
-  
-  return html;
+  return out;
 }
 
 function syncEditorScroll() {
