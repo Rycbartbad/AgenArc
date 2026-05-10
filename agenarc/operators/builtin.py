@@ -281,7 +281,7 @@ class Script_Node_Operator(IOperator):
         # Script and timeout come from node config, with fallback to inputs
         node_config = context.get("_node_config", {})
         script = node_config.get("script", "") or inputs.get("script", "")
-        timeout = node_config.get("timeout", inputs.get("timeout", self._timeout))
+        self._timeout = int(node_config.get("timeout", inputs.get("timeout", self._timeout)))
 
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}
