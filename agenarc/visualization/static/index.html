@@ -94,13 +94,6 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 .file-tree-children.open{display:block}
 
 /* ─── File Editor ─── */
-.file-editor{display:flex;flex-direction:column;height:100%;padding:0}
-.file-editor .editor-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
-.file-editor .editor-path{font-size:11px;font-family:var(--font-mono);color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.file-editor .editor-textarea{flex:1;width:100%;min-height:150px;background:var(--bg-canvas);border:none;border-top:1px solid var(--border);color:var(--text-focus);font-family:var(--font-mono);font-size:11px;padding:10px 12px;resize:none;outline:none;tab-size:2;line-height:1.5}
-.file-editor .editor-textarea:focus{border-top-color:var(--blue)}
-.file-editor .editor-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);justify-content:flex-end;flex-shrink:0}
-.file-editor .editor-size{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:4px}
 /* Floating editor modal */
 .editor-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center}
 .editor-modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;width:min(960px,95vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
@@ -1880,9 +1873,6 @@ setInterval(()=>checkApi(),5000);
       <pre class="editor-highlight" id="editorHighlight"><code></code></pre>
       <textarea class="editor-textarea" id="editorTextarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()" onscroll="syncEditorScroll()"></textarea>
     </div>
-  </div>
-</div>
-    <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()"></textarea>
   </div>
 </div>
 
