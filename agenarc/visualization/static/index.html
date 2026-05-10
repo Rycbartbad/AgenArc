@@ -1798,13 +1798,12 @@ window.openSubGraph=async function(bundlePath){
     toast('No bundle path configured','warn');
     return;
   }
-  // Resolve the correct path: try sub/{bundlePath} if direct doesn't exist
+  // Resolve the correct path silently
   let actualPath = bundlePath;
   try {
-    // Check if direct path has flow.json
-    await api('GET', '/api/bundle/file?path=' + encodeURIComponent(bundlePath + '/flow.json'));
+    const r = await fetch(API_BASE + 'api/bundle/file?path=' + encodeURIComponent(bundlePath + '/flow.json'));
+    if (!r.ok) throw new Error();
   } catch(e) {
-    // Direct path not found — try sub/ directory
     if (!bundlePath.startsWith('sub/')) {
       actualPath = 'sub/' + bundlePath;
     }
