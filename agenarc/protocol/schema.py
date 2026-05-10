@@ -18,7 +18,7 @@ class NodeType(StrEnum):
     ROUTER = "Router"
     MEMORY_IO = "Memory_I/O"
     SCRIPT_NODE = "Script_Node"
-    SUBGRAPH = "Subgraph"
+    SUBGRAPH = "SubGraph"
     LOG = "Log"
     CONTEXT_SET = "Context_Set"
     CONTEXT_GET = "Context_Get"

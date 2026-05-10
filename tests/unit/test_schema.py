@@ -243,7 +243,7 @@ class TestEnums:
         assert NodeType.ROUTER.value == "Router"
         assert NodeType.MEMORY_IO.value == "Memory_I/O"
         assert NodeType.SCRIPT_NODE.value == "Script_Node"
-        assert NodeType.SUBGRAPH.value == "Subgraph"
+        assert NodeType.SUBGRAPH.value == "SubGraph"
         assert NodeType.LOG.value == "Log"
 
     def test_error_strategy_values(self):

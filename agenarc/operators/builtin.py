@@ -648,6 +648,7 @@ BUILTIN_OPERATORS: dict[str, type | None] = {
     "Join": None,  # Loaded from join.py
     "Router": None,  # Loaded from router.py
     "LLM_Task": None,  # Loaded from llm.py
+    "SubGraph": None,  # Loaded from subgraph.py
 }
 
 
@@ -693,11 +694,22 @@ def _register_evolution_operators():
         logger.warning("Evolution operators not available (import failed): %s", e)
 
 
+def _register_subgraph():
+    """Register SubGraph operator from subgraph.py."""
+    try:
+        from agenarc.operators.subgraph import SubGraphOperator
+
+        BUILTIN_OPERATORS["SubGraph"] = SubGraphOperator
+    except ImportError as e:
+        logger.warning("SubGraph operator not available (import failed): %s", e)
+
+
 # Auto-register operators on import
 _register_llm_operators()
 _register_router_operator()
 _register_join_operator()
 _register_evolution_operators()
+_register_subgraph()
 
 
 def get_builtin_operator(node_type: str) -> IOperator | None:

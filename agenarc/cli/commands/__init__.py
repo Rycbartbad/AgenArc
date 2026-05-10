@@ -178,6 +178,9 @@ def pack_bundle(source_dir: Path, output_path: Path, verbose: bool = False) -> N
     """
     Pack a directory into a .agrc ZIP bundle.
 
+    Scans for SubGraph nodes in flow.json and embeds referenced child
+    bundles into the output bundle's sub/ directory.
+
     Args:
         source_dir: Source directory to pack
         output_path: Output .agrc file path
@@ -192,6 +195,9 @@ def pack_bundle(source_dir: Path, output_path: Path, verbose: bool = False) -> N
     if output_path.suffix != ".agrc":
         output_path = Path(str(output_path) + ".agrc")
 
+    # Find SubGraph bundles to embed
+    subgraph_bundles = _find_subgraph_bundles(source_dir, verbose)
+
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for file_path in source_dir.rglob("*"):
             if file_path.is_file():
@@ -200,8 +206,62 @@ def pack_bundle(source_dir: Path, output_path: Path, verbose: bool = False) -> N
                 if verbose:
                     print(f"  Adding: {arcname}")
 
+        # Embed SubGraph child bundles into sub/ directory
+        for child_path, arc_dir in subgraph_bundles:
+            for file_path in child_path.rglob("*"):
+                if file_path.is_file():
+                    sub_arcname = Path(arc_dir) / file_path.relative_to(child_path)
+                    zf.write(file_path, sub_arcname)
+                    if verbose:
+                        print(f"  Adding child bundle: {sub_arcname}")
+
     if verbose:
         print(f"Bundle created: {output_path}")
+
+
+def _find_subgraph_bundles(source_dir: Path, verbose: bool = False) -> list[tuple[Path, str]]:
+    """
+    Find SubGraph bundles referenced in flow.json.
+
+    Scans the source directory's flow.json for SubGraph nodes and
+    resolves their bundle references relative to the source directory.
+
+    Args:
+        source_dir: Source directory containing flow.json
+        verbose: Print verbose output
+
+    Returns:
+        List of (child_bundle_path, archive_directory) tuples
+    """
+    import json
+
+    flow_file = source_dir / "flow.json"
+    if not flow_file.exists():
+        return []
+
+    with open(flow_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    bundles: list[tuple[Path, str]] = []
+    for node in data.get("nodes", []):
+        if node.get("type") != "SubGraph":
+            continue
+
+        bundle_ref = node.get("config", {}).get("bundle", "")
+        if not bundle_ref:
+            continue
+
+        # Resolve bundle path relative to source directory
+        child_path = source_dir / bundle_ref
+        if child_path.exists():
+            arc_dir = f"sub/{child_path.name}"
+            bundles.append((child_path, arc_dir))
+            if verbose:
+                print(f"  Found SubGraph: {bundle_ref} -> embedded at {arc_dir}")
+        elif verbose:
+            print(f"  Warning: SubGraph bundle not found, skipping: {bundle_ref}")
+
+    return bundles
 
 
 def print_error(message: str) -> None:

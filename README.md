@@ -225,18 +225,6 @@ mypy agenarc/
 
 ---
 
-## Roadmap
-
-| Version | Phase | Status |
-|---------|-------|--------|
-| v0.1 | MVP Engine | ✅ |
-| v0.2 | Execution Engine — Router, Join, Checkpoint | ✅ |
-| v0.3 | Self-Evolution — Bundle, VFS, Hot Reload | ✅ |
-| v0.4 | Plugin System — Python / C++ / External | ✅ |
-| **v0.5** | **Visualization Platform — Web IDE, Live Preview** | ✅ |
-
----
-
 ## Documentation
 
 | Document | Description |
