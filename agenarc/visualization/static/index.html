@@ -1173,7 +1173,6 @@ function updIns(){
         }
       }
       h+=`</div>`;
-      h+=`<button class="btn btn-block btn-sm mt-2" onclick="const k=prompt('Config key:');if(k){pushHist();const n=$('${n.id}');if(n){n.config[k]=prompt('Value:','');saveGraph();updIns();}}"><i class="fas fa-plus mr-1"></i> Add Config</button>`;
     }
     h+=`</section>`;
   }
