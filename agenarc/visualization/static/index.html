@@ -1165,7 +1165,12 @@ function updIns(){
       h+=`<div class="space-y-3">`;
       for(const[k,v]of Object.entries(n.config)){
         const dv=typeof v==='string'?v:JSON.stringify(v);
-        h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><input class="input-box" value="${dv.replace(/"/g,'&quot;')}" onchange="updCfg('${n.id}','${k}',this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();updCfg('${n.id}','${k}',this.value);this.blur();}"></div>`;
+        const isMultiline=typeof v==='string'&&(v.includes('\n')||v.length>120);
+        if(isMultiline){
+          h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><textarea class="input-box" rows="4" style="font-family:var(--font-mono);font-size:10px;width:100%;background:var(--bg-canvas);color:var(--text-focus);border:1px solid var(--border);border-radius:4px;padding:6px 8px;resize:vertical;outline:none;" onchange="updCfg('${n.id}','${k}',this.value)">${esc(dv)}</textarea></div>`;
+        }else{
+          h+=`<div><span class="text-[11px] block mb-1" style="color:var(--text);">${k}</span><input class="input-box" value="${esc(dv)}" onchange="updCfg('${n.id}','${k}',this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();updCfg('${n.id}','${k}',this.value);this.blur();}"></div>`;
+        }
       }
       h+=`</div>`;
     }
