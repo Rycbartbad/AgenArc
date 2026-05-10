@@ -1237,7 +1237,7 @@ window.updId=(oldId,newId)=>{
   render();saveGraph();
 };
 window.updLbl=(id,v)=>{const n=$(id);if(n){pushHist();n.label=v;render();saveGraph();}};
-window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){pushHist();n.config[k]=v;saveGraph();setTimeout(()=>{api('GET','/api/graph').then(data=>{if(data&&data.nodes){data.nodes.forEach(m=>{const el=$(m.id);if(el){el.out=m.outputs?m.outputs.map(p=>p.name):void 0;el.inp=m.inputs?m.inputs.map(p=>p.name):void 0;}});updIns();}});},600);}};
+window.updCfg=(id,k,v)=>{const n=$(id);if(n&&n.config){pushHist();n.config[k]=v;saveGraph();setTimeout(()=>{api('GET','/api/graph').then(data=>{if(data&&data.nodes){data.nodes.forEach(m=>{const el=$(m.id);if(el){el.out=m.outputs?m.outputs.map(p=>p.name):void 0;el.inp=m.inputs?m.inputs.map(p=>p.name):void 0;}});render();updIns();}});},600);}};
 
 // ─── Drag ───
 function onHead(e){
