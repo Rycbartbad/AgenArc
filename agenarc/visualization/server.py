@@ -242,6 +242,17 @@ class VisualizationServer:
             data = json.loads(body) if body else {}
             return self._json_response(self._save_graph(data))
 
+        # POST /api/graph/load — load a sub-graph bundle
+        elif method == "POST" and path == "/api/graph/load":
+            data = json.loads(body) if body else {}
+            sub_path = data.get("path", "")
+            if not sub_path:
+                return self._json_response({"error": "Missing path parameter"}, status=400)
+            result = self._load_graph_from_sub_path(sub_path)
+            if "error" in result:
+                return self._json_response(result, status=400)
+            return self._json_response(result)
+
         # POST /api/execute
         elif method == "POST" and path == "/api/execute":
             data = json.loads(body) if body else {}
@@ -748,6 +759,106 @@ class VisualizationServer:
             tmp_path.replace(file_path)
         except Exception as e:
             logger.warning("Failed to persist graph to disk: %s", e)
+
+    def _load_graph_from_sub_path(self, sub_path: str) -> dict[str, Any]:
+        """Load a sub-graph bundle and replace the engine's current graph.
+
+        Args:
+            sub_path: Relative path within the bundle directory (e.g. "child.agrc")
+
+        Returns:
+            Dict with graph data (same format as _get_graph()) or error.
+        """
+        # Resolve the sub-path relative to the current bundle
+        if not self.bundle_path:
+            return {"error": "No bundle path configured"}
+
+        bundle = Path(self.bundle_path).resolve()
+        sub_dir = (bundle / sub_path).resolve()
+
+        # Security: ensure resolved path is within bundle
+        try:
+            sub_dir.relative_to(bundle)
+        except ValueError:
+            logger.warning("Path traversal attempt in _load_graph_from_sub_path: %s", sub_path)
+            return {"error": "Invalid path"}
+
+        if not sub_dir.is_dir():
+            return {"error": f"Sub-graph directory not found: {sub_path}"}
+
+        # Look for flow.json in the sub-directory
+        flow_file = sub_dir / "flow.json"
+        if not flow_file.is_file():
+            return {"error": f"No flow.json found in {sub_path}"}
+
+        try:
+            with open(flow_file, encoding="utf-8") as f:
+                flow_data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            return {"error": f"Failed to read flow.json: {e}"}
+
+        old_bundle = str(self.bundle_path) if self.bundle_path else ""
+
+        # Load into engine using ProtocolLoader
+        from agenarc.graph.traversal import GraphTraversal
+        from agenarc.protocol.schema import Edge as SchemaEdge
+        from agenarc.protocol.schema import Graph as SchemaGraph
+        from agenarc.protocol.schema import Node as SchemaNode
+        from agenarc.protocol.schema import NodeConfig, NodeType
+
+        type_map = {t.value: t for t in NodeType}
+        try:
+            converted_nodes = []
+            for n in flow_data.get("nodes", []):
+                ntype = type_map.get(n.get("type", ""))
+                if not ntype:
+                    logger.warning("Unknown node type in sub-graph: %s", n.get("type"))
+                    continue
+                node_obj = SchemaNode(
+                    id=n["id"],
+                    type=ntype,
+                    label=n.get("label", n["id"]),
+                    config=NodeConfig(data=n.get("config", {})),
+                )
+                converted_nodes.append(node_obj)
+
+            converted_edges = []
+            for e in flow_data.get("edges", []):
+                edge_obj = SchemaEdge(
+                    source=e["source"],
+                    sourcePort=e.get("sourcePort", ""),
+                    target=e["target"],
+                    targetPort=e.get("targetPort", ""),
+                )
+                converted_edges.append(edge_obj)
+
+            new_graph = SchemaGraph(
+                version=flow_data.get("version", "1.0.0"),
+                nodes=converted_nodes,
+                edges=converted_edges,
+            )
+            self.engine._graph = new_graph
+            self.engine._traversal = GraphTraversal(new_graph)
+            self.engine._adjacency = {node.id: [] for node in new_graph.nodes}
+            for edge in converted_edges:
+                if edge.source in self.engine._adjacency:
+                    self.engine._adjacency[edge.source].append(edge.target)
+
+            # Reset state
+            self.engine._state = None
+            self._session_state = None
+
+            # Update bundle path to the sub-graph directory
+            self.bundle_path = str(sub_dir)
+
+            # Persist the new graph
+            self._persist_graph(new_graph)
+
+            return self._get_graph()
+        except Exception as e:
+            logger.exception("Failed to load sub-graph: %s", e)
+            self.bundle_path = old_bundle
+            return {"error": f"Failed to load sub-graph: {e}"}
 
     async def _execute_graph(self, data: dict[str, Any]) -> dict[str, Any]:
         """Execute graph synchronously and return full results."""
