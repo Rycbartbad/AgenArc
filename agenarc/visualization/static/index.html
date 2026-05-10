@@ -101,6 +101,12 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 .file-editor .editor-textarea:focus{border-top-color:var(--blue)}
 .file-editor .editor-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);justify-content:flex-end;flex-shrink:0}
 .file-editor .editor-size{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:4px}
+/* Floating editor modal */
+.editor-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center}
+.editor-modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;width:min(860px,92vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.editor-modal .editor-header{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.editor-modal .editor-textarea{flex:1;width:100%;min-height:300px;max-height:calc(85vh - 120px);background:var(--bg-canvas);border:none;color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:12px 16px;resize:none;outline:none;tab-size:2;line-height:1.5}
+.editor-modal .editor-actions{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border);justify-content:space-between;flex-shrink:0}
 
 /* ─── Breadcrumb ─── */
 .breadcrumb-bar{position:absolute;top:0;left:0;right:0;z-index:20;background:var(--bg-panel);border-bottom:1px solid var(--border);padding:4px 14px;font-size:11px;display:none;align-items:center;gap:3px;height:26px}
@@ -127,33 +133,33 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
     <div id="nodesPanel" class="flex-grow overflow-y-auto p-4 space-y-4">
       <div>
         <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-circle-arrow-right text-[8px] mr-1"></i> Input / Sources</h3>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Trigger')"><i class="fas fa-bolt w-4" style="color:var(--orange);font-size:10px;"></i> Trigger</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Trigger')"><i class="fas fa-bolt w-5" style="color:var(--orange);font-size:11px;"></i> Trigger</div>
       </div>
       <div>
-        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-microchip text-[8px] mr-1"></i> Compute / AI</h3>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('LLM_Task')"><i class="fas fa-brain w-4" style="color:var(--purple);font-size:10px;"></i> LLM_Task</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Script_Node')"><i class="fas fa-code w-4" style="color:var(--blue);font-size:10px;"></i> Script_Node</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Prompt_Builder')"><i class="fas fa-message w-4" style="color:var(--cyan);font-size:10px;"></i> Prompt_Builder</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-gears text-[8px] mr-1"></i> Logic</h3>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('LLM_Task')"><i class="fas fa-brain w-5" style="color:var(--purple);font-size:11px;"></i> LLM_Task</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Script_Node')"><i class="fas fa-code w-5" style="color:var(--blue);font-size:11px;"></i> Script_Node</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Prompt_Builder')"><i class="fas fa-message w-5" style="color:var(--cyan);font-size:11px;"></i> Prompt_Builder</div>
       </div>
       <div>
-        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-code-branch text-[8px] mr-1"></i> Control Flow</h3>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Router')"><i class="fas fa-random w-4" style="color:var(--cyan);font-size:10px;"></i> Router</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Join')"><i class="fas fa-circle-nodes w-4" style="color:var(--green);font-size:10px;"></i> Join</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--purple);background:rgba(154,106,222,0.06);" onclick="addNode('SubGraph')"><i class="fas fa-link w-4" style="color:var(--purple);font-size:10px;"></i> SubGraph</div>
+        <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-code-fork text-[8px] mr-1"></i> Control Flow</h3>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Router')"><i class="fas fa-random w-5" style="color:var(--cyan);font-size:11px;"></i> Router</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Join')"><i class="fas fa-circle-nodes w-5" style="color:var(--green);font-size:11px;"></i> Join</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--purple);border-left-width:3px;background:rgba(154,106,222,0.06);" onclick="addNode('SubGraph')"><i class="fas fa-link w-5" style="color:var(--purple);font-size:11px;"></i> SubGraph</div>
       </div>
       <div>
         <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-database text-[8px] mr-1"></i> Data</h3>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Memory_IO')"><i class="fas fa-hard-drive w-4" style="color:var(--green);font-size:10px;"></i> Memory_I/O</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Set')"><i class="fas fa-arrow-right-to-bracket w-4" style="color:var(--blue);font-size:10px;"></i> Context_Set</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Get')"><i class="fas fa-arrow-right-from-bracket w-4" style="color:var(--blue);font-size:10px;"></i> Context_Get</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Memory_IO')"><i class="fas fa-hard-drive w-5" style="color:var(--green);font-size:11px;"></i> Memory_I/O</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Set')"><i class="fas fa-arrow-right-to-bracket w-5" style="color:var(--blue);font-size:11px;"></i> Context_Set</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Context_Get')"><i class="fas fa-arrow-right-from-bracket w-5" style="color:var(--blue);font-size:11px;"></i> Context_Get</div>
       </div>
       <div>
         <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-plug text-[8px] mr-1"></i> Output / Evolution</h3>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Log')"><i class="fas fa-terminal w-4" style="color:var(--text-dim);font-size:10px;"></i> Log</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-floppy-disk w-4" style="color:var(--green);font-size:10px;"></i> Asset_Writer</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Plugin')"><i class="fas fa-puzzle-piece w-4" style="color:var(--orange);font-size:10px;"></i> Plugin</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Reader')"><i class="fas fa-file-import w-4" style="color:var(--blue);font-size:10px;"></i> Asset_Reader</div>
-        <div class="p-2 border rounded mb-1.5 flex items-center text-[11px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Runtime_Reload')"><i class="fas fa-rotate w-4" style="color:var(--green);font-size:10px;"></i> Runtime_Reload</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Log')"><i class="fas fa-terminal w-5" style="color:var(--text-dim);font-size:11px;"></i> Log</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Writer')"><i class="fas fa-floppy-disk w-5" style="color:var(--green);font-size:11px;"></i> Asset_Writer</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Plugin')"><i class="fas fa-puzzle-piece w-5" style="color:var(--orange);font-size:11px;"></i> Plugin</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Asset_Reader')"><i class="fas fa-file-import w-5" style="color:var(--blue);font-size:11px;"></i> Asset_Reader</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Runtime_Reload')"><i class="fas fa-rotate w-5" style="color:var(--green);font-size:11px;"></i> Runtime_Reload</div>
       </div>
     </div>
     <div id="filesPanel" class="flex-grow overflow-y-auto" style="display:none;">
@@ -1515,79 +1521,60 @@ function toggleTreeItem(el, path, type) {
   }
 }
 
-// ─── File Editor ───
-let _currentFilePath = null;
+// ─── File Editor (floating modal) ───
+let _currentFilePath = null
 
 async function openFileEditor(path) {
-  _currentFilePath = path;
-  // Highlight active file in tree
-  document.querySelectorAll('.file-tree-item.active').forEach(el => el.classList.remove('active'));
-  const items = document.querySelectorAll('.file-tree-item');
-  items.forEach(el => {
-    const nameSpan = el.querySelector('.file-tree-name.file');
-    if (nameSpan && nameSpan.textContent.trim() === path.split('/').pop()) {
-      el.classList.add('active');
-    }
-  });
-
-  const ic = document.getElementById('ic');
-  ic.innerHTML = `<div class="file-editor">
-    <div class="editor-header"><span class="editor-path"><i class="fas fa-file mr-1"></i>${esc(path)}</span></div>
-    <div class="flex justify-center py-8" style="color:var(--text-dim);"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</div>
-  </div>`;
-  switchTab('inspector');
+  _currentFilePath = path
+  const overlay = document.getElementById('editorOverlay')
+  if (!overlay) return
+  overlay.style.display = 'flex'
+  overlay.querySelector('.editor-path').innerHTML = `<i class="fas fa-file-code mr-1" style="color:var(--cyan);"></i>${esc(path)}`
+  overlay.querySelector('.editor-textarea').value = ''
+  overlay.querySelector('.editor-textarea').disabled = true
+  overlay.querySelector('.editor-size').textContent = ''
 
   try {
-    const data = await api('GET', '/api/bundle/file?path=' + encodeURIComponent(path));
-    showFileEditor(path, data.content, data.size);
+    const data = await api('GET', '/api/bundle/file?path=' + encodeURIComponent(path))
+    showFileEditor(data.content, data.size)
   } catch (e) {
-    ic.innerHTML = `<div class="file-editor">
-      <div class="editor-header"><span class="editor-path">${esc(path)}</span></div>
-      <div class="flex justify-center py-8" style="color:var(--red);font-size:11px;">Failed to load: ${esc(e.message)}</div>
-    </div>`;
+    overlay.querySelector('.editor-textarea').value = 'Failed to load: ' + e.message
+    overlay.querySelector('.editor-textarea').disabled = true
   }
 }
 
-function showFileEditor(path, content, size) {
-  const ic = document.getElementById('ic');
-  if (!ic) return;
-  const sizeStr = size >= 1024 ? (size/1024).toFixed(1)+'KB' : size+'B';
-  ic.innerHTML = `<div class="file-editor">
-    <div class="editor-header">
-      <span class="editor-path"><i class="fas fa-file-code mr-1" style="color:var(--cyan);"></i>${esc(path)}</span>
-      <span class="editor-size">${sizeStr}</span>
-    </div>
-    <textarea class="editor-textarea" id="fileEditorTextarea" spellcheck="false">${esc(content)}</textarea>
-    <div class="editor-actions">
-      <button class="btn btn-sm" onclick="openFileEditor('${escAttr(path)}')"><i class="fas fa-redo mr-1"></i>Reload</button>
-      <button class="btn btn-sm btn-primary" onclick="saveFileContent()"><i class="fas fa-floppy-disk mr-1"></i>Save</button>
-    </div>
-  </div>`;
+function showFileEditor(content, size) {
+  const overlay = document.getElementById('editorOverlay')
+  const sizeStr = size >= 1024 ? (size / 1024).toFixed(1) + 'KB' : size + 'B'
+  overlay.querySelector('.editor-size').textContent = sizeStr
+  const ta = overlay.querySelector('.editor-textarea')
+  ta.value = content
+  ta.disabled = false
+  setTimeout(() => ta.focus(), 50)
+}
 
-  const ta = document.getElementById('fileEditorTextarea');
-  if (ta) {
-    ta.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveFileContent();
-      }
-    });
-    // Auto-focus the appropriate line number later
-    setTimeout(() => ta.focus(), 50);
-  }
+function closeFileEditor() {
+  document.getElementById('editorOverlay').style.display = 'none'
 }
 
 async function saveFileContent() {
-  const ta = document.getElementById('fileEditorTextarea');
-  if (!ta || !_currentFilePath) return;
-  const content = ta.value;
+  const ta = document.querySelector('#editorOverlay .editor-textarea')
+  if (!ta || !_currentFilePath) return
   try {
-    await api('POST', '/api/bundle/file', { path: _currentFilePath, content });
-    toast('File saved', 'success');
+    await api('POST', '/api/bundle/file', { path: _currentFilePath, content: ta.value })
+    toast('File saved', 'success')
   } catch (e) {
-    toast('Save failed: ' + e.message, 'warn');
+    toast('Save failed: ' + e.message, 'warn')
   }
 }
+
+// Keyboard shortcuts for editor modal
+document.addEventListener('keydown', e => {
+  if (document.getElementById('editorOverlay').style.display === 'flex') {
+    if (e.key === 'Escape') { e.preventDefault(); closeFileEditor() }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFileContent() }
+  }
+})
 
 // ─── SubGraph Navigation ───
 let _breadcrumbStack = [];
@@ -1844,5 +1831,24 @@ checkApi().then(online=>{
 // Heartbeat: periodically check backend liveness so Execution Guard status stays accurate
 setInterval(()=>checkApi(),5000);
 </script>
+<!-- Editor Modal -->
+<div id="editorOverlay" class="editor-modal-overlay" style="display:none;" onclick="if(event.target===this)closeFileEditor()">
+  <div class="editor-modal">
+    <div class="editor-header">
+      <span class="editor-path" style="font-size:12px;font-family:var(--font-mono);color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
+      <span class="editor-size" style="font-size:10px;color:var(--text-dim);margin-right:12px;"></span>
+      <span onclick="closeFileEditor()" style="cursor:pointer;color:var(--text-dim);font-size:14px;padding:2px 6px;border-radius:4px;" onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background=''">&times;</span>
+    </div>
+    <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..."></textarea>
+    <div class="editor-actions">
+      <span style="color:var(--text-dim);font-size:10px;">Ctrl+S to save</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="closeFileEditor()">Close</button>
+        <button class="btn btn-sm btn-primary" onclick="saveFileContent()"><i class="fas fa-floppy-disk mr-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
