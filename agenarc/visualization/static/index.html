@@ -169,7 +169,6 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
         <span id="vfsBadge" class="text-[8px] px-1 py-0.5 rounded" style="background:rgba(55,163,70,0.1);color:var(--green);">ACTIVE</span>
       </div>
       <div class="text-[10px] font-mono truncate" style="color:var(--text);"><span id="vfsPath">—</span></div>
-      <div id="breadcrumbInfo" class="text-[9px] mt-1" style="color:var(--orange);display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
       <div class="text-[9px] mt-1 flex gap-3" style="color:var(--text-dim);"><span>Nodes: <b id="statN" style="color:var(--text-focus);">0</b></span><span>Edges: <b id="statE" style="color:var(--text-focus);">0</b></span></div>
     </div>
   </aside>
@@ -189,6 +188,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--orange)" stroke-width="2.5"/></svg> Control</span>
       <span style="display:flex;align-items:center;gap:4px;"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--blue)" stroke-width="2" stroke-dasharray="5 3"/></svg> Data</span>
     </div>
+    <div id="breadcrumbInfo" style="display:none;font-size:10px;padding:2px 12px;background:transparent;border-bottom:1px solid var(--border);flex-shrink:0;"></div>
     <div class="terminal" id="term" style="display:flex;flex-direction:column;height:180px;">
       <div class="flex justify-between items-center pb-1 border-b flex-shrink-0" style="border-color:var(--border);color:var(--text-dim);">
         <span><i class="fas fa-terminal mr-2"></i>AgenArc Shell</span>
