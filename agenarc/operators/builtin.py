@@ -240,13 +240,17 @@ class Script_Node_Operator(IOperator):
     - Statement execution (modifies context)
 
     Inputs:
-        script: Python script/expression to execute
-        timeout: Timeout in seconds
+        input: Data input from graph edges
 
     Outputs:
         result: Script execution result
         success: Whether execution succeeded
         error: Error message if failed
+
+    Config:
+        script: Python script/expression to execute
+        timeout: Timeout in seconds
+        script_trust_level: Trust level for execution
     """
 
     def __init__(self):
@@ -263,8 +267,7 @@ class Script_Node_Operator(IOperator):
 
     def get_input_ports(self) -> list[Port]:
         return [
-            Port(name="script", type="string", description="Python script to execute"),
-            Port(name="timeout", type="number", description="Timeout in seconds", default=30),
+            Port(name="input", type="any", description="Input data from graph edges"),
         ]
 
     def get_output_ports(self) -> list[Port]:
@@ -275,15 +278,10 @@ class Script_Node_Operator(IOperator):
         ]
 
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> dict[str, Any]:
-        # Script can come from inputs (edge) or from node config
-        script = inputs.get("script", "")
-
-        # If no script from inputs, try to get from node config
-        if not script:
-            node_config = context.get("_node_config", {})
-            script = node_config.get("script", "")
-
-        inputs.get("timeout", self._timeout)
+        # Script and timeout come from node config
+        node_config = context.get("_node_config", {})
+        script = node_config.get("script", "")
+        timeout = node_config.get("timeout", self._timeout)
 
         if not script:
             return {"result": None, "success": False, "error": "Empty script"}

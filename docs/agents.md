@@ -757,7 +757,7 @@ trigger → counter_init → router_1
 
 ### 6.6 Script_Node（脚本节点）
 
-**作用**：执行自定义 Python 脚本。
+**作用**：执行自定义 Python 脚本。脚本代码通过 config 配置，输入端口接收上游数据。
 
 **示例**：
 
@@ -766,10 +766,6 @@ trigger → counter_init → router_1
   "id": "script_1",
   "type": "Script_Node",
   "label": "处理",
-  "inputs": [
-    {"name": "script", "type": "string", "default": "result = input"},
-    {"name": "timeout", "type": "integer", "default": 30}
-  ],
   "outputs": [
     {"name": "result", "type": "any"},
     {"name": "success", "type": "boolean"},
@@ -780,10 +776,9 @@ trigger → counter_init → router_1
 
 **输入端口**：
 
-| 端口名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `script` | string | - | 要执行的 Python 代码 |
-| `timeout` | integer | 30 | 超时时间（秒） |
+| 端口名 | 类型 | 说明 |
+|--------|------|------|
+| `input` | any | 从上游节点接收的数据 |
 
 **输出端口**：
 
@@ -792,6 +787,14 @@ trigger → counter_init → router_1
 | `result` | any | 脚本执行结果 |
 | `success` | boolean | 是否成功 |
 | `error` | string | 错误信息 |
+
+**config 配置项**：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `script` | string | "" | 要执行的 Python 代码（必填） |
+| `timeout` | integer | 30 | 超时时间（秒） |
+| `script_trust_level` | string | "developer" | 信任级别 |
 
 **脚本示例**：
 
@@ -818,7 +821,7 @@ result = {
 | `context` | 执行上下文对象 |
 | `input` | 输入端口的值 |
 
-**信任级别**：Script_Node 默认使用 `developer` 模式（完全信任），可按需通过 `config.script_trust_level` 覆盖。
+**信任级别**：可通过 `config.script_trust_level` 配置。
 
 | trust_level | 说明 |
 |-------------|------|

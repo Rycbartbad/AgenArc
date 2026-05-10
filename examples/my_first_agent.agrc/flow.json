@@ -8,6 +8,14 @@
       "config": {}
     },
     {
+      "id": "script_node_6",
+      "type": "Script_Node",
+      "label": "Script_Node",
+      "config": {
+        "script_trust_level": "developer"
+      }
+    },
+    {
       "id": "pb_user",
       "type": "Prompt_Builder",
       "label": "用户输入",
