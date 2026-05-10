@@ -547,6 +547,15 @@ class VisualizationServer:
         }
         is_join = n.type.value == "Join"
 
+        # Ensure Script_Node has default config keys (script + timeout from config, not ports)
+        if n.type.value == "Script_Node":
+            if "script" not in base["config"]:
+                base["config"]["script"] = ""
+            if "timeout" not in base["config"]:
+                base["config"]["timeout"] = 30
+            if "script_trust_level" not in base["config"]:
+                base["config"]["script_trust_level"] = "developer"
+
         # For Plugin nodes, read ports from agenarc.json manifest
         if n.type.value == "Plugin":
             try:
