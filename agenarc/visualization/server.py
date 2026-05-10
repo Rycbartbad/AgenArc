@@ -660,13 +660,13 @@ class VisualizationServer:
                 ntype = type_map.get(n.get("type", ""))
                 if not ntype:
                     continue
-                node_obj = Node(
+                converted_nodes.append(Node(
                     id=n["id"],
                     type=ntype,
                     label=n.get("label", n["id"]),
                     config=NodeConfig(data=n.get("config", {})),
-                )
-                converted_nodes.append(node_obj)
+                    metadata=n,  # preserve full node data for executor
+                ))
 
             # Convert frontend edges to backend Edge objects
             # Use serializeEdges logic: pair data+control edges by (source, target)
