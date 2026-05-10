@@ -867,7 +867,7 @@ window.termSend=async function(text){
         // Remove all highlights (class + inline style)
         NC.querySelectorAll('.node.executing').forEach(el=>{
           el.classList.remove('executing');
-          el.style.borderColor='';el.style.boxShadow='';
+          el.style.boxShadow='';
         });
         // Highlight the currently running node
         Object.entries(st.nodeStatuses).forEach(([nid,status])=>{
