@@ -1186,12 +1186,9 @@ function updIns(){
   // ─── SubGraph Inspector ───
   if(n.type==='SubGraph'){
     const bundlePath=n.config&&n.config.bundle?n.config.bundle:'';
-    h+=`<section id="subgraphSection" style="border:1px solid var(--purple);border-radius:var(--radius);padding:12px;background:rgba(154,106,222,0.04);">
-      <label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--purple);"><i class="fas fa-link mr-1"></i> SubGraph</label>
-      <button class="btn btn-block" style="border-color:var(--purple);color:var(--purple);" onclick="openSubGraph('${escAttr(bundlePath)}')" ${bundlePath?'':'disabled style="opacity:0.4;cursor:not-allowed;"'}>
-        <i class="fas fa-external-link-alt mr-1"></i> Open SubGraph
-      </button>
-    </section>`;
+    h+=`<button class="btn btn-block mt-3" style="border-color:var(--purple);color:var(--purple);" onclick="openSubGraph('${escAttr(bundlePath)}')" ${bundlePath?'':'disabled style="opacity:0.4;cursor:not-allowed;"'}>
+      <i class="fas fa-external-link-alt mr-1"></i> Open SubGraph
+    </button>`;
   }
 
   const egBd=apiOnline?'rgba(75,137,227,0.3)':'rgba(199,139,30,0.3)';
