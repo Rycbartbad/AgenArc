@@ -1192,16 +1192,6 @@ function updIns(){
       </button>
     </section>`;
   }
-  // ─── Breadcrumb: Back to parent ───
-  if (_breadcrumbStack.length > 0) {
-    h += `<section style="border:1px solid var(--orange);border-radius:var(--radius);padding:12px;background:rgba(199,139,30,0.04);">
-      <label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--orange);"><i class="fas fa-arrow-left mr-1"></i> Navigation</label>
-      <div class="text-[10px] mb-2" style="color:var(--text-dim);">Currently viewing sub-graph</div>
-      <button class="btn btn-block" style="border-color:var(--orange);color:var(--orange);" onclick="navigateBreadcrumb(0)">
-        <i class="fas fa-arrow-left mr-1"></i> Back to ${esc(_breadcrumbStack[0].name)}
-      </button>
-    </section>`;
-  }
 
   const egBd=apiOnline?'rgba(75,137,227,0.3)':'rgba(199,139,30,0.3)';
   const egBg=apiOnline?'rgba(75,137,227,0.05)':'rgba(199,139,30,0.06)';
