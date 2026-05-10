@@ -594,6 +594,14 @@ class VisualizationServer:
                 logger.warning("Failed to compute dynamic Join ports for %s: %s", n.id, e)
             # Fall through to operator-based ports if no dynamic ports detected
 
+        # For SubGraph nodes, use ports resolved by the loader (from child bundle)
+        if n.type.value == "SubGraph" and hasattr(n, "inputs") and hasattr(n, "outputs"):
+            if n.inputs:
+                base["inputs"] = [{"name": p.name, "type": p.type} for p in n.inputs]
+            if n.outputs:
+                base["outputs"] = [{"name": p.name, "type": p.type} for p in n.outputs]
+            return base
+
         # For all other node types, get ports from operator
         try:
             operator = self.engine.get_operator(n)
