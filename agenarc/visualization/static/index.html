@@ -1803,15 +1803,18 @@ window.openSubGraph=async function(bundlePath){
     toast('No bundle path configured','warn');
     return;
   }
-  // loadSubGraph handles breadcrumb, render, and error display
-  // Try direct path first, then sub/{path} as fallback
-  await loadSubGraph(bundlePath);
-  // If bundle doesn't exist directly, try sub/ directory
-  if (_breadcrumbStack.length === 0) {
+  // Resolve the correct path: try sub/{bundlePath} if direct doesn't exist
+  let actualPath = bundlePath;
+  try {
+    // Check if direct path has flow.json
+    await api('GET', '/api/bundle/file?path=' + encodeURIComponent(bundlePath + '/flow.json'));
+  } catch(e) {
+    // Direct path not found — try sub/ directory
     if (!bundlePath.startsWith('sub/')) {
-      await loadSubGraph('sub/' + bundlePath);
+      actualPath = 'sub/' + bundlePath;
     }
   }
+  await loadSubGraph(actualPath);
 };
 window.addEventListener('resize',()=>xf());
 render();
