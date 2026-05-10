@@ -103,10 +103,10 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 .file-editor .editor-size{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:4px}
 /* Floating editor modal */
 .editor-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center}
-.editor-modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;width:min(860px,92vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
-.editor-modal .editor-header{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
-.editor-modal .editor-textarea{flex:1;width:100%;min-height:300px;max-height:calc(85vh - 120px);background:var(--bg-canvas);border:none;color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:12px 16px;resize:none;outline:none;tab-size:2;line-height:1.5}
-.editor-modal .editor-actions{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border);justify-content:space-between;flex-shrink:0}
+.editor-modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;width:min(960px,95vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.editor-modal .editor-header{padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.editor-modal .editor-textarea{flex:1;width:100%;min-height:400px;max-height:calc(90vh - 80px);background:var(--bg-canvas);border:none;color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:14px 16px;resize:none;outline:none;tab-size:2;line-height:1.5}
+.editor-modal .editor-status{padding:6px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--text-dim);flex-shrink:0}
 
 /* ─── Breadcrumb ─── */
 .breadcrumb-bar{position:absolute;top:0;left:0;right:0;z-index:20;background:var(--bg-panel);border-bottom:1px solid var(--border);padding:4px 14px;font-size:11px;display:none;align-items:center;gap:3px;height:26px}
@@ -1521,8 +1521,10 @@ function toggleTreeItem(el, path, type) {
   }
 }
 
-// ─── File Editor (floating modal) ───
+// ─── File Editor (floating modal, auto-save) ───
 let _currentFilePath = null
+let _editorDirty = false
+let _editorSaveTimer = null
 
 async function openFileEditor(path) {
   _currentFilePath = path
@@ -1533,6 +1535,9 @@ async function openFileEditor(path) {
   overlay.querySelector('.editor-textarea').value = ''
   overlay.querySelector('.editor-textarea').disabled = true
   overlay.querySelector('.editor-size').textContent = ''
+  _editorDirty = false
+  clearTimeout(_editorSaveTimer)
+  document.getElementById('editorStatus').textContent = 'Loading...'
 
   try {
     const data = await api('GET', '/api/bundle/file?path=' + encodeURIComponent(path))
@@ -1550,30 +1555,46 @@ function showFileEditor(content, size) {
   const ta = overlay.querySelector('.editor-textarea')
   ta.value = content
   ta.disabled = false
+  _editorDirty = false
+  document.getElementById('editorStatus').textContent = 'Auto-save enabled'
   setTimeout(() => ta.focus(), 50)
 }
 
+function onEditorChange() {
+  _editorDirty = true
+  document.getElementById('editorStatus').textContent = 'Unsaved changes...'
+  clearTimeout(_editorSaveTimer)
+  _editorSaveTimer = setTimeout(() => autoSave(), 1500)
+}
+
+async function autoSave() {
+  if (!_editorDirty || !_currentFilePath) return
+  const ta = document.querySelector('#editorOverlay .editor-textarea')
+  if (!ta || ta.disabled) return
+  try {
+    await api('POST', '/api/bundle/file', { path: _currentFilePath, content: ta.value })
+    _editorDirty = false
+    document.getElementById('editorStatus').textContent = 'Saved'
+    setTimeout(() => {
+      if (!_editorDirty) document.getElementById('editorStatus').textContent = 'Auto-save enabled'
+    }, 1500)
+  } catch (e) {
+    document.getElementById('editorStatus').textContent = 'Save failed'
+  }
+}
+
 function closeFileEditor() {
+  clearTimeout(_editorSaveTimer)
+  if (_editorDirty) autoSave()
   document.getElementById('editorOverlay').style.display = 'none'
 }
 
-async function saveFileContent() {
-  const ta = document.querySelector('#editorOverlay .editor-textarea')
-  if (!ta || !_currentFilePath) return
-  try {
-    await api('POST', '/api/bundle/file', { path: _currentFilePath, content: ta.value })
-    toast('File saved', 'success')
-  } catch (e) {
-    toast('Save failed: ' + e.message, 'warn')
-  }
-}
-
-// Keyboard shortcuts for editor modal
+// Ctrl+S forces immediate save, Escape closes
 document.addEventListener('keydown', e => {
-  if (document.getElementById('editorOverlay').style.display === 'flex') {
-    if (e.key === 'Escape') { e.preventDefault(); closeFileEditor() }
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFileContent() }
-  }
+  const overlay = document.getElementById('editorOverlay')
+  if (!overlay || overlay.style.display !== 'flex') return
+  if (e.key === 'Escape') { e.preventDefault(); closeFileEditor() }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); clearTimeout(_editorSaveTimer); autoSave() }
 })
 
 // ─── SubGraph Navigation ───
@@ -1836,17 +1857,11 @@ setInterval(()=>checkApi(),5000);
   <div class="editor-modal">
     <div class="editor-header">
       <span class="editor-path" style="font-size:12px;font-family:var(--font-mono);color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
-      <span class="editor-size" style="font-size:10px;color:var(--text-dim);margin-right:12px;"></span>
-      <span onclick="closeFileEditor()" style="cursor:pointer;color:var(--text-dim);font-size:14px;padding:2px 6px;border-radius:4px;" onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background=''">&times;</span>
+      <span class="editor-size" style="font-size:10px;color:var(--text-dim);"></span>
+      <span onclick="closeFileEditor()" style="cursor:pointer;color:var(--text-dim);font-size:16px;padding:2px 6px;border-radius:4px;line-height:1;" onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background=''">&times;</span>
     </div>
-    <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..."></textarea>
-    <div class="editor-actions">
-      <span style="color:var(--text-dim);font-size:10px;">Ctrl+S to save</span>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-sm" onclick="closeFileEditor()">Close</button>
-        <button class="btn btn-sm btn-primary" onclick="saveFileContent()"><i class="fas fa-floppy-disk mr-1"></i>Save</button>
-      </div>
-    </div>
+    <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()"></textarea>
+    <div class="editor-status"><span id="editorStatus">Auto-save enabled</span></div>
   </div>
 </div>
 
