@@ -660,13 +660,15 @@ class VisualizationServer:
                 ntype = type_map.get(n.get("type", ""))
                 if not ntype:
                     continue
-                converted_nodes.append(Node(
-                    id=n["id"],
-                    type=ntype,
-                    label=n.get("label", n["id"]),
-                    config=NodeConfig(data=n.get("config", {})),
-                    metadata=n,  # preserve full node data for executor
-                ))
+                converted_nodes.append(
+                    Node(
+                        id=n["id"],
+                        type=ntype,
+                        label=n.get("label", n["id"]),
+                        config=NodeConfig(data=n.get("config", {})),
+                        metadata=n,  # preserve full node data for executor
+                    )
+                )
 
             # Re-resolve SubGraph ports from child bundles (for dynamic port display)
             from pathlib import Path
@@ -706,6 +708,7 @@ class VisualizationServer:
                                         op_outs, _ = _get_node_op_ports(cn)
                                         for p in op_outs:
                                             from agenarc.protocol.schema import Port
+
                                             inp.append(Port(name=p.name, type=p.type, description=f"From {cn.id}"))
                                 if inp:
                                     node.inputs = inp
@@ -716,6 +719,7 @@ class VisualizationServer:
                                     op_outs, _ = _get_node_op_ports(cn)
                                     for p in op_outs:
                                         from agenarc.protocol.schema import Port
+
                                         outp.append(Port(name=p.name, type=p.type, description=f"From {cn.id}"))
                                 if outp:
                                     node.outputs = outp
@@ -771,6 +775,7 @@ class VisualizationServer:
 
             # Reset execution state for the new graph
             from agenarc.engine.executor import NodeStatus as EngineNodeStatus
+
             self.engine._node_statuses = {node.id: EngineNodeStatus.PENDING for node in new_graph.nodes}
             self.engine._node_errors = {}
 

@@ -407,6 +407,7 @@ class ProtocolLoader:
         # Otherwise, try to get ports from built-in operator
         try:
             from agenarc.operators.builtin import BUILTIN_OPERATORS
+
             op_class = BUILTIN_OPERATORS.get(node.type.value)
             if op_class is not None:
                 op = op_class()
@@ -421,6 +422,7 @@ class ProtocolLoader:
             return node.inputs
         try:
             from agenarc.operators.builtin import BUILTIN_OPERATORS
+
             op_class = BUILTIN_OPERATORS.get(node.type.value)
             if op_class is not None:
                 op = op_class()
