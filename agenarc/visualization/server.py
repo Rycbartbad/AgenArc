@@ -715,6 +715,11 @@ class VisualizationServer:
                 if edge.source in self.engine._adjacency:
                     self.engine._adjacency[edge.source].append(edge.target)
 
+            # Reset execution state for the new graph
+            from agenarc.engine.executor import NodeStatus as EngineNodeStatus
+            self.engine._node_statuses = {node.id: EngineNodeStatus.PENDING for node in new_graph.nodes}
+            self.engine._node_errors = {}
+
             # Persist to disk
             self._persist_graph(new_graph)
 
