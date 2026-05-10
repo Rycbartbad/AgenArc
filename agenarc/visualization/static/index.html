@@ -50,7 +50,7 @@ body{background:var(--bg-canvas);color:var(--text);font-family:var(--font);displ
 .edge.animating{animation:dash .6s linear infinite}
 .edge.animating.control-flow{stroke-dasharray:8 5}
 .edge.animating.active{stroke-dasharray:5 3}
-.node.executing{box-shadow:0 0 0 1px var(--orange),var(--shadow-lg)!important;transition:box-shadow .2s}
+.node.executing{box-shadow:0 0 0 1px var(--orange),var(--shadow-lg);transition:box-shadow .2s}
 .edge.edge-hover{stroke-width:4;filter:drop-shadow(0 0 4px rgba(75,137,227,0.6));transition:stroke-width .15s,filter .15s}
 @keyframes dash{to{stroke-dashoffset:-26}}
 .edge-label{font-family:var(--font-mono);font-size:9px;fill:var(--text-dim);pointer-events:none;text-anchor:middle}
@@ -798,7 +798,7 @@ async function startServe(){
           if(st&&st.nodeStatuses){
             NC.querySelectorAll('.node.executing').forEach(el=>{
               el.classList.remove('executing');
-              el.style.borderColor='';el.style.boxShadow='';
+              el.style.boxShadow='';
             });
             Object.entries(st.nodeStatuses).forEach(([nid,status])=>{
               if(status==='running'){
@@ -895,11 +895,9 @@ window.termSend=async function(text){
         const el=NC.querySelector(`[data-nid="${id}"]`)?.closest('.node');
         if(!el)return;
         if(er.status==='completed'){
-          el.style.borderColor='var(--green)';
           el.style.boxShadow='0 0 0 1px var(--green),var(--shadow-lg)';
-          setTimeout(()=>{el.style.borderColor='';el.style.boxShadow='';},1500);
+          setTimeout(()=>{el.style.boxShadow='';},1500);
         }else if(er.status==='failed'){
-          el.style.borderColor='var(--red)';
           el.style.boxShadow='0 0 0 1px var(--red),var(--shadow-lg)';
         }
       });
@@ -918,7 +916,7 @@ window.termSend=async function(text){
     }
 
     EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
-    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';el.style.boxShadow='';});
+    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.boxShadow='';});
     clearInterval(statusTimer);
 
     // Restore status
@@ -932,7 +930,7 @@ window.termSend=async function(text){
     }
   }catch(e){
     EG.querySelectorAll('.edge').forEach(el=>el.classList.remove('animating'));
-    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.borderColor='';el.style.boxShadow='';});
+    NC.querySelectorAll('.node.executing').forEach(el=>{el.classList.remove('executing');el.style.boxShadow='';});
     termDot.style.background='var(--green)';
     termTxt.textContent='connected';
     log('✗ Request failed: '+e.message,'var(--red)');
