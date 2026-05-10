@@ -776,12 +776,18 @@ class VisualizationServer:
         bundle = Path(self.bundle_path).resolve()
         sub_dir = (bundle / sub_path).resolve()
 
+        # Try sub/ prefix if direct path doesn't exist
+        if not sub_dir.exists():
+            sub_dir = (bundle / "sub" / sub_path).resolve()
+
         # Security: ensure resolved path is within bundle
         try:
             sub_dir.relative_to(bundle)
         except ValueError:
-            logger.warning("Path traversal attempt in _load_graph_from_sub_path: %s", sub_path)
+            logger.warning("Path traversal attempt: %s", sub_path)
             return {"error": "Invalid path"}
+
+        resolved_name = str(sub_dir.relative_to(bundle))
 
         if not sub_dir.is_dir():
             return {"error": f"Sub-graph directory not found: {sub_path}"}
@@ -823,12 +829,12 @@ class VisualizationServer:
                 converted_nodes.append(node_obj)
 
             converted_edges = []
-            for e in flow_data.get("edges", []):
+            for edge_data in flow_data.get("edges", []):
                 edge_obj = SchemaEdge(
-                    source=e["source"],
-                    sourcePort=e.get("sourcePort", ""),
-                    target=e["target"],
-                    targetPort=e.get("targetPort", ""),
+                    source=edge_data["source"],
+                    sourcePort=edge_data.get("sourcePort", ""),
+                    target=edge_data["target"],
+                    targetPort=edge_data.get("targetPort", ""),
                 )
                 converted_edges.append(edge_obj)
 
