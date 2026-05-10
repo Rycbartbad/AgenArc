@@ -334,6 +334,8 @@ async function checkApi(){
       // Update VFS path from backend
       if(info.vfs) document.getElementById('vfsPath').textContent=info.vfs;
       else if(info.bundlePath) document.getElementById('vfsPath').textContent='agrc://  '+info.bundlePath;
+      // Save root bundle path on first connect
+      if(!_rootBundlePath && info.bundlePath) _rootBundlePath = info.bundlePath;
       return true;
     }
   }catch(e){}
@@ -1769,24 +1771,24 @@ function navigateBreadcrumb(index) {
   // Navigate to a saved breadcrumb state
   if (index < 0 || index >= _breadcrumbStack.length) return;
   
-  // Save current state as a new entry after the target (in case user wants to go forward again)
-  // Actually, just truncate the stack to the target and restore target's state
   const target = _breadcrumbStack[index];
   
-  // Restore parent state
+  // Restore parent state on frontend
   nodes = JSON.parse(JSON.stringify(target.nodes));
   edges = JSON.parse(JSON.stringify(target.edges));
   panX = target.panX;
   panY = target.panY;
   zoom = target.zoom;
-  
-  // Update root name to the target's name
   _bundleRootName = target.name;
   
   // Truncate stack: remove all entries at and after the clicked index
-  // Actually, we keep entries before the clicked one
   _breadcrumbStack.splice(index);
   
+  // If returning to root and online, restore backend
+  if (index === 0 && apiOnline && _rootBundlePath) {
+    api('POST', '/api/graph/load', {path: _rootBundlePath}).catch(()=>{});
+  }
+
   selId = null;
   render();
   pushHist();
@@ -1801,39 +1803,14 @@ window.openSubGraph=async function(bundlePath){
     toast('No bundle path configured','warn');
     return;
   }
-  // Save current state to breadcrumb stack before navigating
-  _breadcrumbStack.push({
-    name: _bundleRootName,
-    nodes: JSON.parse(JSON.stringify(nodes)),
-    edges: JSON.parse(JSON.stringify(edges)),
-    panX: panX, panY: panY, zoom: zoom,
-  });
-
-  try {
-    if(apiOnline){
-      try { await api('POST', '/api/execute/stop'); } catch(e) {}
-      const result = await api('POST', '/api/graph/load', {path: bundlePath});
-      if(result.error){
-        _breadcrumbStack.pop();
-        toast('Failed: '+result.error,'warn');
-        return;
-      }
-      // Update frontend state from backend response
-      if(result.nodes) nodes = JSON.parse(JSON.stringify(result.nodes));
-      if(result.edges) edges = JSON.parse(JSON.stringify(result.edges));
-      panX = 0; panY = 0; zoom = 1;
-      _bundleRootName = bundlePath.split('/').pop() || bundlePath;
-      selId = null;
-      render();
-      renderBreadcrumb();
-      pushHist();
-      toast('Opened: ' + _bundleRootName, 'info');
-    } else {
-      await loadSubGraph(bundlePath);
+  // loadSubGraph handles breadcrumb, render, and error display
+  // Try direct path first, then sub/{path} as fallback
+  await loadSubGraph(bundlePath);
+  // If bundle doesn't exist directly, try sub/ directory
+  if (_breadcrumbStack.length === 0) {
+    if (!bundlePath.startsWith('sub/')) {
+      await loadSubGraph('sub/' + bundlePath);
     }
-  } catch(e) {
-    _breadcrumbStack.pop();
-    toast('Failed to open SubGraph: '+e.message,'warn');
   }
 };
 window.addEventListener('resize',()=>xf());
