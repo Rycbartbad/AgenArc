@@ -1753,16 +1753,12 @@ function renderBreadcrumb() {
   }
   bar.style.display = 'flex';
   let html = '';
-  // Back to root button (when nested)
-  if (_breadcrumbStack.length > 0) {
-    html += `<span class="breadcrumb-back" onclick="navigateBreadcrumb(0)" title="Back to root">← ${esc(_breadcrumbStack[0].name)}</span>`;
-    html += `<span class="breadcrumb-sep">›</span>`;
-  }
-  // All items in stack + current
+  // Stack items as clickable parent links
   _breadcrumbStack.forEach((item, i) => {
-    html += `<span class="breadcrumb-item ${i === _breadcrumbStack.length - 1 && _breadcrumbStack.length > 0 ? '' : ''}" onclick="navigateBreadcrumb(${i})">${esc(item.name)}</span>`;
+    html += `<span class="breadcrumb-item" onclick="navigateBreadcrumb(${i})">${esc(item.name)}</span>`;
     html += `<span class="breadcrumb-sep">›</span>`;
   });
+  // Current (not clickable)
   html += `<span class="breadcrumb-item current">${esc(_bundleRootName)}</span>`;
   bar.innerHTML = html;
 }
