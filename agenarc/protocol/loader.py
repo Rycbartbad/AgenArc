@@ -518,12 +518,17 @@ class ProtocolLoader:
         if child_path.exists():
             return child_path
 
+        # Try sub/ directory (for embedded bundles)
+        sub_child_path = parent_path / "sub" / bundle_ref if parent_path.is_dir() else parent_path.parent / "sub" / bundle_ref
+        if sub_child_path.exists():
+            return sub_child_path
+
         # Try current working directory as fallback
         cwd_path = Path.cwd() / bundle_ref
         if cwd_path.exists():
             return cwd_path
 
-        raise LoaderError(f"SubGraph bundle not found: {bundle_ref} (checked: {child_path}, {cwd_path})")
+        raise LoaderError(f"SubGraph bundle not found: {bundle_ref} (checked: {child_path}, {sub_child_path}, {cwd_path})")
 
 
 def load(path: str | Path) -> Graph:
