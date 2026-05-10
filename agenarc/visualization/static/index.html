@@ -106,7 +106,6 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
 .editor-modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;width:min(960px,95vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
 .editor-modal .editor-header{padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
 .editor-modal .editor-textarea{flex:1;width:100%;min-height:400px;max-height:calc(90vh - 80px);background:var(--bg-canvas);border:none;color:var(--text-focus);font-family:var(--font-mono);font-size:12px;padding:14px 16px;resize:none;outline:none;tab-size:2;line-height:1.5}
-.editor-modal .editor-status{padding:6px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--text-dim);flex-shrink:0}
 
 /* ─── Breadcrumb ─── */
 .breadcrumb-bar{position:absolute;top:0;left:0;right:0;z-index:20;background:var(--bg-panel);border-bottom:1px solid var(--border);padding:4px 14px;font-size:11px;display:none;align-items:center;gap:3px;height:26px}
@@ -1181,14 +1180,9 @@ function updIns(){
     const bundlePath=n.config&&n.config.bundle?n.config.bundle:'';
     h+=`<section id="subgraphSection" style="border:1px solid var(--purple);border-radius:var(--radius);padding:12px;background:rgba(154,106,222,0.04);">
       <label class="text-[10px] font-bold uppercase tracking-widest mb-3 block" style="color:var(--purple);"><i class="fas fa-link mr-1"></i> SubGraph</label>
-      <div class="space-y-3">
-        <div><span class="text-[11px] block mb-1" style="color:var(--text);">Bundle</span>
-          <input class="input-box" value="${esc(bundlePath)}" placeholder="child.agrc" onchange="var n=$('${n.id}');if(n){if(!n.config)n.config={};n.config.bundle=this.value;saveGraph();}">
-        </div>
-        <button class="btn btn-block" style="border-color:var(--purple);color:var(--purple);" onclick="openSubGraph('${escAttr(bundlePath)}')" ${bundlePath?'':'disabled style="opacity:0.4;cursor:not-allowed;"'}>
-          <i class="fas fa-external-link-alt mr-1"></i> Open SubGraph
-        </button>
-      </div>
+      <button class="btn btn-block" style="border-color:var(--purple);color:var(--purple);" onclick="openSubGraph('${escAttr(bundlePath)}')" ${bundlePath?'':'disabled style="opacity:0.4;cursor:not-allowed;"'}>
+        <i class="fas fa-external-link-alt mr-1"></i> Open SubGraph
+      </button>
     </section>`;
   }
 
@@ -1523,7 +1517,6 @@ function toggleTreeItem(el, path, type) {
 
 // ─── File Editor (floating modal, auto-save) ───
 let _currentFilePath = null
-let _editorDirty = false
 let _editorSaveTimer = null
 
 async function openFileEditor(path) {
@@ -1535,57 +1528,42 @@ async function openFileEditor(path) {
   overlay.querySelector('.editor-textarea').value = ''
   overlay.querySelector('.editor-textarea').disabled = true
   overlay.querySelector('.editor-size').textContent = ''
-  _editorDirty = false
   clearTimeout(_editorSaveTimer)
-  document.getElementById('editorStatus').textContent = 'Loading...'
 
   try {
     const data = await api('GET', '/api/bundle/file?path=' + encodeURIComponent(path))
     showFileEditor(data.content, data.size)
   } catch (e) {
     overlay.querySelector('.editor-textarea').value = 'Failed to load: ' + e.message
-    overlay.querySelector('.editor-textarea').disabled = true
   }
 }
 
 function showFileEditor(content, size) {
   const overlay = document.getElementById('editorOverlay')
-  const sizeStr = size >= 1024 ? (size / 1024).toFixed(1) + 'KB' : size + 'B'
-  overlay.querySelector('.editor-size').textContent = sizeStr
+  overlay.querySelector('.editor-size').textContent = size >= 1024 ? (size / 1024).toFixed(1) + 'KB' : size + 'B'
   const ta = overlay.querySelector('.editor-textarea')
   ta.value = content
   ta.disabled = false
-  _editorDirty = false
-  document.getElementById('editorStatus').textContent = 'Auto-save enabled'
   setTimeout(() => ta.focus(), 50)
 }
 
 function onEditorChange() {
-  _editorDirty = true
-  document.getElementById('editorStatus').textContent = 'Unsaved changes...'
   clearTimeout(_editorSaveTimer)
   _editorSaveTimer = setTimeout(() => autoSave(), 1500)
 }
 
 async function autoSave() {
-  if (!_editorDirty || !_currentFilePath) return
+  if (!_currentFilePath) return
   const ta = document.querySelector('#editorOverlay .editor-textarea')
   if (!ta || ta.disabled) return
   try {
     await api('POST', '/api/bundle/file', { path: _currentFilePath, content: ta.value })
-    _editorDirty = false
-    document.getElementById('editorStatus').textContent = 'Saved'
-    setTimeout(() => {
-      if (!_editorDirty) document.getElementById('editorStatus').textContent = 'Auto-save enabled'
-    }, 1500)
-  } catch (e) {
-    document.getElementById('editorStatus').textContent = 'Save failed'
-  }
+  } catch (e) {}
 }
 
 function closeFileEditor() {
   clearTimeout(_editorSaveTimer)
-  if (_editorDirty) autoSave()
+  autoSave()
   document.getElementById('editorOverlay').style.display = 'none'
 }
 
@@ -1861,7 +1839,6 @@ setInterval(()=>checkApi(),5000);
       <span onclick="closeFileEditor()" style="cursor:pointer;color:var(--text-dim);font-size:16px;padding:2px 6px;border-radius:4px;line-height:1;" onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background=''">&times;</span>
     </div>
     <textarea class="editor-textarea" spellcheck="false" placeholder="Loading..." oninput="onEditorChange()"></textarea>
-    <div class="editor-status"><span id="editorStatus">Auto-save enabled</span></div>
   </div>
 </div>
 
