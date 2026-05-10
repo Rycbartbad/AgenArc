@@ -145,7 +145,7 @@ select.input-box{appearance:auto;cursor:pointer;font-family:var(--font)}
         <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-code-fork text-[8px] mr-1"></i> Control Flow</h3>
         <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Router')"><i class="fas fa-random w-5" style="color:var(--cyan);font-size:11px;"></i> Router</div>
         <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('Join')"><i class="fas fa-circle-nodes w-5" style="color:var(--green);font-size:11px;"></i> Join</div>
-        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--purple);border-left-width:3px;background:rgba(154,106,222,0.06);" onclick="addNode('SubGraph')"><i class="fas fa-link w-5" style="color:var(--purple);font-size:11px;"></i> SubGraph</div>
+        <div class="py-2.5 px-3 border rounded mb-1.5 flex items-center text-[12px] cursor-pointer hover:border-gray-500 transition-colors" style="border-color:var(--border);background:rgba(0,0,0,0.02);" onclick="addNode('SubGraph')"><i class="fas fa-link w-5" style="color:var(--purple);font-size:11px;"></i> SubGraph</div>
       </div>
       <div>
         <h3 class="text-[9px] font-bold uppercase tracking-widest mb-2" style="color:var(--text-dim);"><i class="fa-solid fa-database text-[8px] mr-1"></i> Data</h3>
@@ -1053,7 +1053,7 @@ function render(){
     const el=document.createElement('div');
     el.className='node'+(n.id===selId?' active':'');
     el.style.left=n.x+'px';el.style.top=n.y+'px';el.style.position='absolute';
-    if(n.type==='SubGraph'){el.style.borderColor='var(--purple)';}
+    if(n.type==='SubGraph'){el.style.borderLeftColor='var(--purple)';el.style.borderLeftWidth='3px';}
     const ops=outPorts(n);
     const ips=inpPorts(n);
     const isCtrl=T(n.type).dynamic;
