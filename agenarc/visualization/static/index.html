@@ -1781,13 +1781,8 @@ function navigateBreadcrumb(index) {
   zoom = target.zoom;
   _bundleRootName = target.name;
   
-  // Truncate stack: remove all entries at and after the clicked index
+  // Truncate stack
   _breadcrumbStack.splice(index);
-  
-  // If returning to root and online, restore backend
-  if (index === 0 && apiOnline && _rootBundlePath) {
-    api('POST', '/api/graph/load', {path: _rootBundlePath}).catch(()=>{});
-  }
 
   selId = null;
   render();
