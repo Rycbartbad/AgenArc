@@ -1023,13 +1023,12 @@ function drawE(){
         // Backward edge — check for nodes in the way
         const minX = Math.min(src.x, tgt.x);
         const maxX = Math.max(src.x, tgt.x);
-        const minY = Math.min(src.y, tgt.y);
+        const midY = (src.y + tgt.y) / 2;
         for (const n of nodes) {
           if (n.id === e.s || n.id === e.t) continue;
           const nx = n.x, ny = n.y;
-          // Node bounding box
-          if (nx + 250 > minX && nx < maxX && ny > minY - 100 && ny < sY + 100) {
-            // Node is between — route above all nodes
+          // Check if node is horizontally between source and target, and vertically overlaps the edge path
+          if (nx < maxX && nx + 250 > minX && ny < midY + 200 && ny > midY - 200) {
             if (detourY === null || n.y < detourY) detourY = n.y;
           }
         }
@@ -1040,7 +1039,6 @@ function drawE(){
         const midX = (src.x + tgt.x) / 2;
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         p.setAttribute('d',`M ${src.x} ${src.y} C ${src.x} ${wayY}, ${midX} ${wayY}, ${midX} ${wayY} C ${midX} ${tgt.y}, ${tgt.x} ${tgt.y}, ${tgt.x} ${tgt.y}`);
-        let cls='edge control-flow';
         let cls='edge control-flow';
         if(idx===selEdge)cls+=' selected';
         p.setAttribute('class',cls);
@@ -1964,7 +1962,7 @@ window.openSubGraph=async function(bundlePath){
 };
 window.addEventListener('resize',()=>xf());
 render();
-log('AgenArc Studio v0.5 loading...','var(--text-dim)');
+log('AgenArc Studio loading...','var(--text-dim)');
 
 // Auto-connect to backend
 checkApi().then(online=>{
